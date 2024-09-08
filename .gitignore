@@ -1,0 +1,12 @@
+.idea/
+*.log
+db/
+.vscode/
+
+# exclude all working envs
+.env
+.env.*
+# but include all their sample version
+!.env.sample
+!.env.*.sample
+
