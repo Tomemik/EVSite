@@ -268,8 +268,14 @@ export default {
   }
 };
 </script>
+
 <style>
 .tanks-table .v-data-table__wrapper {
   border: 1px solid #ddd;
 }
+
+.tanks-table .v-data-table__wrapper table tbody tr td {
+  margin-left: 24px !important;
+}
+
 </style>
