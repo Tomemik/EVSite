@@ -266,6 +266,9 @@ class TeamTank(models.Model):
     tank = models.ForeignKey(Tank, on_delete=models.CASCADE)
     is_upgradable = models.BooleanField(default=True)
 
+    def __str__(self):
+        return self.tank.name
+
 
 class Match(models.Model):
     MODE_CHOICES = [
@@ -307,11 +310,11 @@ class TeamMatch(models.Model):
 
     match = models.ForeignKey(Match, on_delete=models.CASCADE)
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
-    tanks = models.ManyToManyField(Tank, related_name='team_matches')
+    tanks = models.ManyToManyField('TeamTank', related_name='team_matches')
     side = models.CharField(max_length=10, choices=SIDE_CHOICES, default='team_1')
 
     def __str__(self):
-        return f"{self.team.name} in {self.match} with: \n {self.tanks}"
+        return f"{self.team.name} in {self.match} with: \n {self.tanks.all()}"
 
 
 class MatchResult(models.Model):

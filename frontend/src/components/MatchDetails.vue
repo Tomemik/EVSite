@@ -4,7 +4,7 @@
       <v-card-title>Match Details</v-card-title>
       <v-card-text v-if="detailedMatch">
         <!-- Date and Time -->
-        <p><strong>Date:</strong> {{ formatDate(detailedMatch.datetime) }}</p>
+        <p><strong>Date:</strong> {{ formatDateTime(detailedMatch.datetime) }}</p>
 
         <!-- Basic Match Information -->
         <v-divider></v-divider>
@@ -21,15 +21,13 @@
         <v-row>
           <!-- Side 1 (Team 1) -->
           <v-col>
-            <div>
-              <div v-for="team in detailedMatch.sides.team_1" :key="team.team">
-                <p><strong>{{ team.team }}:</strong></p>
+            <div v-for="team in detailedMatch.sides.team_1" :key="team.team">
+              <p><strong>{{ team.team }}:</strong></p>
 
-                <!-- List of Tanks for Each Team -->
-                <ul style="list-style-type: none; padding-left: 0;">
-                  <li v-for="tank in team.tanks" :key="tank">{{ tank.name }}</li>
-                </ul>
-              </div>
+              <!-- List of Tanks for Each Team -->
+              <ul style="list-style-type: none; padding-left: 0;">
+                <li v-for="tank in team.tanks" :key="tank.id">{{ tank.tank.name }}</li>
+              </ul>
             </div>
           </v-col>
 
@@ -40,15 +38,13 @@
 
           <!-- Side 2 (Team 2) -->
           <v-col class="d-flex flex-column align-end">
-            <div>
-              <div v-for="team in detailedMatch.sides.team_2" :key="team.team">
-                <p><strong>{{ team.team }}:</strong></p>
+            <div v-for="team in detailedMatch.sides.team_2" :key="team.team">
+              <p><strong>{{ team.team }}:</strong></p>
 
-                <!-- List of Tanks for Each Team -->
-                <ul style="list-style-type: none; padding-left: 0;">
-                  <li v-for="tank in team.tanks" :key="tank">{{ tank.name }}</li>
-                </ul>
-              </div>
+              <!-- List of Tanks for Each Team -->
+              <ul style="list-style-type: none; padding-left: 0;">
+                <li v-for="tank in team.tanks" :key="tank.id">{{ tank.tank.name }}</li>
+              </ul>
             </div>
           </v-col>
         </v-row>
@@ -64,7 +60,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import {ref, watch} from 'vue';
 
 const props = defineProps(['detailedMatch', 'showDetailsDialog']);
 const emit = defineEmits(['update:showDetailsDialog', 'editMode']);
@@ -79,9 +75,12 @@ const updateShowDetailsDialog = (value) => {
   emit('update:showDetailsDialog', value);
 };
 
-const formatDate = (datetime) => {
-  const date = new Date(datetime);
-  return date.toLocaleDateString();
+const formatDateTime = (datetime) => {
+  const options = {
+    year: 'numeric', month: 'long', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  };
+  return new Date(datetime).toLocaleString(undefined, options);
 };
 
 const toggleEditMode = () => {

@@ -21,9 +21,28 @@
           <v-row>
             <!-- Side 1 (Team 1) -->
             <v-col>
-              <div v-for="(team, index) in editForm.sides.team_1" :key="index">
-                <v-text-field v-model="team.team" label="Team Name"></v-text-field>
-                <v-text-field v-model="team.tanks" label="Tanks (comma-separated)"></v-text-field>
+              <div v-for="(team, index) in editForm.teammatch_set.team_1" :key="index">
+                <!-- Dropdown for Team Selection -->
+                <v-select
+                  v-model="team.team"
+                  :items="teamOptions"
+                  label="Team Name"
+                  item-text="name"
+                  item-value="name"
+                  @change="onTeamSelect('team_1', index)"
+                ></v-select>
+
+                <!-- Dropdown for Tank Selection -->
+                <v-select
+                  v-model="team.tanks"
+                  :items="getTeamTanks('team_1', index)"
+                  label="Tanks"
+                  multiple
+                  chips
+                  item-value="id"
+                  item-text="tank.name"
+                ></v-select>
+
                 <v-btn @click="removeTeam('team_1', index)" color="red">Remove Team</v-btn>
               </div>
               <v-btn @click="addTeam('team_1')" color="primary">Add Team</v-btn>
@@ -36,9 +55,28 @@
 
             <!-- Side 2 (Team 2) -->
             <v-col>
-              <div v-for="(team, index) in editForm.sides.team_2" :key="index">
-                <v-text-field v-model="team.team" label="Team Name"></v-text-field>
-                <v-text-field v-model="team.tanks" label="Tanks (comma-separated)"></v-text-field>
+              <div v-for="(team, index) in editForm.teammatch_set.team_2" :key="index">
+                <!-- Dropdown for Team Selection -->
+                <v-select
+                  v-model="team.team"
+                  :items="teamOptions"
+                  label="Team Name"
+                  item-text="name"
+                  item-value="name"
+                  @change="onTeamSelect('team_2', index)"
+                ></v-select>
+
+                <!-- Dropdown for Tank Selection -->
+                <v-select
+                  v-model="team.tanks"
+                  :items="getTeamTanks('team_2', index)"
+                  label="Tanks"
+                  multiple
+                  chips
+                  item-value="id"
+                  item-text="tank.name"
+                ></v-select>
+
                 <v-btn @click="removeTeam('team_2', index)" color="red">Remove Team</v-btn>
               </div>
               <v-btn @click="addTeam('team_2')" color="primary">Add Team</v-btn>
@@ -56,15 +94,63 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import {ref, watch} from 'vue';
 
 const props = defineProps({
   detailedMatch: Object,
-  showEditDialog: Boolean
+  showEditDialog: Boolean,
+  allTeamDetails: Array,
 });
 const emit = defineEmits(['update:showEditDialog', 'updateMatch']);
 
 const localShowEditDialog = ref(props.showEditDialog);
+const teamOptions = ref([]);
+const editForm = ref({
+  id: '',
+  datetime: '',
+  gamemode: '',
+  map_selection: '',
+  mode: '',
+  best_of_number: '',
+  money_rules: '',
+  special_rules: '',
+  teammatch_set: {
+    team_1: [{team: '', tanks: []}],
+    team_2: [{team: '', tanks: []}],
+  },
+});
+
+const updateTeamOptions = () => {
+  teamOptions.value = props.allTeamDetails.map(team => ({
+    title: team.name,
+    id: team.id,
+  }));
+};
+
+const updateAvailableTeams = () => {
+  const allTeams = [
+    ...editForm.value.teammatch_set.team_1.map(team => team.team),
+    ...editForm.value.teammatch_set.team_2.map(team => team.team)
+  ];
+
+  teamOptions.value = props.allTeamDetails
+    .filter(team => !allTeams.includes(team.name))
+    .map(team => ({
+      title: team.name,
+      id: team.id,
+    }));
+};
+
+watch(() => editForm.value.teammatch_set, () => {
+  updateAvailableTeams();
+}, {deep: true});
+
+watch(() => props.allTeamDetails, (newData) => {
+  if (newData) {
+    updateAvailableTeams();
+    updateTeamOptions();
+  }
+}, {immediate: true});
 
 watch(() => props.showEditDialog, (newValue) => {
   localShowEditDialog.value = newValue;
@@ -74,23 +160,10 @@ watch(() => localShowEditDialog.value, (newValue) => {
   emit('update:showEditDialog', newValue);
 });
 
-const editForm = ref({
-  datetime: '',
-  gamemode: '',
-  map_selection: '',
-  mode: '',
-  best_of_number: '',
-  money_rules: '',
-  special_rules: '',
-  sides: {
-    team_1: [{ team: '', tanks: '' }],
-    team_2: [{ team: '', tanks: '' }],
-  },
-});
-
 watch(() => props.detailedMatch, (newVal) => {
   if (newVal) {
     editForm.value = {
+      id: newVal.id,
       datetime: new Date(newVal.datetime).toISOString().slice(0, 16),
       gamemode: newVal.gamemode,
       map_selection: newVal.map_selection,
@@ -98,40 +171,77 @@ watch(() => props.detailedMatch, (newVal) => {
       best_of_number: newVal.best_of_number,
       money_rules: newVal.money_rules,
       special_rules: newVal.special_rules,
-      sides: {
+      teammatch_set: {
         team_1: newVal.sides.team_1.map(team => ({
           team: team.team,
-          tanks: team.tanks.map(tank => tank.name).join(', ') // Convert tanks array to a comma-separated string
+          tanks: team.tanks.map(tank => tank.id) // Get tank IDs
         })),
         team_2: newVal.sides.team_2.map(team => ({
           team: team.team,
-          tanks: team.tanks.map(tank => tank.name).join(', ') // Convert tanks array to a comma-separated string
+          tanks: team.tanks.map(tank => tank.id) // Get tank IDs
         })),
       },
     };
   }
-}, { immediate: true });
+}, {immediate: true});
+
+const onTeamSelect = (side, index) => {
+  editForm.value.teammatch_set[side][index].tanks = [];
+};
+
+// Helper method to get tanks for the selected team
+const getTeamTanks = (side, index) => {
+  const selectedTeamName = editForm.value.teammatch_set[side][index].team;
+
+  const team = props.allTeamDetails.find(t => t.name === selectedTeamName);
+
+  if (team) {
+    return team.tanks.map(tank => ({
+      id: tank.id,
+      title: tank.tank.name,
+    }));
+  }
+
+  return [];
+};
+
+const getTeamTanksByName = (name) => {
+  const team = props.allTeamDetails.find(t => t.name === name);
+
+  if (team) {
+    return team.tanks.map(tank => ({
+      id: tank.id,
+      name: tank.tank.name,
+    }));
+  }
+
+  return [];
+};
+
+const getTankNameById = (teamName, tankId) => {
+  const tanks = getTeamTanksByName(teamName);
+  const tank = tanks.find(t => t.id === tankId);
+  return tank ? tank.name : '';
+};
+
+const getTeamId = (teamName) => {
+  return props.allTeamDetails.find(t => t.name === teamName).id;
+}
 
 const addTeam = (side) => {
-  editForm.value.sides[side].push({ team: '', tanks: '' });
+  editForm.value.teammatch_set[side].push({team: '', tanks: []});
 };
 
 const removeTeam = (side, index) => {
-  if (editForm.value.sides[side].length > 1) {
-    editForm.value.sides[side].splice(index, 1);
-  } else {
-    // Optionally, you could show a warning or disable removal if only one team remains
+  if (editForm.value.teammatch_set[side].length > 1) {
+    editForm.value.teammatch_set[side].splice(index, 1);
   }
 };
 
 const saveChanges = () => {
-  // Convert tanks comma-separated string back to array
-  const formatTanks = (teams) => teams.map(team => ({
-    team: team.team,
-    tanks: team.tanks.split(',').map(tank => ({ name: tank.trim() }))
-  }));
-
-  const updatedMatch = {
+   console.log(editForm.value.teammatch_set);
+   const updatedMatch = {
+    id: props.detailedMatch.id,
     datetime: editForm.value.datetime,
     gamemode: editForm.value.gamemode,
     map_selection: editForm.value.map_selection,
@@ -139,12 +249,23 @@ const saveChanges = () => {
     best_of_number: editForm.value.best_of_number,
     money_rules: editForm.value.money_rules,
     special_rules: editForm.value.special_rules,
-    sides: {
-      team_1: formatTanks(editForm.value.sides.team_1),
-      team_2: formatTanks(editForm.value.sides.team_2),
-    }
+    teammatch_set: Object.keys(editForm.value.teammatch_set).map(side => {
+      return editForm.value.teammatch_set[side].map(team => ({
+        team: team.team,
+        tanks: team.tanks.map(tankId => ({
+          id: tankId,
+          tank: {
+            name: getTankNameById(team.team, tankId),
+            id : tankId,
+          },
+          team: getTeamId(team.team)
+        })),
+        side: side,
+      }));
+    }).flat() // Flatten the array to get a single-level array of team objects
   };
-
+  console.log(updatedMatch)
+  // Emit the updated match data
   emit('updateMatch', updatedMatch);
   close();
 };
@@ -152,4 +273,11 @@ const saveChanges = () => {
 const close = () => {
   localShowEditDialog.value = false;
 };
+
 </script>
+
+<style scoped>
+.v-select {
+  margin-bottom: 10px;
+}
+</style>

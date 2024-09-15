@@ -1,5 +1,11 @@
 <template>
   <v-container>
+    <!-- Create New Match Button -->
+    <div class="d-flex justify-end mb-3">
+      <v-btn color="primary" @click="openCreateMatchDialog">Create New Match</v-btn>
+    </div>
+
+    <!-- Calendar Component -->
     <v-calendar
       ref="calendar"
       v-model:now="today"
@@ -33,40 +39,54 @@
     <MatchEdit
       :detailedMatch="detailedMatch"
       :showEditDialog="showEditDialog"
+      :allTeamDetails="allTeamsDetails"
       @update:showEditDialog="showEditDialog = $event"
       @updateMatch="updateMatch"
+      :isNewMatch="isNewMatch"
     />
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, inject } from 'vue';
 import MatchDetails from "../components/MatchDetails.vue";
 import MatchEdit from "../components/MatchEdit.vue";
+
+const $cookies = inject("$cookies");
+const csrfToken = $cookies.get('csrftoken');
+
+const today = ref<Date>(new Date());
+const showDetailsDialog = ref(false);
+const showEditDialog = ref(false);
+const isNewMatch = ref(false);
+const matches = ref([]);
+const formattedMatches = ref([]);
+const detailedMatch = ref();
+const allTeamsDetails = ref([])
 
 const toggleEdit = () => {
   showEditDialog.value = true
   console.log(showEditDialog.value)
 }
 
-const formatDate = (datetime: string) => {
-  const options: Intl.DateTimeFormatOptions = {
-    year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+const openCreateMatchDialog = () => {
+  detailedMatch.value = {
+    id: null,
+    datetime: new Date(),
+    gamemode: '',
+    map_selection: '',
+    mode: '',
+    best_of_number: 1,
+    money_rules: '',
+    special_rules: '',
+    sides: {
+      team_1: [{ team: '', tanks: [] }],
+      team_2: [{ team: '', tanks: [] }],
+    },
   };
-  return new Date(datetime).toLocaleDateString(undefined, options);
+  showEditDialog.value = true;
+  isNewMatch.value = true;
 };
-
-const formatTime = (datetime: string) => {
-  const date = new Date(datetime);
-  return date.toLocaleTimeString();
-}
-
-const today = ref<Date>(new Date());
-const showDetailsDialog = ref(false);
-const showEditDialog = ref(false)
-const matches = ref([]);
-const formattedMatches = ref([]);
-const detailedMatch = ref()
 
 const fetchMatches = async () => {
   try {
@@ -75,36 +95,27 @@ const fetchMatches = async () => {
     const data = await response.json();
     matches.value = data;
 
-
     formattedMatches.value = data.map((match) => {
       const sides = match.teammatch_set.reduce((acc, tm) => {
-        if (!acc[tm.side]) {
-          acc[tm.side] = [];
-        }
+        if (!acc[tm.side]) acc[tm.side] = [];
         acc[tm.side].push(tm.team.name);
         return acc;
       }, {});
 
       const matchDate = new Date(match.datetime);
-      const hours = matchDate.getUTCHours().toString().padStart(2, '0');
-      const minutes = matchDate.getUTCMinutes().toString().padStart(2, '0');
-      const time = `${hours}:${minutes} UTC`;
+      const time = `${matchDate.getUTCHours().toString().padStart(2, '0')}:${matchDate.getUTCMinutes().toString().padStart(2, '0')} UTC`;
 
-      const title = Object.values(sides)
-        .map(teams => teams.join(' + '))
-        .join(' vs ')
-        + ` ${time}`;
-
+      const title = `${Object.values(sides).map(teams => teams.join(' + ')).join(' vs ')} ${time}`;
 
       return {
         id: match.id,
-        title: title,
+        title,
         start: matchDate,
-        end: new Date(matchDate.getTime() + (60*60*1000)),
+        end: new Date(matchDate.getTime() + (60 * 60 * 1000)),
       };
     });
-
   } catch (error) {
+    console.error(error);
   }
 };
 
@@ -114,8 +125,43 @@ const fetchMatchDetails = async (match) => {
     if (!response.ok) throw new Error('Failed to fetch match details');
 
     const data = await response.json();
+    detailedMatch.value = {
+      id: data.id,
+      datetime: data.datetime,
+      gamemode: data.gamemode,
+      map_selection: data.map_selection,
+      mode: data.mode,
+      best_of_number: data.best_of_number,
+      money_rules: data.money_rules,
+      special_rules: data.special_rules,
+      sides: {
+        team_1: data.teammatch_set.filter(team => team.side === 'team_1'),
+        team_2: data.teammatch_set.filter(team => team.side === 'team_2')
+      },
+      start: new Date(data.datetime),
+      end: new Date(new Date(data.datetime).getTime() + 60 * 60 * 1000)
+    };
+    console.log(detailedMatch.value)
+    showDetailsDialog.value = true;
+  } catch (error) {
+    console.error('Error fetching match details:', error);
+  }
+};
 
-    // Process the detailed match data and group teams by sides
+const updateMatch = async (updatedMatch) => {
+  try {
+    console.log(isNewMatch.value);
+    const response = await fetch('/api/league/matches/' + (isNewMatch.value ? 'detailed/' : updatedMatch.id + '/'), {
+      method: isNewMatch.value ? 'POST' : 'PATCH',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updatedMatch),
+    });
+    if (!response.ok) throw new Error('Failed to update match details');
+    const data = await response.json();
+
     detailedMatch.value = {
       best_of_number: data.best_of_number,
       datetime: data.datetime,
@@ -132,19 +178,54 @@ const fetchMatchDetails = async (match) => {
       start: new Date(data.datetime),
       end: new Date(new Date(data.datetime).getTime() + 60 * 60 * 1000)
     };
-    showDetailsDialog.value = true;
-    console.log(detailedMatch.value)
+    showEditDialog.value = false;
+    isNewMatch.value = false; // Reset the flag
+    fetchMatches(); // Refresh match list after creation or update
   } catch (error) {
-    console.error('Error fetching match details:', error);
+    console.error('Error updating match:', error);
   }
 };
 
-const updateMatch = async (updatedMatch) => {
-  console.log(updatedMatch)
+const fetchAllTeams = async () => {
+  try {
+    const response = await fetch('/api/league/teams/', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) throw new Error('Failed to fetch teams');
+
+    const teams = await response.json();
+    const teamNames = teams.map(team => team.name);
+
+    const teamDetailsPromises = teamNames.map(async (teamName) => {
+      const teamResponse = await fetch(`/api/league/teams/${teamName}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!teamResponse.ok) throw new Error(`Failed to fetch details for team: ${teamName}`);
+
+      const teamData = await teamResponse.json();
+
+      return teamData;
+    });
+
+    allTeamsDetails.value = await Promise.all(teamDetailsPromises);
+    console.log(allTeamsDetails.value);
+
+  } catch (error) {
+    console.error('Error updating match:', error);
+  }
 }
 
 onMounted(() => {
   fetchMatches();
+  fetchAllTeams()
 });
 </script>
 

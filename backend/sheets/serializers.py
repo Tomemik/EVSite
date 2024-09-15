@@ -1,4 +1,4 @@
-from django.db.models import Avg
+from django.db.models import Avg, Q
 from rest_framework import serializers
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, Substitute, MatchResult, \
     TankLost, TeamResult, TankBox, TeamBox
@@ -101,9 +101,16 @@ class UpgradePathSerializer(serializers.ModelSerializer):
         fields = ['id', 'from_tank', 'to_tank', 'required_kit_tier', 'cost']
 
 
+class TeamTankSerializer(serializers.ModelSerializer):
+    tank = TankSerializerSlim()
+
+    class Meta:
+        model = TeamTank
+        fields = ['id', 'tank', 'team']
+
 class TeamSerializer(serializers.ModelSerializer):
     manufacturers = ManufacturerSerializer(many=True, read_only=True)
-    tanks = TankSerializer(many=True, read_only=True, source='tanks.all')
+    tanks = TeamTankSerializer(many=True, read_only=True, source='teamtank_set')
     upgrade_kits = serializers.JSONField(required=False)
     tank_boxes = TeamBoxSerializer(many=True, read_only=True, source='teambox_set')
 
@@ -113,19 +120,41 @@ class TeamSerializer(serializers.ModelSerializer):
 
 
 class TeamMatchSerializer(serializers.ModelSerializer):
-    tanks = TankSerializerSlim(many=True)
     team = serializers.SlugRelatedField(slug_field='name', queryset=Team.objects.all())
+    tanks = TeamTankSerializer(many=True)
 
     class Meta:
         model = TeamMatch
         fields = ['team', 'tanks', 'side']
 
+    def validate(self, data):
+        team = data.get('team')
+        tanks_data = data.get('tanks', [])
+        for team_tank_data in tanks_data:
+            tank_data = team_tank_data.get('tank')
+            if tank_data:
+                tank_name = tank_data.get('name')
+                try:
+                    tank = Tank.objects.get(name=tank_name)
+                    if not TeamTank.objects.filter(tank=tank, team=team).exists():
+                        raise serializers.ValidationError(
+                            f"Tank '{tank_name}' is not associated with team '{team.name}'.")
+                except Tank.DoesNotExist:
+                    raise serializers.ValidationError(f"Tank '{tank_name}' does not exist.")
+
+        return data
+
     def create(self, validated_data):
         tanks_data = validated_data.pop('tanks')
         team_match = TeamMatch.objects.create(**validated_data)
-        for tank_data in tanks_data:
-            tank, created = Tank.objects.get_or_create(**tank_data)
-            team_match.tanks.add(tank)
+
+        team = validated_data['team']
+        for team_tank_data in tanks_data:
+            tank_data = team_tank_data.pop('tank')
+            tank_name = tank_data.get('name')
+            tank = Tank.objects.get(name=tank_name)
+            team_tank, created = TeamTank.objects.get_or_create(tank=tank, team=team, **team_tank_data)
+            team_match.tanks.add(team_tank)
         return team_match
 
 
@@ -135,24 +164,34 @@ class MatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = Match
         fields = [
-            'datetime', 'mode', 'gamemode', 'best_of_number',
+            'id', 'datetime', 'mode', 'gamemode', 'best_of_number',
             'map_selection', 'money_rules', 'special_rules', 'teammatch_set'
         ]
-        depth = 1
 
     def create(self, validated_data):
         team_matches_data = validated_data.pop('teammatch_set')
         match = Match.objects.create(**validated_data)
+
         for team_match_data in team_matches_data:
-            tanks_data = team_match_data.pop('tanks')
+            tanks_data = team_match_data.pop('tanks', [])
             team_match = TeamMatch.objects.create(match=match, **team_match_data)
-            for tank_data in tanks_data:
+
+            for team_tank_data in tanks_data:
+                tank_data = team_tank_data.pop('tank')
                 tank, created = Tank.objects.get_or_create(**tank_data)
-                team_match.tanks.add(tank)
+
+                team = team_match_data['team']
+                team_tank = TeamTank.objects.filter(tank=tank, team__name=team, **team_tank_data).exclude(id__in=team_match.tanks.values_list('id', flat=True)).first()
+
+                if not team_match.tanks.filter(id=team_tank.id).exists():
+                    team_match.tanks.add(team_tank)
+
         return match
 
     def update(self, instance, validated_data):
-        team_matches_data = validated_data.pop('teammatch_set')
+        team_matches_data = validated_data.pop('teammatch_set', [])
+
+        # Update the match fields
         instance.datetime = validated_data.get('datetime', instance.datetime)
         instance.mode = validated_data.get('mode', instance.mode)
         instance.gamemode = validated_data.get('gamemode', instance.gamemode)
@@ -162,13 +201,23 @@ class MatchSerializer(serializers.ModelSerializer):
         instance.special_rules = validated_data.get('special_rules', instance.special_rules)
         instance.save()
 
+        # Clear existing team matches
         instance.teammatch_set.all().delete()
+
         for team_match_data in team_matches_data:
-            tanks_data = team_match_data.pop('tanks')
+            tanks_data = team_match_data.pop('tanks', [])
             team_match = TeamMatch.objects.create(match=instance, **team_match_data)
-            for tank_data in tanks_data:
+
+            for team_tank_data in tanks_data:
+                tank_data = team_tank_data.pop('tank')
                 tank, created = Tank.objects.get_or_create(**tank_data)
-                team_match.tanks.add(tank)
+
+                team = team_match_data['team']
+                team_tank = TeamTank.objects.filter(tank=tank, team__name=team, **team_tank_data).exclude(id__in=team_match.tanks.values_list('id', flat=True)).first()
+
+                if not team_match.tanks.filter(id=team_tank.id).exists():
+                    team_match.tanks.add(team_tank)
+
         return instance
 
 
@@ -192,7 +241,7 @@ class SlimMatchSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Match
-        fields = ['datetime', 'teammatch_set']
+        fields = ['id', 'datetime', 'teammatch_set']
 
 
 class TeamResultSerializer(serializers.ModelSerializer):

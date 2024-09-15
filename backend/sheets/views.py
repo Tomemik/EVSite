@@ -3,9 +3,9 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox
+from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch
 from .serializers import TeamSerializer, ManufacturerSerializer, TankSerializer, MatchSerializer, SlimMatchSerializer, \
-    MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer
+    MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer
 
 
 # Create your views here.
@@ -146,6 +146,7 @@ class AllMatchesView(APIView):
         serializer = MatchSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
+        print(serializer.errors)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -166,6 +167,7 @@ class MatchView(APIView):
     def get(self, request, pk):
         match = Match.objects.get(pk=pk)
         serializer = MatchSerializer(match)
+        print(serializer.data)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, pk):
@@ -173,8 +175,8 @@ class MatchView(APIView):
         serializer = MatchSerializer(match, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+        print(serializer.errors)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
 
 class MatchResultsView(APIView):
     def get(self, request, pk):
