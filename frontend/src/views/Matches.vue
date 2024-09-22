@@ -34,6 +34,15 @@
       :showDetailsDialog="showDetailsDialog"
       @update:showDetailsDialog="showDetailsDialog = false"
       @editMode="toggleEdit"
+      @resultView="showResults"
+    />
+
+    <MatchResult
+      :detailedMatch="detailedMatch"
+      :showResultsDialog="showResultsDialog"
+      :allTeamDetails="allTeamsDetails"
+      @update:showResultsDialog="showResultsDialog = false"
+      @postResults="postResults"
     />
 
     <MatchEdit
@@ -51,6 +60,7 @@
 import { ref, onMounted, inject } from 'vue';
 import MatchDetails from "../components/MatchDetails.vue";
 import MatchEdit from "../components/MatchEdit.vue";
+import MatchResult from "../components/MatchResult.vue";
 
 const $cookies = inject("$cookies");
 const csrfToken = $cookies.get('csrftoken');
@@ -58,6 +68,7 @@ const csrfToken = $cookies.get('csrftoken');
 const today = ref<Date>(new Date());
 const showDetailsDialog = ref(false);
 const showEditDialog = ref(false);
+const showResultsDialog = ref(false)
 const isNewMatch = ref(false);
 const matches = ref([]);
 const formattedMatches = ref([]);
@@ -66,7 +77,10 @@ const allTeamsDetails = ref([])
 
 const toggleEdit = () => {
   showEditDialog.value = true
-  console.log(showEditDialog.value)
+}
+
+const showResults = () => {
+  showResultsDialog.value = true
 }
 
 const openCreateMatchDialog = () => {
@@ -185,6 +199,25 @@ const updateMatch = async (updatedMatch) => {
     console.error('Error updating match:', error);
   }
 };
+
+const postResults = async (resultData) => {
+  console.log(resultData);
+  try {
+    const response = await fetch('/api/league/matches/' + resultData.match_id + '/results/', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(resultData),
+      });
+      if (!response.ok) throw new Error('Failed to update match details');
+      const data = await response.json();
+      console.log(data)
+  } catch (error) {
+    console.error('Error updating match:', error);
+  }
+}
 
 const fetchAllTeams = async () => {
   try {

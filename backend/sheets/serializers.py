@@ -274,12 +274,11 @@ class SubstituteSerializer(serializers.ModelSerializer):
         model = Substitute
         fields = ['team', 'team_name', 'activity', 'side', 'team_played_for', 'team_played_for_name']
 
-
 class MatchResultSerializer(serializers.ModelSerializer):
     team_results = TeamResultSerializer(many=True)
     tanks_lost = TankLostSerializer(many=True)
     substitutes = SubstituteSerializer(many=True)
-    judge_name = serializers.CharField(source='judge.name', write_only=True)
+    judge_name = serializers.CharField(source='judge.name', write_only=True, allow_blank=True)
     judge = serializers.SlugRelatedField(slug_field='name', read_only=True)
     match_id = serializers.IntegerField(source='match.id', write_only=True)
     match = serializers.SlugRelatedField(slug_field='id', read_only=True)
@@ -291,10 +290,14 @@ class MatchResultSerializer(serializers.ModelSerializer):
         depth = 1
 
     def create(self, validated_data):
+        print(validated_data)
         match_data = validated_data.pop('match')
         match = Match.objects.get(id=match_data.id)
         judge_data = validated_data.pop('judge')
-        judge = Team.objects.get(name=judge_data['name'])
+        if judge_data['name']:
+            judge = Team.objects.get(name=judge_data['name'])
+        else:
+            judge = None
 
         team_results_data = validated_data.pop('team_results')
         tanks_lost_data = validated_data.pop('tanks_lost')
@@ -319,6 +322,14 @@ class MatchResultSerializer(serializers.ModelSerializer):
             team_played_for_name = substitute_data.pop('team_played_for')['name']
             team = Team.objects.get(name=team_name)
             team_played_for = Team.objects.get(name=team_played_for_name)
-            Substitute.objects.create(match_result=match_result, team=team, team_played_for=team_played_for, **substitute_data)
-
+            side = substitute_data.pop('side')
+            activity = substitute_data.pop('activity')
+            Substitute.objects.create(
+                match_result=match_result,
+                team=team,
+                team_played_for=team_played_for,
+                side=side,
+                activity=activity,
+                **substitute_data
+            )
         return match_result

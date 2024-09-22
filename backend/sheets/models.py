@@ -284,6 +284,7 @@ class Match(models.Model):
     ]
 
     MONEY_RULES = [
+        ('none', 'None'),
         ('money_rule', 'Money Rule'),
         ('even_split', 'Even Split'),
     ]
@@ -296,7 +297,7 @@ class Match(models.Model):
     money_rules = models.CharField(max_length=50, choices=MONEY_RULES)
     special_rules = models.TextField(blank=True, null=True)
     teams = models.ManyToManyField(Team, through='TeamMatch', related_name='matches')
-    was_played  = models.BooleanField(default=False)
+    was_played = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Match on {self.datetime} - {self.mode} - {self.gamemode}"
@@ -318,9 +319,9 @@ class TeamMatch(models.Model):
 
 
 class MatchResult(models.Model):
-    match = models.OneToOneField(Match, on_delete=models.CASCADE)
+    match = models.OneToOneField(Match, on_delete=models.SET_NULL, null=True)
     winning_side = models.CharField(max_length=10, choices=TeamMatch.SIDE_CHOICES)
-    judge = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, related_name='judged_matches')
+    judge = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='judged_matches')
     is_calced = models.BooleanField(default=False)
 
     def calculate_average_rank(self):

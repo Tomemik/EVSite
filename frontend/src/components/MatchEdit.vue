@@ -4,25 +4,33 @@
       <v-card-title>Edit Match</v-card-title>
       <v-card-text>
         <v-form>
-          <!-- Date and Time -->
           <v-text-field v-model="editForm.datetime" label="Date and Time" type="datetime-local"></v-text-field>
 
-          <!-- Basic Match Information -->
-          <v-text-field v-model="editForm.gamemode" label="Game Mode"></v-text-field>
+          <v-select
+            v-model="editForm.mode"
+            :items="modeOptions"
+            label="Mode"
+          ></v-select>
+          <v-select
+            v-model="editForm.gamemode"
+            :items="gamemodeOptions"
+            label="Game Mode"
+          ></v-select>
+
           <v-text-field v-model="editForm.map_selection" label="Map Selection"></v-text-field>
-          <v-text-field v-model="editForm.mode" label="Mode"></v-text-field>
           <v-text-field v-model="editForm.best_of_number" label="Best of Number" type="number"></v-text-field>
-          <v-text-field v-model="editForm.money_rules" label="Money Rules"></v-text-field>
           <v-text-field v-model="editForm.special_rules" label="Special Rules"></v-text-field>
+          <v-select
+            v-model="editForm.money_rules"
+            :items="moneyRulesOptions"
+            label="Money Rules"
+          ></v-select>
 
           <v-divider></v-divider>
 
-          <!-- Teams Layout in Two Columns -->
           <v-row>
-            <!-- Side 1 (Team 1) -->
             <v-col>
               <div v-for="(team, index) in editForm.teammatch_set.team_1" :key="index">
-                <!-- Dropdown for Team Selection -->
                 <v-select
                   v-model="team.team"
                   :items="teamOptions"
@@ -32,7 +40,6 @@
                   @change="onTeamSelect('team_1', index)"
                 ></v-select>
 
-                <!-- Dropdown for Tank Selection -->
                 <v-select
                   v-model="team.tanks"
                   :items="getTeamTanks('team_1', index)"
@@ -48,15 +55,12 @@
               <v-btn @click="addTeam('team_1')" color="primary">Add Team</v-btn>
             </v-col>
 
-            <!-- VS text in center -->
             <v-col class="d-flex justify-center align-center">
               <p style="text-align:center; font-weight: bold;">vs</p>
             </v-col>
 
-            <!-- Side 2 (Team 2) -->
             <v-col>
               <div v-for="(team, index) in editForm.teammatch_set.team_2" :key="index">
-                <!-- Dropdown for Team Selection -->
                 <v-select
                   v-model="team.team"
                   :items="teamOptions"
@@ -66,7 +70,6 @@
                   @change="onTeamSelect('team_2', index)"
                 ></v-select>
 
-                <!-- Dropdown for Tank Selection -->
                 <v-select
                   v-model="team.tanks"
                   :items="getTeamTanks('team_2', index)"
@@ -87,14 +90,14 @@
 
       <v-card-actions>
         <v-btn color="primary" @click="saveChanges">Save</v-btn>
-        <v-btn color="secondary" @click="close">Cancel</v-btn>
+        <v-btn color="error" @click="close">Cancel</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
 </template>
 
 <script setup>
-import {ref, watch} from 'vue';
+import { ref, watch } from 'vue';
 
 const props = defineProps({
   detailedMatch: Object,
@@ -115,10 +118,28 @@ const editForm = ref({
   money_rules: '',
   special_rules: '',
   teammatch_set: {
-    team_1: [{team: '', tanks: []}],
-    team_2: [{team: '', tanks: []}],
+    team_1: [{ team: '', tanks: [] }],
+    team_2: [{ team: '', tanks: [] }],
   },
 });
+
+const gamemodeOptions = [
+  { value: 'annihilation', title: 'Annihilation' },
+  { value: 'domination', title: 'Domination' },
+  { value: 'flag_tank', title: 'Flag Tank' }
+];
+
+const modeOptions = [
+  { value: 'traditional', title: 'Traditional' },
+  { value: 'advanced', title: 'Advanced' },
+  { value: 'evolved', title: 'Evolved' }
+];
+
+const moneyRulesOptions = [
+  { value: 'money_rule', title: 'Money Rule' },
+  { value: 'even_split', title: 'Even Split' },
+  { value: 'none', title: 'None' }
+];
 
 const updateTeamOptions = () => {
   teamOptions.value = props.allTeamDetails.map(team => ({
@@ -143,14 +164,14 @@ const updateAvailableTeams = () => {
 
 watch(() => editForm.value.teammatch_set, () => {
   updateAvailableTeams();
-}, {deep: true});
+}, { deep: true });
 
 watch(() => props.allTeamDetails, (newData) => {
   if (newData) {
     updateAvailableTeams();
     updateTeamOptions();
   }
-}, {immediate: true});
+}, { immediate: true });
 
 watch(() => props.showEditDialog, (newValue) => {
   localShowEditDialog.value = newValue;
@@ -174,16 +195,16 @@ watch(() => props.detailedMatch, (newVal) => {
       teammatch_set: {
         team_1: newVal.sides.team_1.map(team => ({
           team: team.team,
-          tanks: team.tanks.map(tank => tank.id) // Get tank IDs
+          tanks: team.tanks.map(tank => tank.id)
         })),
         team_2: newVal.sides.team_2.map(team => ({
           team: team.team,
-          tanks: team.tanks.map(tank => tank.id) // Get tank IDs
+          tanks: team.tanks.map(tank => tank.id)
         })),
       },
     };
   }
-}, {immediate: true});
+}, { immediate: true });
 
 const onTeamSelect = (side, index) => {
   editForm.value.teammatch_set[side][index].tanks = [];
@@ -229,7 +250,7 @@ const getTeamId = (teamName) => {
 }
 
 const addTeam = (side) => {
-  editForm.value.teammatch_set[side].push({team: '', tanks: []});
+  editForm.value.teammatch_set[side].push({ team: '', tanks: [] });
 };
 
 const removeTeam = (side, index) => {
@@ -273,7 +294,6 @@ const saveChanges = () => {
 const close = () => {
   localShowEditDialog.value = false;
 };
-
 </script>
 
 <style scoped>
