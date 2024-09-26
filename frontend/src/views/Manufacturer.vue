@@ -16,54 +16,29 @@
               <template v-slot:[`item.battle_rating`]="{ item }">
                 <span>{{ item.battle_rating.toFixed(1) }}</span>
               </template>
+              <template v-slot:[`item.price`]="{ item }">
+                <span>{{ item.price.toLocaleString() }}$</span>
+              </template>
             </v-data-table>
           </v-card-text>
           <v-card-actions>
             <v-btn
-              @click="removeSelectedTanks(manufacturer.id)"
-              color="error"
+              @click="purchaseSelectedTanks(manufacturer.id)"
+              color="primary"
               :disabled="!(selectedItems[manufacturer.id] && selectedItems[manufacturer.id].length > 0)"
             >
-              Remove Selected Tanks
-            </v-btn>
-            <v-btn
-              @click="openAddTankDialog(manufacturer.id)"
-              color="primary"
-            >
-              Add Tank
+              Purchase Selected Tanks
             </v-btn>
           </v-card-actions>
         </v-card>
       </v-col>
     </v-row>
-
-    <!-- Add Tank Dialog -->
-    <v-dialog v-model="showAddTankDialog" max-width="500px">
-      <v-card>
-        <v-card-title>
-          <span class="headline">Add New Tank</span>
-        </v-card-title>
-        <v-card-text>
-          <v-form ref="addTankForm">
-            <v-text-field
-              v-model="newTankName"
-              label="Tank Name"
-              required
-            ></v-text-field>
-          </v-form>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn @click="addTank">Add Tank</v-btn>
-          <v-btn @click="showAddTankDialog = false">Cancel</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import {ref, onMounted, inject} from 'vue';
+import { ref, onMounted, inject } from 'vue';
+import { useRoute } from 'vue-router';
 
 const $cookies = inject("$cookies");
 const csrfToken = $cookies.get('csrftoken');
@@ -93,15 +68,13 @@ const headers = ref([
   { text: 'Type', value: 'type' },
 ]);
 
-
 const selectedItems = ref<Record<number, number[]>>({});
-const showAddTankDialog = ref(false);
-const newTankName = ref('');
-const currentManufacturerId = ref<number | null>(null);
+const route = useRoute();
+const teamName = route.params.TName;
 
 const fetchManufacturers = async () => {
   try {
-    const response = await fetch('/api/league/manufacturers');
+    const response = await fetch(`/api/league/manufacturers/?team_name=${teamName}`);
     if (!response.ok) {
       throw new Error('Network response was not ok');
     }
@@ -116,51 +89,28 @@ const fetchManufacturers = async () => {
   }
 };
 
-const addTank = async () => {
-  if (!currentManufacturerId.value || newTankName.value.trim() === '') {
+const purchaseSelectedTanks = async (manufacturerId: number) => {
+  const selectedTankIds = selectedItems.value[manufacturerId];
+
+  if (!selectedTankIds || selectedTankIds.length === 0) {
     return;
   }
 
   try {
-    const response = await fetch(`/api/league/manufacturers/${currentManufacturerId.value}/`, {
-      method: 'PATCH',
-      headers: {
-        'X-CSRFToken': csrfToken,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({"add_tank_names": [newTankName.value.trim()]}),
-    });
-
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-
-    newTankName.value = '';
-    showAddTankDialog.value = false;
-    await fetchManufacturers();
-  } catch (error) {
-    console.error('There was a problem with the fetch operation:', error);
-  }
-};
-
-const removeSelectedTanks = async (manufacturerId: number) => {
-  if (!selectedItems.value[manufacturerId] || selectedItems.value[manufacturerId].length === 0) {
-    return;
-  }
-
-  try {
-    const tankNames = manufacturers.value
+    const selectedTankNames = manufacturers.value
       .find(m => m.id === manufacturerId)
-      ?.tanks.filter(t => selectedItems.value[manufacturerId].includes(t.id))
+      ?.tanks.filter(t => selectedTankIds.includes(t.id))
       .map(t => t.name) || [];
 
-    const response = await fetch(`/api/league/manufacturers/${manufacturerId}/`, {
-      method: 'PATCH',
+    console.log(selectedTankNames)
+
+    const response = await fetch(`/api/league/transactions/buy_tanks/`, {
+      method: 'POST',
       headers: {
         'X-CSRFToken': csrfToken,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({"remove_tank_names": tankNames}),
+      body: JSON.stringify({ team: teamName, tanks: selectedTankNames }),
     });
 
     if (!response.ok) {
@@ -169,14 +119,10 @@ const removeSelectedTanks = async (manufacturerId: number) => {
 
     selectedItems.value[manufacturerId] = [];
     await fetchManufacturers();
+    console.log('Purchase successful!');
   } catch (error) {
-    console.error('There was a problem with the fetch operation:', error);
+    console.error('There was a problem with the purchase operation:', error);
   }
-};
-
-const openAddTankDialog = (manufacturerId: number) => {
-  currentManufacturerId.value = manufacturerId;
-  showAddTankDialog.value = true;
 };
 
 // Initialize data on component mount

@@ -7,7 +7,7 @@ from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, Team
 class TankSerializerSlim(serializers.ModelSerializer):
     class Meta:
         model = Tank
-        fields = ['name']
+        fields = ['id', 'name', 'battle_rating']
 
 
 class TankSerializer(serializers.ModelSerializer):
@@ -108,6 +108,7 @@ class TeamTankSerializer(serializers.ModelSerializer):
         model = TeamTank
         fields = ['id', 'tank', 'team']
 
+
 class TeamSerializer(serializers.ModelSerializer):
     manufacturers = ManufacturerSerializer(many=True, read_only=True)
     tanks = TeamTankSerializer(many=True, read_only=True, source='teamtank_set')
@@ -117,7 +118,7 @@ class TeamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
         fields = ['id', 'name', 'color', 'balance', 'manufacturers', 'tanks', 'upgrade_kits', 'tank_boxes']
-
+        depth = 1
 
 class TeamMatchSerializer(serializers.ModelSerializer):
     team = serializers.SlugRelatedField(slug_field='name', queryset=Team.objects.all())
@@ -273,6 +274,7 @@ class SubstituteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Substitute
         fields = ['team', 'team_name', 'activity', 'side', 'team_played_for', 'team_played_for_name']
+
 
 class MatchResultSerializer(serializers.ModelSerializer):
     team_results = TeamResultSerializer(many=True)

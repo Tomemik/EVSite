@@ -214,7 +214,7 @@ watch(() => props.detailedMatch, (newMatch) => {
   }
 });
 
-// Add Substitute Method
+
 const addSubstitute = (side, teamIndex) => {
   substitutes.value[side][teamIndex].push({
     team: '',
@@ -224,7 +224,7 @@ const addSubstitute = (side, teamIndex) => {
   });
 };
 
-// Remove Substitute Method
+
 const removeSubstitute = (side, teamIndex, subIndex) => {
   if (substitutes.value[side][teamIndex].length > 0) {
     substitutes.value[side][teamIndex].splice(subIndex, 1);

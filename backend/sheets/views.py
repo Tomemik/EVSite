@@ -85,6 +85,34 @@ class TankDetailView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class PurchaseTankView(APIView):
+    def post(self, request):
+        team_name = request.data['team']
+        print(team_name)
+        tanks = request.data.get('tanks', [])
+        team = Team.objects.get(name=team_name)
+
+        for tank in tanks:
+            print(tank)
+            tank = Tank.objects.get(name=tank)
+            team.purchase_tank(tank)
+
+        return Response(status=status.HTTP_201_CREATED)
+
+
+class SellTankView(APIView):
+    def post(self, request):
+        team_name = request.data['team']
+        tanks = request.data.get('tanks', [])
+        team = Team.objects.get(name=team_name)
+
+        for tank in tanks:
+            tank = Tank.objects.get(name=tank['name'])
+            team.sell_tank(tank)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class ManufacturerDetailView(APIView):
     def get(self, request, pk):
         manufacturer = Manufacturer.objects.get(pk=pk)
@@ -103,7 +131,15 @@ class ManufacturerDetailView(APIView):
 
 class ManufacturerListView(APIView):
     def get(self, request):
-        manufacturers = Manufacturer.objects.all()
+        team_name = request.query_params.get('team_name', None)
+
+        if team_name:
+            team = get_object_or_404(Team, name=team_name)
+            manufacturers = team.manufacturers.all()
+        else:
+            manufacturers = Manufacturer.objects.all()
+
+        # Serialize the list of manufacturers
         serializer = ManufacturerSerializer(manufacturers, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 

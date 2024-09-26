@@ -42,6 +42,17 @@ class Team(models.Model):
         TeamTank.objects.create(team=self, tank=tank)
         return f"Tank {tank.name} purchased successfully. Remaining balance: {self.balance}"
 
+    def sell_tank(self, tank):
+        try:
+            teamtank = TeamTank.objects.filter(team=self, tank=tank).first()
+        except TeamTank.DoesNotExist:
+            raise ValidationError("You do not own this tank.")
+
+        teamtank.delete()
+        self.balance += tank.price * 0.6
+        self.save()
+        return f"Tank {tank.name} sold successfully. New balance: {self.balance}"
+
     def add_upgrade_kit(self, tier, quantity=1):
         if tier in self.UPGRADE_KITS:
             if tier in self.upgrade_kits:
