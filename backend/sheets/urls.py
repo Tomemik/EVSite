@@ -18,4 +18,6 @@ urlpatterns = [
     path('matches/<int:pk>/calc/', views.CalcTestView.as_view(), name='match-calc'),
     path("transactions/buy_tanks/", views.PurchaseTankView.as_view(), name='buy-tanks'),
     path("transactions/sell_tanks/", views.SellTankView.as_view(), name='sell-tanks'),
+    path("transactions/view_upgrades/", views.AllUpgradesView.as_view(), name='upgrade-test'),
+    path("transactions/upgrade_tank/", views.UpgradeTankView.as_view(), name='upgrade-tank'),
 ]

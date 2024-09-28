@@ -113,6 +113,44 @@ class SellTankView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class AllUpgradesView(APIView):
+    def get(self, request):
+        team_name = request.headers['team']
+        tank = request.headers['tank']
+        team = Team.objects.get(name=team_name)
+        tank = Tank.objects.get(name=tank)
+
+        all_upgrades = team.get_possible_upgrades(tank)
+
+        return Response(all_upgrades, status=status.HTTP_200_OK)
+
+
+class UpgradeTankView(APIView):
+    def post(self, request):
+        team = request.data.get('team', None)
+        from_tank = request.data.get('from_tank', None)
+        to_tank = request.data.get('to_tank', None)
+        kits = request.data.get('kits', [])
+
+        team = Team.objects.get(name=team)
+        from_tank = Tank.objects.get(name=from_tank)
+        to_tank = Tank.objects.get(name=to_tank)
+        extra_kits = []
+        for key, val in kits.items():
+            if key == 'T1':
+                extra_kits += ['T1'] * val
+            if key == 'T2':
+                extra_kits += ['T2'] * val
+            if key == 'T3':
+                extra_kits += ['T3'] * val
+        print(extra_kits)
+        print(request.data)
+
+        all_upgrades = team.upgrade_or_downgrade_tank(from_tank, to_tank, extra_kits)
+
+        return Response(all_upgrades, status=status.HTTP_200_OK)
+
+
 class ManufacturerDetailView(APIView):
     def get(self, request, pk):
         manufacturer = Manufacturer.objects.get(pk=pk)

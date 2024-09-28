@@ -1,6 +1,7 @@
 from django.db import models
 from django.db.models import F, Q
 from rest_framework.exceptions import ValidationError
+import heapq
 
 
 def default_upgrade_kits():
@@ -19,6 +20,8 @@ class Manufacturer(models.Model):
 
 
 class Team(models.Model):
+
+    UPGRADE_KITS = default_upgrade_kits()
 
     name = models.CharField(max_length=50)
     color = models.CharField(default='#000000', max_length=7)
@@ -82,23 +85,7 @@ class Team(models.Model):
     def get_upgrade_kit_discount(self, tier):
         return self.upgrade_kits.get(tier, {"price": 0})["price"]
 
-
     def upgrade_tank_manu(self, from_tank, to_tank, extra_upgrade_kit_tiers=[]):
-        if not self.tanks.filter(id=from_tank.id).exists():
-            raise ValidationError("You do not own this tank.")
-        if not self.manufacturers.filter(id__in=to_tank.manufacturers.all()).exists():
-            raise ValidationError("This tank is not available from your manufacturers.")
-
-        current_tank = from_tank
-
-        while current_tank != to_tank:
-            try:
-                upgrade_path = UpgradePath.objects.get(from_tank=current_tank, to_tank__in=Tank.objects.all())
-            except UpgradePath.DoesNotExist:
-                raise ValidationError(f"No upgrade path found from {current_tank.name}.")
-
-            current_tank = upgrade_path.to_tank
-
         all_needed_kits = extra_upgrade_kit_tiers
         missing_kits = [kit for kit in all_needed_kits if kit not in self.upgrade_kits or self.upgrade_kits[kit]['quantity'] <= 0]
         if missing_kits:
@@ -108,7 +95,8 @@ class Team(models.Model):
             self.get_upgrade_kit_discount(tier) for tier in extra_upgrade_kit_tiers if tier in self.UPGRADE_KITS)
         cost = to_tank.price - from_tank.price if to_tank.price >= from_tank.price else (to_tank.price - from_tank.price) / 2
         cost -= total_extra_discount
-        cost = max(cost, 0)
+        cost = abs(cost)
+
 
         if cost > self.balance:
             raise ValidationError("Insufficient balance for this upgrade or downgrade.")
@@ -124,90 +112,113 @@ class Team(models.Model):
 
         return f"Tank {from_tank.name} upgraded/downgraded to {to_tank.name}. Total cost: {cost}. Remaining balance: {self.balance}"
 
+    def get_possible_upgrades(self, from_tank):
+        best_upgrade_paths = {}
+        priority_queue = []
 
-    def upgrade_or_downgrade_tank(self, from_tank, to_tank, extra_upgrade_kit_tiers=[]):
-        print(self.upgrade_kits)
-        if not self.tanks.filter(id=from_tank.id).exists():
-            raise ValidationError("You do not own this tank.")
+        # Fetching initial upgrade paths from the `from_tank`
+        upgrade_paths = UpgradePath.objects.filter(from_tank=from_tank)
 
-        # Initialize total cost and start from the given tank
-        total_cost = 0
-        current_tank = from_tank
+        for upgrade_path in upgrade_paths:
+            to_tank = upgrade_path.to_tank
+            base_cost = upgrade_path.cost
 
-        required_kits = []
-        upgrade_paths = []
-
-        while current_tank != to_tank:
-            try:
-                upgrade_path = UpgradePath.objects.get(from_tank=current_tank, to_tank__in=Tank.objects.all())
-            except UpgradePath.DoesNotExist:
-                raise ValidationError(f"No upgrade path found from {current_tank.name}.")
-
-            step_cost = upgrade_path.cost
             required_kit_tier = upgrade_path.required_kit_tier
+            kit_discount = self.get_upgrade_kit_discount(required_kit_tier) if required_kit_tier else 0
+
+            step_total_cost = base_cost - kit_discount
+            step_total_cost = max(step_total_cost, 0)
+
+            available_in_manufacturer = self.manufacturers.filter(id__in=to_tank.manufacturers.all()).exists()
+            manu_cost = None
+            if available_in_manufacturer:
+                manu_cost = abs(to_tank.price - from_tank.price) if to_tank.price >= from_tank.price else abs(
+                    to_tank.price - from_tank.price) / 2
+
+            required_kits = {
+                'T1': 0,
+                'T2': 0,
+                'T3': 0
+            }
 
             if required_kit_tier:
-                required_kits.append(required_kit_tier)
-                print(self.upgrade_kits)
-                if required_kit_tier in self.upgrade_kits and self.upgrade_kits[required_kit_tier]['quantity'] > 0:
-                    step_cost -= self.get_upgrade_kit_discount(required_kit_tier)
-                else:
-                    raise ValidationError(f"Required upgrade kit {required_kit_tier} is missing from inventory.")
+                required_kits[required_kit_tier] += 1
 
-            upgrade_paths.append(upgrade_path)
-            step_cost = max(step_cost, 0)
-            total_cost += step_cost
+            best_upgrade_paths[to_tank.id] = {
+                'from_tank': from_tank.name,
+                'to_tank': to_tank.name,
+                'base_cost': base_cost,
+                'kit_discount': kit_discount,
+                'required_kit_tier': required_kit_tier,
+                'total_cost': step_total_cost,
+                'available_in_manufacturer': available_in_manufacturer,
+                'manu_cost': manu_cost,
+                'required_kits': required_kits
+            }
 
-            current_tank = upgrade_path.to_tank
+            # Push a tuple of (cost, tank ID, accumulated kits)
+            heapq.heappush(priority_queue, (step_total_cost, to_tank.id, required_kits.copy()))
 
-        # Check availability of required kits and extra kits
-        all_needed_kits = set(required_kits + extra_upgrade_kit_tiers)
-        missing_kits = [kit for kit in all_needed_kits if
-                        kit not in self.upgrade_kits or self.upgrade_kits[kit]['quantity'] <= 0]
-        if missing_kits:
-            raise ValidationError(f"Missing upgrade kits: {', '.join(missing_kits)}")
+        while priority_queue:
+            current_cost, current_tank_id, accumulated_kits = heapq.heappop(priority_queue)
 
-        # Ensure that the same kit is not used for both required and extra kits
-        available_kits = self.upgrade_kits.copy()
-        for kit in required_kits:
-            if kit in available_kits and available_kits[kit]['quantity'] > 0:
-                available_kits[kit]['quantity'] -= 1
-                if available_kits[kit]['quantity'] == 0:
-                    del available_kits[kit]
-            else:
-                raise ValidationError(f"Required upgrade kit {kit} is missing from inventory.")
+            # Find the tank object by its ID
+            current_tank = Tank.objects.get(id=current_tank_id)
 
-        for extra_kit in extra_upgrade_kit_tiers:
-            if extra_kit in available_kits and available_kits[extra_kit]['quantity'] > 0:
-                available_kits[extra_kit]['quantity'] -= 1
-                if available_kits[extra_kit]['quantity'] == 0:
-                    del available_kits[extra_kit]
-            else:
-                raise ValidationError(f"Extra upgrade kit {extra_kit} is missing from inventory.")
+            if current_tank.id in best_upgrade_paths and current_cost > best_upgrade_paths[current_tank.id][
+                'total_cost']:
+                continue
 
-        # Apply extra kits discount to the entire total cost
-        total_extra_discount = sum(
-            self.get_upgrade_kit_discount(tier) for tier in extra_upgrade_kit_tiers if tier in self.UPGRADE_KITS)
-        total_cost -= total_extra_discount
-        total_cost = max(total_cost, 0)
+            # Fetch upgrade paths from the current tank
+            upgrade_paths = UpgradePath.objects.filter(from_tank=current_tank)
 
-        if total_cost > self.balance:
-            raise ValidationError("Insufficient balance for this upgrade or downgrade.")
+            for upgrade_path in upgrade_paths:
+                to_tank = upgrade_path.to_tank
+                base_cost = upgrade_path.cost
 
-        # Deduct required kits from the inventory
-        for kit in required_kits:
-            if kit in self.upgrade_kits:
-                self.upgrade_kits[kit]['quantity'] -= 1
-                if self.upgrade_kits[kit]['quantity'] == 0:
-                    del self.upgrade_kits[kit]
+                required_kit_tier = upgrade_path.required_kit_tier
+                kit_discount = self.get_upgrade_kit_discount(required_kit_tier) if required_kit_tier else 0
 
-        # Update balance and tank ownership
-        self.balance -= total_cost
-        self.tanks.through.objects.filter(team=self, tank=from_tank).delete()
-        self.tanks.through.objects.create(team=self, tank=to_tank)
-        self.save()
+                step_total_cost = base_cost - kit_discount
+                step_total_cost = max(step_total_cost, 0)
+                total_cost = current_cost + step_total_cost
 
-        return f"Tank {from_tank.name} upgraded/downgraded to {to_tank.name}. Total cost: {total_cost}. Remaining balance: {self.balance}"
+                new_required_kits = accumulated_kits.copy()
+
+                if required_kit_tier:
+                    new_required_kits[required_kit_tier] += 1
+
+                # Check if the to_tank is not the same as from_tank
+                if to_tank.id != from_tank.id:  # Exclude the original tank
+                    if to_tank.id not in best_upgrade_paths or total_cost < best_upgrade_paths[to_tank.id][
+                        'total_cost']:
+                        available_in_manufacturer = self.manufacturers.filter(
+                            id__in=to_tank.manufacturers.all()).exists()
+                        manu_cost = None
+                        if available_in_manufacturer:
+                            manu_cost = abs(
+                                to_tank.price - from_tank.price) if to_tank.price >= from_tank.price else abs(
+                                to_tank.price - from_tank.price) / 2
+
+                        best_upgrade_paths[to_tank.id] = {
+                            'from_tank': current_tank.name,
+                            'to_tank': to_tank.name,
+                            'base_cost': base_cost,
+                            'kit_discount': kit_discount,
+                            'required_kit_tier': required_kit_tier,
+                            'total_cost': total_cost,
+                            'available_in_manufacturer': available_in_manufacturer,
+                            'manu_cost': manu_cost,
+                            'required_kits': new_required_kits
+                        }
+
+                        # Push a tuple of (total cost, tank ID, new required kits)
+                        heapq.heappush(priority_queue, (total_cost, to_tank.id, new_required_kits))
+
+        # Filter out the original tank from the final output
+        final_upgrade_paths = [path for path in best_upgrade_paths.values() if path['to_tank'] != from_tank.name]
+
+        return final_upgrade_paths
 
 
 class Tank(models.Model):
@@ -263,7 +274,6 @@ class UpgradePath(models.Model):
         super().save(*args, **kwargs)
 
     def calculate_cost(self):
-        """Calculate the cost based on price differences and battle rating."""
         price_difference = self.to_tank.price - self.from_tank.price
         print(price_difference)
         if self.from_tank.price > self.to_tank.price:
