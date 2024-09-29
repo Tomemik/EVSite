@@ -84,6 +84,25 @@ DATABASES = {
     }
 }
 
+AUTH_USER_MODEL = "user.User"
+API_HEADER = "AUTH_TOKEN"
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        'knox.auth.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ),
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.AllowAny",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 100,
+}
+
+REST_KNOX = {
+    "USER_SERIALIZER": "knox.serializers.UserSerializer",
+}
+
 
 # Password validation
 # https://docs.djangoproject.com/en/dev/ref/settings/#auth-password-validators

@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import { createPinia } from "pinia";
 
 // Vuetify
 import 'vuetify/styles'
@@ -37,6 +38,7 @@ const vuetify = createVuetify({
 
 createApp(App)
     .use(vuetify)
+    .use(createPinia())
     .use(router)
     .use(VueCookies, { expires: "1d" })
     .mount('#app')
