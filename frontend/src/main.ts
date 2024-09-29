@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import { createPinia } from "pinia";
 
 // Vuetify
 import 'vuetify/styles'
@@ -13,6 +14,8 @@ import App from './App.vue'
 import VueCookies from "vue-cookies";
 import router from './router'
 
+const app = createApp(App);
+const pinia = createPinia()
 const vuetify = createVuetify({
   defaults: {
     VSelect: {
@@ -35,8 +38,8 @@ const vuetify = createVuetify({
   },
 })
 
-createApp(App)
-    .use(vuetify)
-    .use(router)
-    .use(VueCookies, { expires: "1d" })
-    .mount('#app')
+app.use(vuetify)
+app.use(router)
+app.use(VueCookies, { expires: "1d" })
+app.use(pinia)
+app.mount('#app')

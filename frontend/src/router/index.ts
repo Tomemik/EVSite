@@ -6,9 +6,11 @@ import Tanks from '../views/Tanks.vue';
 import Matches from '../views/Matches.vue';
 import Manufacturer from "../views/Manufacturer.vue";
 import Manufacturers from "../views/Manufacturers.vue";
+import Login from '../views/Login.vue';
 
 const routes = [
     { path: '/home', name: 'Home', component: Home },
+    { path: '/login', name: 'login', component: Login },
     { path: '/teams', name: 'teams', component: Teams },
     { path: '/teams/:TName', name: 'team', component: Team },
     { path: '/teams/:TName/manufacturer', name: 'Manufacturer', component: Manufacturer},
