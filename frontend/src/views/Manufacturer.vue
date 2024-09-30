@@ -22,7 +22,8 @@
             </v-data-table>
           </v-card-text>
           <v-card-actions>
-            <v-btn
+            <v-btn v-if="userStore.groups.some(i => i.name === 'commander') &&
+             userStore.team === teamName) || userStore.groups.some(i => i.name === 'admin'"
               @click="purchaseSelectedTanks(manufacturer.id)"
               color="primary"
               :disabled="!(selectedItems[manufacturer.id] && selectedItems[manufacturer.id].length > 0)"
@@ -39,9 +40,13 @@
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue';
 import { useRoute } from 'vue-router';
+import {getAuthToken} from "../config/api/user.ts";
+import {useUserStore} from "../config/store.ts";
 
+const userStore = useUserStore();
 const $cookies = inject("$cookies");
 const csrfToken = $cookies.get('csrftoken');
+
 
 interface Tank {
   id: number;
@@ -109,6 +114,7 @@ const purchaseSelectedTanks = async (manufacturerId: number) => {
       headers: {
         'X-CSRFToken': csrfToken,
         'Content-Type': 'application/json',
+        'Authorization': getAuthToken(),
       },
       body: JSON.stringify({ team: teamName, tanks: selectedTankNames }),
     });

@@ -48,7 +48,7 @@
       <v-card-actions>
         <v-btn color="success" @click="openResultView">Result</v-btn>
         <v-spacer></v-spacer>
-        <v-btn color="primary" @click="toggleEditMode">Edit</v-btn>
+        <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" color="primary" @click="toggleEditMode">Edit</v-btn>
         <v-btn color="error" @click="close">Close</v-btn>
       </v-card-actions>
     </v-card>
@@ -58,6 +58,9 @@
 
 <script setup>
 import {ref, watch} from 'vue';
+import {useUserStore} from "../config/store.ts";
+
+const userStore = useUserStore()
 
 const props = defineProps(['detailedMatch', 'showDetailsDialog']);
 const emit = defineEmits(['update:showDetailsDialog', 'editMode', 'resultView']);

@@ -13,7 +13,7 @@
       :items-per-page="15"
     >
       <template v-slot:bottom>
-        <v-row>
+        <v-row v-if="userStore.groups.find(i => i.name === 'admin')">
           <v-col cols="auto" class="d-flex align-center">
             <v-btn
               @click="removeTanks"
@@ -54,7 +54,6 @@
       class="ma-5"
     ></v-progress-circular>
 
-    <!-- Add New Tank Dialog -->
     <v-dialog v-model="showAddNewTankDialog" max-width="500px">
       <v-card>
         <v-card-title>
@@ -137,8 +136,16 @@
 </template>
 
 <script>
+
+import {useUserStore} from "../config/store.ts"
+import {getAuthToken} from "../config/api/user.ts"
+import {inject} from "vue"
+
 export default {
   data() {
+    const userStore = useUserStore();
+    const $cookies = inject("$cookies");
+    const csrfToken = $cookies.get('csrftoken');
     return {
       headers: [
         { title: 'Name', value: 'name', align: 'center', sortable: true },
@@ -157,6 +164,8 @@ export default {
       newTankRank: '',
       newTankType: '',
       currentTank: '',
+      csrfToken,
+      userStore
     };
   },
   created() {
@@ -182,6 +191,7 @@ export default {
           headers: {
             'X-CSRFToken': this.csrfToken,
             'Content-Type': 'application/json',
+            'Authorization': getAuthToken(),
           },
           body: JSON.stringify({
             name: this.newTankName,
@@ -214,6 +224,7 @@ export default {
           headers: {
             'X-CSRFToken': this.csrfToken,
             'Content-Type': 'application/json',
+            'Authorization': getAuthToken(),
           },
           body: JSON.stringify({ to_delete: this.selected }),
         });
@@ -245,6 +256,7 @@ export default {
           headers: {
             'X-CSRFToken': this.csrfToken,
             'Content-Type': 'application/json',
+            'Authorization': getAuthToken(),
           },
           body: JSON.stringify({
             name: this.currentTank.name,

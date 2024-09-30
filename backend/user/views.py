@@ -2,11 +2,13 @@ from django.contrib.auth import login
 from knox import views as knox_views
 from knox.models import AuthToken
 from rest_framework import permissions, status
+from rest_framework.authentication import BasicAuthentication
 from rest_framework.authtoken.serializers import AuthTokenSerializer
 from rest_framework.generics import RetrieveUpdateDestroyAPIView
 from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from sheets.models import Team
 
 from .serializers import UserRegisterSerializer, UserSettingsSerializer, UserSerializer
 

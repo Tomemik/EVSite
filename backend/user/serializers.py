@@ -1,12 +1,22 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password
 from django.contrib.auth.password_validation import password_changed, validate_password
+from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from rest_framework import serializers
+
+from sheets.models import Team
 
 User = get_user_model()
 
 EMPTY_PASSWORD_ERRORS = {"blank": "Password cannot be empty"}
+
+
+class GroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Group
+        fields = ['name',]
+
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     password2 = serializers.CharField(
@@ -45,13 +55,19 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         return account
 
 
+class TeamSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Team
+        fields = ['id', 'name']
+
+
 class UserSerializer(serializers.ModelSerializer):
+    groups = GroupSerializer(many=True, read_only=True)
+    team = TeamSerializer(read_only=True)
 
     class Meta:
         model = User
-        fields = [
-            "username", "groups"
-        ]
+        fields = ('username', 'groups', 'team')
 
 
 class UserSettingsSerializer(serializers.ModelSerializer):

@@ -5,6 +5,10 @@ from .models import User
 
 
 class CustomUserAdmin(UserAdmin):
-    list_display = ("username", )
+    list_display = ("username", "team")
+    fieldsets = UserAdmin.fieldsets + (
+        (None, {'fields': ('team',)}),
+    )
+
 
 admin.site.register(User, CustomUserAdmin)

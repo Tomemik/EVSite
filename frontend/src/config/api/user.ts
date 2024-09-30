@@ -17,9 +17,12 @@ export const fetchUserData = async () => {
       throw new Error(`HTTP error! Status: ${response.status}`);
     }
     const data = await response.json();
-    console.log(data);
+    console.log(data)
     userStore.username = data.username;
-    userStore.roles = data.groups
+    userStore.groups = data.groups;
+    if (data.team) {
+        userStore.team = data.team.name;
+    }
   } catch (error) {
     console.error("Failed to fetch user data:", error);
     throw error;
@@ -28,7 +31,6 @@ export const fetchUserData = async () => {
 
 export function isAuthenticated() {
   const authToken = localStorage.getItem(AUTH_TOKEN_KEY);
-    console.log(authToken);
   if (authToken && JSON.parse(authToken).expDate > new Date().getTime()) {
     return authToken;
   }
@@ -37,7 +39,6 @@ export function isAuthenticated() {
 
 export const checkAuth = () => {
   const authToken = isAuthenticated();
-  console.log(authToken);
 
   if (authToken) {
     let date = new Date().getTime();

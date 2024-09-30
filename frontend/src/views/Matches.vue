@@ -1,11 +1,9 @@
 <template>
   <v-container>
-    <!-- Create New Match Button -->
-    <div class="d-flex justify-end mb-3">
+    <div v-if="userStore.groups.some(i => ['commander', 'admin'].includes(i.name))" class="d-flex justify-end mb-3">
       <v-btn color="primary" @click="openCreateMatchDialog">Create New Match</v-btn>
     </div>
 
-    <!-- Calendar Component -->
     <v-calendar
       ref="calendar"
       v-model:now="today"
@@ -61,9 +59,12 @@ import { ref, onMounted, inject } from 'vue';
 import MatchDetails from "../components/MatchDetails.vue";
 import MatchEdit from "../components/MatchEdit.vue";
 import MatchResult from "../components/MatchResult.vue";
+import {useUserStore} from "../config/store.ts";
+import {getAuthToken} from "../config/api/user.ts";
 
 const $cookies = inject("$cookies");
 const csrfToken = $cookies.get('csrftoken');
+const userStore = useUserStore()
 
 const today = ref<Date>(new Date());
 const showDetailsDialog = ref(false);
@@ -164,12 +165,12 @@ const fetchMatchDetails = async (match) => {
 
 const updateMatch = async (updatedMatch) => {
   try {
-    console.log(isNewMatch.value);
     const response = await fetch('/api/league/matches/' + (isNewMatch.value ? 'detailed/' : updatedMatch.id + '/'), {
       method: isNewMatch.value ? 'POST' : 'PATCH',
       headers: {
         'X-CSRFToken': csrfToken,
         'Content-Type': 'application/json',
+        'Authorization': getAuthToken(),
       },
       body: JSON.stringify(updatedMatch),
     });
@@ -208,6 +209,7 @@ const postResults = async (resultData) => {
         headers: {
           'X-CSRFToken': csrfToken,
           'Content-Type': 'application/json',
+          'Authorization': getAuthToken(),
         },
         body: JSON.stringify(resultData),
       });

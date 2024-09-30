@@ -27,6 +27,8 @@
       </v-card-actions>
     </v-card>
 
+    <V-btn @click="goToManufacturers">Manufacturer</V-btn>
+
     <!-- Tank Details Dialog -->
     <v-dialog v-model="showTankDetailsDialog" max-width="600px">
       <v-card>
@@ -78,15 +80,22 @@
             </div>
             <div v-else>
               <strong>Total cost:</strong> {{totalCost}}<br />
-              <strong>Required Kits:</strong> {{ selectedUpgradeDetails.required_kits.join(', ') || 'None' }}<br />
+              <strong>Required Kits:</strong>
+              {{
+                Object.entries(selectedUpgradeDetails.required_kits).length
+                  ? Object.entries(selectedUpgradeDetails.required_kits)
+                      .map(([key, value]) => `${key}: ${value}`)
+                      .join(', ')
+                  : 'None'
+              }}<br />
               <strong>Available in Manufacturer:</strong> {{ selectedUpgradeDetails.available_in_manufacturer ? 'Yes' : 'No' }}
             </div>
 
           </div>
         </v-card-text>
         <v-card-actions>
-          <v-btn color="primary" @click="upgradeTank">Upgrade</v-btn>
-          <v-btn color="error" @click="sellTank">Sell</v-btn>
+          <v-btn v-if="isCommander" color="primary" @click="upgradeTank">Upgrade</v-btn>
+          <v-btn v-if="isCommander" color="error" @click="sellTank">Sell</v-btn>
           <v-btn @click="showTankDetailsDialog = false">Close</v-btn>
         </v-card-actions>
       </v-card>
@@ -129,6 +138,8 @@
 
 <script>
 import { inject } from "vue";
+import {useUserStore} from "../config/store.ts";
+import {getAuthToken} from "../config/api/user.ts";
 import Manufacturer from "./Manufacturer.vue";
 
 export default {
@@ -136,6 +147,7 @@ export default {
   data() {
     const $cookies = inject("$cookies");
     const csrfToken = $cookies.get('csrftoken');
+    const userStore = useUserStore();
     return {
       csrfToken,
       team: {
@@ -173,7 +185,8 @@ export default {
         { title: 'Tier', value: 'tier' },
         { title: 'Available Quantity', value: 'quantity' },
         { title: 'Quantity to Sell', value: 'quantityToSell' }
-      ]
+      ],
+      userStore
     };
   },
   computed: {
@@ -276,18 +289,27 @@ export default {
       }
       return new_cost
     },
+    isCommander() {
+      return (this.userStore.groups.some(i => i.name === 'commander') &&
+             this.userStore.team === this.team.name) || this.userStore.groups.some(i => i.name === 'admin');
+    },
   },
   watch: {
     selectedUpgrade(newUpgrade) {
       if (newUpgrade) {
         const upgradeDetails = this.upgradeOptions.find(u => u.to_tank === newUpgrade);
         this.selectedUpgradeDetails = upgradeDetails || null;
+        console.log(this.selectedUpgradeDetails.required_kits);
       } else {
         this.selectedUpgradeDetails = null;
       }
     }
   },
   methods: {
+    async goToManufacturers() {
+      const teamName = this.team.name;
+      this.$router.push({ name: 'Manufacturer', params: { TName: teamName } });
+    },
     handleRowClick(event, row) {
       this.selectedTank = row;
       this.fetchPossibleUpgrades(row.item.name);
@@ -329,14 +351,16 @@ export default {
     async sellTank() {
       if (!this.selectedTank) return;
 
-      const tanksToSell = [{ name: this.selectedTank.name, quantity: 1 }];
+      const tanksToSell = [{ name: this.selectedTank.item.name, quantity: 1 }];
+      console.log(tanksToSell);
 
       try {
-        const response = await fetch('/api/league/transactions/sell_tank/', {
+        const response = await fetch('/api/league/transactions/sell_tanks/', {
           method: 'POST',
           headers: {
             'X-CSRFToken': this.csrfToken,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'authorization': getAuthToken()
           },
           body: JSON.stringify({
             team: this.team.name,
@@ -365,7 +389,8 @@ export default {
           method: 'POST',
           headers: {
             'X-CSRFToken': this.csrfToken,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'authorization': getAuthToken()
           },
           body: JSON.stringify({
             team: this.team.name,
@@ -415,7 +440,8 @@ export default {
           method: 'POST',
           headers: {
             'X-CSRFToken': this.csrfToken,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'authorization': getAuthToken()
           },
           body: JSON.stringify({
             team: this.team.name,

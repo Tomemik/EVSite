@@ -2,13 +2,11 @@ from django.shortcuts import render, get_object_or_404
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.contrib.auth.mixins import PermissionRequiredMixin
 
 from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch
 from .serializers import TeamSerializer, ManufacturerSerializer, TankSerializer, MatchSerializer, SlimMatchSerializer, \
     MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer
-
-
-# Create your views here.
 
 
 class AllTeamsView(APIView):
@@ -18,6 +16,8 @@ class AllTeamsView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
+        if not request.user.has_perm('admin_permissions'):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         serializer = TeamSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -32,6 +32,8 @@ class TeamDetailView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, name):
+        if not request.user.has_perm('admin_permissions'):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         upgrade_kit = request.data.get('upgrade_kits', [])
         kit_amount = request.data.get('kit_amounts', [])
         tank_box_ids = request.data.get('tank_box_ids', [])
@@ -57,6 +59,8 @@ class AllTanksView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
+        if not request.user.has_perm('admin_permissions'):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         serializer = TankSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -64,6 +68,8 @@ class AllTanksView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request):
+        if not request.user.has_perm('admin_permissions'):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         ids = request.data.get('to_delete', [])
         tanks = Tank.objects.filter(id__in=ids)
         tanks.delete()
@@ -77,6 +83,9 @@ class TankDetailView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, name):
+        print(request.user)
+        if not request.user.has_perm('admin_permissions'):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         tank = Tank.objects.get(name=name)
         serializer = TankSerializer(tank, data=request.data)
         if serializer.is_valid():
@@ -102,10 +111,10 @@ class PurchaseTankView(APIView):
 
 class SellTankView(APIView):
     def post(self, request):
+        user = request.user
         team_name = request.data['team']
         tanks = request.data.get('tanks', [])
         team = Team.objects.get(name=team_name)
-
         for tank in tanks:
             tank = Tank.objects.get(name=tank['name'])
             team.sell_tank(tank)
@@ -158,6 +167,8 @@ class ManufacturerDetailView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, pk):
+        if not request.user.has_perm('admin_permissions'):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         manufacturer = get_object_or_404(Manufacturer, pk=pk)
         serializer = ManufacturerSerializer(manufacturer, data=request.data, partial=True)
 
@@ -177,11 +188,12 @@ class ManufacturerListView(APIView):
         else:
             manufacturers = Manufacturer.objects.all()
 
-        # Serialize the list of manufacturers
         serializer = ManufacturerSerializer(manufacturers, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
+        if not request.user.has_perm('admin_permissions'):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         serializer = ManufacturerSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -196,6 +208,8 @@ class TankBoxView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
+        if not request.user.has_perm('admin_permissions'):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         serializer = TankBoxCreateSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -217,6 +231,9 @@ class AllMatchesView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
+        user = request.user
+        if not any([user.has_perm('admin_permissions'), user.has_perm('commander_permissions')]):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         serializer = MatchSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -245,6 +262,9 @@ class MatchView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, pk):
+        user = request.user
+        if not any([user.has_perm('admin_permissions'), user.has_perm('commander_permissions'), user.has_perm('judge_permissions')]):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         match = Match.objects.get(pk=pk)
         serializer = MatchSerializer(match, data=request.data, partial=True)
         if serializer.is_valid():
@@ -260,6 +280,17 @@ class MatchResultsView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, pk):
+        user = request.user
+        print(user)
+        if not any([user.has_perm('admin_permissions'), user.has_perm('judge_permissions')]):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        elif not user.has_perm('commander_permissions'):
+            team_matches = request.data.get('teammatch_set', [])
+            user_team_name = user_team.name if user_team else None
+            team_found = any(match['team'] == user_team_name for match in team_matches)
+            if not team_found:
+                return Response(status=status.HTTP_403_FORBIDDEN)
+
         match = Match.objects.get(pk=pk)
         serializer = MatchResultSerializer(data=request.data)
         if serializer.is_valid():
@@ -272,6 +303,16 @@ class MatchResultsView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def patch(self, request, pk):
+        user = request.user
+        if not any([user.has_perm('admin_permissions'), user.has_perm('judge_permissions')]):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        elif not user.has_perm('commander_permissions'):
+            team_matches = request.data.get('teammatch_set', [])
+            user_team_name = user.team.name if user.team else None
+            team_found = any(match['team'] == user_team_name for match in team_matches)
+            if not team_found:
+                return Response(status=status.HTTP_403_FORBIDDEN)
+
         match = Match.objects.get(pk=pk)
         serializer = MatchResultSerializer(match, data=request.data, partial=True)
         if serializer.is_valid():

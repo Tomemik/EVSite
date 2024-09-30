@@ -17,6 +17,12 @@ class TeamAdmin(admin.ModelAdmin):
         obj.upgrade_kits = {tier: data.copy() for tier, data in default_upgrade_kits().items()}
         super().save_model(request, obj, form, change)
 
+    def get_users(self, obj):
+        return ", ".join([user.username for user in obj.members.all()])
+
+    get_users.short_description = 'Users'
+
+
 
 class TankAdmin(admin.ModelAdmin):
     list_display = ('name', 'battle_rating', 'price', 'rank', 'type')

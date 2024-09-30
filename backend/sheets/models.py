@@ -31,7 +31,6 @@ class Team(models.Model):
     upgrade_kits = models.JSONField(default=default_upgrade_kits)
     tank_boxes = models.ManyToManyField('TankBox', through='TeamBox', related_name='teams')
 
-
     def __str__(self):
         return self.name
 
@@ -116,7 +115,6 @@ class Team(models.Model):
         best_upgrade_paths = {}
         priority_queue = []
 
-        # Fetching initial upgrade paths from the `from_tank`
         upgrade_paths = UpgradePath.objects.filter(from_tank=from_tank)
 
         for upgrade_path in upgrade_paths:
@@ -156,20 +154,17 @@ class Team(models.Model):
                 'required_kits': required_kits
             }
 
-            # Push a tuple of (cost, tank ID, accumulated kits)
             heapq.heappush(priority_queue, (step_total_cost, to_tank.id, required_kits.copy()))
 
         while priority_queue:
             current_cost, current_tank_id, accumulated_kits = heapq.heappop(priority_queue)
 
-            # Find the tank object by its ID
             current_tank = Tank.objects.get(id=current_tank_id)
 
             if current_tank.id in best_upgrade_paths and current_cost > best_upgrade_paths[current_tank.id][
                 'total_cost']:
                 continue
 
-            # Fetch upgrade paths from the current tank
             upgrade_paths = UpgradePath.objects.filter(from_tank=current_tank)
 
             for upgrade_path in upgrade_paths:
@@ -188,8 +183,7 @@ class Team(models.Model):
                 if required_kit_tier:
                     new_required_kits[required_kit_tier] += 1
 
-                # Check if the to_tank is not the same as from_tank
-                if to_tank.id != from_tank.id:  # Exclude the original tank
+                if to_tank.id != from_tank.id:
                     if to_tank.id not in best_upgrade_paths or total_cost < best_upgrade_paths[to_tank.id][
                         'total_cost']:
                         available_in_manufacturer = self.manufacturers.filter(
@@ -212,10 +206,8 @@ class Team(models.Model):
                             'required_kits': new_required_kits
                         }
 
-                        # Push a tuple of (total cost, tank ID, new required kits)
                         heapq.heappush(priority_queue, (total_cost, to_tank.id, new_required_kits))
 
-        # Filter out the original tank from the final output
         final_upgrade_paths = [path for path in best_upgrade_paths.values() if path['to_tank'] != from_tank.name]
 
         return final_upgrade_paths
