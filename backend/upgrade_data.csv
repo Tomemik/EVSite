@@ -1,0 +1,621 @@
+From Tank,To Tank,Kit
+M2 Medium,M3 Lee,T2
+M3 Lee,M4A3 (105),T2
+M3 Lee,Grant I,P
+Grant I,Ram Mk II,P
+M3 Lee,M4A1,T2
+M4A1,M4,T1
+M4A1,M4 Hybrid,P
+M4 Hybrid,M4 Tipo IC,T1
+M4 Hybrid,M4A1 (75) W,T1
+M4 Hybrid,Sherman II,T1
+M4A1,M4A1 (75) W,T1
+M4A1 (75) W,M4A1 (76) W,T1
+M4A1 (75) W,**M4A1 (FL10)**,P
+M4A1 (75) W,Sherman II,T1
+M4A1 (76) W,**M4A1 (FL10)**,P
+M4A1,Sherman II,T1
+M4,M4A4,T1
+M4,M4A2,T1
+M4,M10 GMC,T2
+M4,Achilles,T2
+M4,Sherman IC "Trzyniec",P
+M4,Sherman III/IV,P
+M4A4,Sherman VC,T1
+Sherman VC,Sherman VC (APDS),T1
+M4A4,M4A4 (1st PTG),P
+M4A4,**M4A4 (SA50)**,T1
+M4A2,M4A2 (76) W,T2
+M4A2,M4A3E2,T2
+M4A2 (76) W,M4/T26,T1
+M4A2 (76) W,M4A3 (76) W,T1
+M4A3 (76) W,M36B1,T1
+M4A3E2,M4A3E2 (76) W,T1
+M10 GMC,M36 GMC,T1
+M36 GMC,**M36B2**,T1
+M10 GMC,Achilles,T2
+M10 GMC,Sherman IC "Trzyniec",P
+M10 GMC,Sherman III/IV,P
+Achilles,Sherman IC "Trzyniec",P
+Achilles,Sherman III/IV,P
+M2A2,M2A4,T1
+M2A4,M3 Stuart,T1
+M3 Stuart,M3A1 Stuart,T1
+M3A1 Stuart,M3A1 Stuart,T1
+M3A1 Stuart,M3A3 Stuart,T1
+M6A1,T1E1,T1
+T1E1,T1E1 (90 mm),T1
+T1E1 (90 mm),M6A2E1,P
+**M41A3**,**M41A1**,T1
+T28 GMC*,T95 GMC*,T1
+**M48**,**M48A2 C**,T1
+T20,T25,T1
+T25,M26,T2
+T25,M26 T99,P
+M26,M26 T99,P
+M26,M26E1,P
+M26,M26A1,T1
+M26,**M46**,T1
+**M46**,**M47**,T1
+M26,T26E5,T2
+T26E5,T26E1-1,T2
+T26E5,**M46**,T1
+T26E1-1,**M46**,T1
+T26E5,T32*,T3
+T32*,T32E1*,T1
+M26,T26E1-1,T2
+T26E1-1,T34*,T2
+T34*,T30*,P
+T34*,T29*,P
+BT-5,RBT-5,P
+BT-5,BT-7,T1
+BT-7,BT-42,T1
+BT-7,BT-7M,T1
+BT-7M,BT-7A (F-32),P
+T-50,T-126,P
+Vickers Mk.E,T-26E (FIN),P
+T-26,T-26-4,T1
+T-26,T-26E,P
+T-44,T-44-122,P
+T-44,T-44-100,T1
+T-44-100,**T-54 (1947)**,T3
+**T-54 (1947)**,**T-54 (1949)**,T2
+**T-54 (1949)**,**T-54 (1951)**,T1
+**T-54 (1949)**,**SU-122-54**,T2
+**T-54 (1951)**,**SU-122-54**,T2
+**T-54 (1951)**,**Type 62**,T3
+**PT-76**,**PT-76B**,T1
+**PT-76B**,**ASU-85**,T2
+**PT-76**,**Object 211**,T1
+**PT-76**,**Type 63-I**,T1
+**PT-76B**,**Object 211**,T1
+**PT-76B**,**Type 63-I**,T1
+**Type 63-I**,**Object 211**,T1
+T-34 (1940),T-34 (1941),T1
+T-34 (1940),SU-122,T1
+T-34 (1941),SU-122,T1
+T-34 (1941),T-34E STZ,T1
+T-34 (1941),T-34E,P
+T-34 (1941),T-34-57,T1
+T-34 (1941),T-34 (1942),T1
+T-34E STZ,T-34E,P
+T-34E STZ,T-34-57,T1
+T-34E STZ,SU-122,T1
+T-34E STZ,T-34 (1942),T1
+T-34E,T-34-57,T1
+T-34E,T-34 (1942),P
+T-34E,SU-122,P
+T-34-57,T-34 (1942),T1
+T-34-57,SU-122,T1
+T-34 (1942),SU-122,T1
+T-34 (1942),T 34 747 (r),P
+T-34 (1942),T-34-57 (1943),P
+T-34 (1942),T-34-85 (D-5T),T2
+T-34-85 (D-5T),T-34-85,T1
+T-34-85,T-34-100,P
+T-34-85,T-34-85 Gai,T1
+T-34-85,T-34-85E,P
+T-34-85 Gai,T-34-85E,P
+SU-122,SU-85,T1
+SU-85,SU-85M,T1
+SU-85M,SU-100,T1
+SU-100,SU-122P,P
+SU-85M,SU-122P,P
+KV-1 (L-11),KV-2 (ZiS-6),P
+KV-1 (L-11),KV-1 (ZiS-5),T1
+KV-1 (L-11),KV-2 (1939),T1
+KV-1 (L-11),KV-1S,T1
+KV-1 (L-11),KV-1E,P
+KV-1 (L-11),KV-220,P
+KV-1 (ZiS-5),KV-1 (1942),P
+KV-1 (ZiS-5),KW I C 756 (r),P
+KV-1 (ZiS-5),KV-2 (1939),T1
+KV-1 (ZiS-5),KV-1S,T1
+KV-1 (ZiS-5),KV-1E,P
+KV-1 (ZiS-5),KV-220,P
+KV-1 (ZiS-5),KV-2 (ZiS-6),P
+KV-2 (ZiS-6),KV-2 (1939),P
+KV-2 (ZiS-6),KV-1S,P
+KV-2 (ZiS-6),KV-1S,P
+KV-2 (ZiS-6),KV-1E,P
+KV-2 (ZiS-6),KV-220,P
+KV-2 (1939),KV-2 (1940),P
+KV-2 (1939),KV-1S,T1
+KV-2 (1939),KV-1E,P
+KV-2 (1939),KV-220,P
+KV-2 (1940),KW II 754 (r),P
+KV-1S,SU-152,T2
+KV-1S,KV-85,T1
+KV-1S,KV-122,P
+KV-1S,KV-1E,P
+KV-1S,KV-220,P
+KV-1E,KV-220,P
+KV-85,SU-152,T2
+KV-85,KV-122,P
+KV-122,SU-152,P
+T-28 (1938),T-28,T1
+T-28,T-28E,T1
+IS-1,Object 248,P
+IS-1,IS-2,T1
+IS-1,ISU-152,T2
+IS-2,Object 248,P
+IS-2,IS-2 (1944),T1
+IS-2,ISU-152,T2
+ISU-152,ISU-122,T1
+ISU-122,ISU-122S,T1
+Pz.III B,Pz.III E,T1
+Pz.III E,Pz.III F,T1
+Pz.III F,Pz.III J,T1
+Pz.III F,StuG III A,T2
+Pz.III J,Pz.III J1,T1
+Pz.III J,StuG III A,T2
+Pz.III J1,Pz.III L,T1
+Pz.III J1,StuG III F,T1
+Pz.III J1,Pz.III M,T1
+Pz.III J1,Pz.III N,P
+Pz.III L,Pz.III M,T1
+Pz.III L,Pz.III N,P
+Pz.III M,Pz.III N,P
+StuG III A,StuG III F,T1
+StuG III F,StuG III G,T1
+StuG III F,StuH 42 G,T1
+StuG III G,StuH 42 G,T1
+Pz. VI 'Tiger' H1,Pz. VI 'Tiger' E,T1
+Pz. VI 'Tiger' H1,HT. No. VI,P
+Pz. VI 'Tiger' E,HT. No. VI,P
+Pz. VI 'Tiger' E,Tigris,P
+Pz. VI 'Tiger' E,Sturmtiger,P
+Pz.II C,Pz.II F,T1
+Pz.IV C,Pz.IV E,T1
+Pz.IV E,Pz.IV F1,T1
+Pz.IV F1,Pz.IV F2,T1
+Pz.IV F2,Pz.IV G,T1
+Pz.IV G,Pz.IV J,T1
+Pz.IV G,Pz.IV H,T1
+Pz.IV G,StuPz. IV 'Brummbar',P
+Pz.IV G,Pz.IV G (IT),P
+Pz.IV G,Jagdpanzer IV,T2
+Jagdpanzer IV,Pz.IV J,T2
+Jagdpanzer IV,Pz.IV H,T2
+Jagdpanzer IV,Jagdpanzer IV/70 (A),P
+Jagdpanzer IV,Jagdpanzer IV/70 (V),T1
+Jagdpanzer IV/70 (A),Jagdpanzer IV/70 (V),T1
+Pz.IV J,Pz.IV H,P
+Pz.IV J,StuPz. IV 'Brummbar',P
+Pz.IV J,Pz.Bfw.IV J,P
+Pz.IV H,StuPz. IV 'Brummbar',P
+VK 45.01 (P),PzBfw VI (P),P
+VK 45.01 (P),JPz. VI 'Ferdinand',T2
+JPz. VI 'Ferdinand',JPz. VI 'Elefant',P
+PzBfw VI (P),JPz. VI 'Ferdinand',T2
+Pz. VI B 'Tiger II' (P),Pz. VI B 'Tiger II' (H),T1
+Pz. VI B 'Tiger II' (P),JPz. VI 'Jagdtiger',T2
+Pz. VI B 'Tiger II' (H),JPz. VI 'Jagdtiger',T2
+Pz. VI B 'Tiger II' (H),Tiger II (H) Sla. 16,P
+Pz. VI B 'Tiger II' (H),Tiger II (H) 10.5cm,P
+Tiger II (H) Sla. 16,Tiger II (H) 10.5cm,P
+VK 30.02 M,Panther D,T1
+Panther D,Panther A,T1
+Panther A,Panther G,T1
+Panther G,Panther F,T1
+Panther G,JPz. V 'Jagdpanther',T2
+Panther F,Pz. V "Panther" II,P
+A.C.I,A.C.IV,P
+Crusader Mk. II,Crusader Mk. III,T1
+A13 Mk. I,A13 Mk. II,T1
+A13 Mk. II,A13 Mk. II (1939),P
+Valentine Mk. I,Valentine Mk. IX,T1
+Valentine Mk. IX,Valentine Mk. XI,T1
+Valentine Mk. IX,Archer,T1
+Valentine Mk. XI,Archer,T1
+Matilda III,MK-II "Matilda",P
+Matilda III,Matilda Hedgehog,P
+Churchill Mk. I,Churchill Mk. III,T1
+Churchill Mk. III,Churchill NA75,T1
+Churchill Mk. III,3in Gun Carrier,T1
+Churchill Mk. III,Churchill AVRE,P
+Churchill Mk. III,Churchill Mk. VII,T1
+Churchill Mk. VII,Churchill Crocodile,P
+Churchill Mk. VII,Black Prince*,P
+Cromwell V,Cromwell V (RP-3),P
+Cromwell V,Cromwell I,T1
+Cromwell V,Avenger,T2
+Cromwell V,Comet,T2
+Cromwell I,Avenger,T2
+Cromwell I,Comet,T2
+Avenger,A30 Challenger,T1
+Comet,**Charioteer**,T1
+Centurion Mk.1*,Centurion Mk.2*,T2
+Centurion Mk.2*,**Centurion Mk.3**,T1
+**Centurion Mk.3**,**Centurion Mk.5/1**,P
+Centurion Mk.1*,**FV4005**,T2
+Centurion Mk.2*,**FV4005**,T2
+**Centurion Mk.3**,**FV4005**,T2
+M13/40 (I),M13/40 (II),P
+M13/40 (II),M13/40 (III),T1
+M13/40 (I),M14/41,T1
+M13/40 (II),M14/41,T1
+M13/40 (III),M14/41,T1
+M14/41,M14/41 (47/40),P
+M14/41,M15/42,T1
+M14/41,75/18 M41,T1
+M14/41,75/32 M41,T1
+M15/42,75/34 M42,T1
+M15/42,105/25 M43,T1
+M15/42,75/34 M43,T1
+M15/42,75/46 M43,T1
+Strv m/31,Strv m/38,T1
+Strv m/38,Strv m/39,P
+Strv m/38,Toldi IIA,P
+Strv m/39,Strv m/40L,T1
+Strv m/40L,Lago I (APDS),T1
+Strv m/40L,**Pvkv IV**,T1
+Lago I (APDS),Strv m/42 EH,T1
+Strv m/42 EH,**Pvkv m/43 (1963)**,T2
+Strv m/42 EH,**Strv m/42 DT**,T1
+**Strv m/42 DT**,**Strv 74**,T1
+41M Turan II,40M Turan I,P
+40M Turan I,43M Turan III,T2
+40M Turan I,40/43M Zrinyi II,T1
+40M Turan I,Pz.35 (t),T1
+40/43M Zrinyi II,44M Zrinyi I,P
+Pz.35 (t),Pz.38 (t) A,T1
+Pz.38 (t) A,Pz.38 (t) F,T1
+Pz.38 (t) F,Pz.38 (t) n.A.,T1
+Pz.38 (t) F,Jagdpanzer 38 (t),T2
+Pz.38 (t) F,Strv m/41 S-II,T1
+Pz.38 (t) n.A.,Jagdpanzer 38 (t),T2
+Pz.38 (t) n.A.,Strv m/41 S-II,T1
+Jagdpanzer 38 (t),Strv m/41 S-II,T2
+Strv m/41 S-II,Strv m/41 S-I,P
+Strv m/41 S-II,Sav m/43 (1944),T2
+Strv m/41 S-II,Sav m/43 (1946),T1
+Sav m/43 (1946),**Sav m/43 (1946)**,T1
+H.35,H.39,T1
+S.35,SAu 40,T1
+B1 bis,B1 ter,P
+ARL-44 (ACL-1),ARL-44,T2
+AMX-13 (FL11),AMX-13 (M24),P
+AMX-13 (FL11),**AMX-13**,T2
+AMX-13 (M24),**AMX-13**,T2
+AMC.34 YR,AMC.35 (ACG-1),T1
+AMC.34 YR,AMR.35 ZT3,T1
+**CA Lorraine**,**Lorraine 40T**,T2
+Char 2C,Char 2C Bis,P
+**AMX M4**,**AMX-50**,T2
+**AMX M4**,**AMX-50-90**,P
+**AMX M4**,**AMX-50 Foch**,T2
+**AMX-50**,**AMX-50-90**,P
+**AMX-50**,**AMX-50 Foch**,T2
+**AMX-50-90**,**AMX-50 Foch**,T2
+**AMX-50**,**AMX-50 Surbaisse**,T2
+M3 Lee,M2 Medium,T2
+M4A3 (105),M3 Lee,T2
+Grant I,M3 Lee,P
+Ram Mk II,Grant I,P
+M4A1,M3 Lee,T2
+M4,M4A1,T1
+M4 Hybrid,M4A1,P
+M4 Tipo IC,M4 Hybrid,T1
+M4A1 (75) W,M4 Hybrid,T1
+Sherman II,M4 Hybrid,T1
+M4A1 (75) W,M4A1,T1
+M4A1 (76) W,M4A1 (75) W,T1
+**M4A1 (FL10)**,M4A1 (75) W,P
+Sherman II,M4A1 (75) W,T1
+**M4A1 (FL10)**,M4A1 (76) W,P
+Sherman II,M4A1,T1
+M4A4,M4,T1
+M4A2,M4,T1
+M10 GMC,M4,T2
+Achilles,M4,T2
+"Sherman IC ""Trzyniec""",M4,P
+Sherman III/IV,M4,P
+Sherman VC,M4A4,T1
+Sherman VC (APDS),Sherman VC,T1
+M4A4 (1st PTG),M4A4,P
+**M4A4 (SA50)**,M4A4,T1
+M4A2 (76) W,M4A2,T2
+M4A3E2,M4A2,T2
+M4/T26,M4A2 (76) W,T1
+M4A3 (76) W,M4A2 (76) W,T1
+M36B1,M4A3 (76) W,T1
+M4A3E2 (76) W,M4A3E2,T1
+M36 GMC,M10 GMC,T1
+**M36B2**,M36 GMC,T1
+Achilles,M10 GMC,T2
+"Sherman IC ""Trzyniec""",M10 GMC,P
+Sherman III/IV,M10 GMC,T2
+"Sherman IC ""Trzyniec""",Achilles,P
+Sherman III/IV,Achilles,T2
+M2A4,M2A2,T1
+M3 Stuart,M2A4,T1
+M3A1 Stuart,M3 Stuart,T1
+M3A1 Stuart,M3A1 Stuart,T1
+M3A3 Stuart,M3A1 Stuart,T1
+T1E1,M6A1,T1
+T1E1 (90 mm),T1E1,T1
+M6A2E1,T1E1 (90 mm),P
+**M41A1**,**M41A3**,T1
+T95 GMC*,T28 GMC*,T1
+**M48A2 C**,**M48**,T1
+T25,T20,T1
+M26,T25,T2
+M26 T99,T25,P
+M26 T99,M26,P
+M26E1,M26,P
+M26A1,M26,T1
+**M46**,M26,T1
+**M47**,**M46**,T1
+T26E5,M26,T2
+T26E1-1,T26E5,T2
+**M46**,T26E5,T1
+**M46**,T26E1-1,T1
+T32*,T26E5,T3
+T32E1*,T32*,T1
+T26E1-1,M26,T2
+T34*,T26E1-1,T2
+T30*,T34*,T1
+T29*,T34*,P
+RBT-5,BT-5,P
+BT-7,BT-5,T1
+BT-42,BT-7,T1
+BT-7M,BT-7,T1
+BT-7A (F-32),BT-7M,P
+T-126,T-50,P
+T-26E (FIN),Vickers Mk.E,P
+T-26-4,T-26,T1
+T-26E,T-26,P
+T-44-122,T-44,P
+T-44-100,T-44,T1
+**T-54 (1947)**,T-44-100,T3
+**T-54 (1949)**,**T-54 (1947)**,T2
+**T-54 (1951)**,**T-54 (1949)**,T1
+**SU-122-54**,**T-54 (1949)**,T2
+**SU-122-54**,**T-54 (1951)**,T2
+**Type 62**,**T-54 (1951)**,T3
+**PT-76B**,**PT-76**,T1
+**ASU-85**,**PT-76B**,T2
+**Object 211**,**PT-76**,T1
+**Type 63-I**,**PT-76**,T1
+**Object 211**,**PT-76B**,T1
+**Type 63-I**,**PT-76B**,T1
+**Object 211**,**Type 63-I**,T1
+T-34 (1941),T-34 (1940),T1
+SU-122,T-34 (1940),T1
+SU-122,T-34 (1941),T1
+T-34E STZ,T-34 (1941),T1
+T-34E,T-34 (1941),P
+T-34-57,T-34 (1941),T1
+T-34 (1942),T-34 (1941),T1
+T-34E,T-34E STZ,P
+T-34-57,T-34E STZ,T1
+SU-122,T-34E STZ,T1
+T-34 (1942),T-34E STZ,T1
+T-34-57,T-34E,T1
+T-34 (1942),T-34E,P
+SU-122,T-34E,P
+T-34 (1942),T-34-57,T1
+SU-122,T-34-57,T1
+SU-122,T-34 (1942),T1
+T 34 747 (r),T-34 (1942),P
+T-34-57 (1943),T-34 (1942),P
+T-34-85 (D-5T),T-34 (1942),T2
+T-34-85,T-34-85 (D-5T),T1
+T-34-100,T-34-85,P
+T-34-85 Gai,T-34-85,T1
+T-34-85E,T-34-85,P
+T-34-85E,T-34-85 Gai,P
+SU-85,SU-122,T1
+SU-85M,SU-85,T1
+SU-100,SU-85M,T1
+SU-122P,SU-100,P
+SU-122P,SU-85M,P
+KV-2 (ZiS-6),KV-1 (L-11),P
+KV-1 (ZiS-5),KV-1 (L-11),T1
+KV-2 (1939),KV-1 (L-11),T1
+KV-1S,KV-1 (L-11),T1
+KV-1E,KV-1 (L-11),P
+KV-220,KV-1 (L-11),P
+KV-1 (1942),KV-1 (ZiS-5),P
+KW I C 756 (r),KV-1 (ZiS-5),P
+KV-2 (1939),KV-1 (ZiS-5),T1
+KV-1S,KV-1 (ZiS-5),T1
+KV-1E,KV-1 (ZiS-5),T1
+KV-220,KV-1 (ZiS-5),P
+KV-2 (ZiS-6),KV-1 (ZiS-5),P
+KV-2 (1939),KV-2 (ZiS-6),P
+KV-1S,KV-2 (ZiS-6),P
+KV-1S,KV-2 (ZiS-6),P
+KV-1E,KV-2 (ZiS-6),P
+KV-220,KV-2 (ZiS-6),P
+KV-2 (1940),KV-2 (1939),P
+KV-1S,KV-2 (1939),T1
+KV-1E,KV-2 (1939),P
+KV-220,KV-2 (1939),P
+KW II 754 (r),KV-2 (1940),P
+SU-152,KV-1S,T2
+KV-85,KV-1S,T1
+KV-122,KV-1S,P
+KV-1E,KV-1S,P
+KV-220,KV-1S,P
+KV-220,KV-1E,P
+SU-152,KV-85,T2
+KV-122,KV-85,P
+SU-152,KV-122,P
+T-28,T-28 (1938),T1
+T-28E,T-28,T1
+Object 248,IS-1,P
+IS-2,IS-1,T1
+ISU-152,IS-1,T2
+Object 248,IS-2,P
+IS-2 (1944),IS-2,T1
+ISU-152,IS-2,T2
+ISU-122,ISU-152,T1
+ISU-122S,ISU-122,T1
+Pz.III E,Pz.III B,T1
+Pz.III F,Pz.III E,T1
+Pz.III J,Pz.III F,T1
+StuG III A,Pz.III F,T2
+Pz.III J1,Pz.III J,T1
+StuG III A,Pz.III J,T2
+Pz.III L,Pz.III J1,T1
+StuG III F,Pz.III J1,T1
+Pz.III M,Pz.III J1,T1
+Pz.III N,Pz.III J1,P
+Pz.III M,Pz.III L,T1
+Pz.III N,Pz.III L,P
+Pz.III N,Pz.III M,P
+StuG III F,StuG III A,T1
+StuG III G,StuG III F,T1
+StuH 42 G,StuG III F,T1
+StuH 42 G,StuG III G,T1
+Pz. VI 'Tiger' E,Pz. VI 'Tiger' H1,T1
+HT. No. VI,Pz. VI 'Tiger' H1,P
+HT. No. VI,Pz. VI 'Tiger' E,P
+Tigris,Pz. VI 'Tiger' E,P
+Sturmtiger,Pz. VI 'Tiger' E,P
+Pz.II F,Pz.II C,T1
+Pz.IV E,Pz.IV C,T1
+Pz.IV F1,Pz.IV E,T1
+Pz.IV F2,Pz.IV F1,T1
+Pz.IV G,Pz.IV F2,T1
+Pz.IV J,Pz.IV G,T1
+Pz.IV H,Pz.IV G,T1
+StuPz. IV 'Brummbar',Pz.IV G,P
+Pz.IV G (IT),Pz.IV G,P
+Jagdpanzer IV,Pz.IV G,T2
+Pz.IV J,Jagdpanzer IV,T2
+Pz.IV H,Jagdpanzer IV,T2
+Jagdpanzer IV/70 (A),Jagdpanzer IV,P
+Jagdpanzer IV/70 (V),Jagdpanzer IV,T1
+Jagdpanzer IV/70 (V),Jagdpanzer IV/70 (A),P
+Pz.IV H,Pz.IV J,T1
+StuPz. IV 'Brummbar',Pz.IV J,P
+Pz.Bfw.IV J,Pz.IV J,P
+StuPz. IV 'Brummbar',Pz.IV H,P
+PzBfw VI (P),VK 45.01 (P),P
+JPz. VI 'Ferdinand',VK 45.01 (P),T2
+JPz. VI 'Elefant',JPz. VI 'Ferdinand',P
+JPz. VI 'Ferdinand',PzBfw VI (P),T2
+Pz. VI B 'Tiger II' (H),Pz. VI B 'Tiger II' (P),T1
+JPz. VI 'Jagdtiger',Pz. VI B 'Tiger II' (P),T2
+JPz. VI 'Jagdtiger',Pz. VI B 'Tiger II' (H),T2
+Tiger II (H) Sla. 16,Pz. VI B 'Tiger II' (H),P
+Tiger II (H) 10.5cm,Pz. VI B 'Tiger II' (H),P
+Tiger II (H) 10.5cm,Tiger II (H) Sla. 16,P
+Panther D,VK 30.02 M,T1
+Panther A,Panther D,T1
+Panther G,Panther A,T1
+Panther F,Panther G,T1
+JPz. V 'Jagdpanther',Panther G,T2
+"Pz. V ""Panther"" II",Panther F,P
+A.C.IV,A.C.I,P
+Crusader Mk. III,Crusader Mk. II,T1
+A13 Mk. II,A13 Mk. I,T1
+A13 Mk. II (1939),A13 Mk. II,P
+Valentine Mk. IX,Valentine Mk. I,T1
+Valentine Mk. XI,Valentine Mk. IX,T1
+Archer,Valentine Mk. IX,T1
+Archer,Valentine Mk. XI,T1
+"MK-II ""Matilda""",Matilda III,P
+Matilda Hedgehog,Matilda III,P
+Churchill Mk. III,Churchill Mk. I,T1
+Churchill NA75,Churchill Mk. III,T1
+3in Gun Carrier,Churchill Mk. III,T1
+Churchill AVRE,Churchill Mk. III,T1
+Churchill Mk. VII,Churchill Mk. III,T1
+Churchill Crocodile,Churchill Mk. VII,P
+Black Prince*,Churchill Mk. VII,P
+Cromwell V (RP-3),Cromwell V,P
+Cromwell I,Cromwell V,T1
+Avenger,Cromwell V,T2
+Comet,Cromwell V,T2
+Avenger,Cromwell I,T2
+Comet,Cromwell I,T2
+A30 Challenger,Avenger,T1
+**Charioteer**,Comet,T1
+Centurion Mk.2*,Centurion Mk.1*,T2
+**Centurion Mk.3**,Centurion Mk.2*,T1
+**Centurion Mk.5/1**,**Centurion Mk.3**,P
+**FV4005**,Centurion Mk.1*,T2
+**FV4005**,Centurion Mk.2*,T2
+**FV4005**,**Centurion Mk.3**,T2
+M13/40 (II),M13/40 (I),P
+M13/40 (III),M13/40 (II),T1
+M14/41,M13/40 (I),T1
+M14/41,M13/40 (II),T1
+M14/41,M13/40 (III),T1
+M14/41 (47/40),M14/41,P
+M15/42,M14/41,T1
+75/18 M41,M14/41,T1
+75/32 M41,M14/41,T1
+75/34 M42,M15/42,T1
+105/25 M43,M15/42,T1
+75/34 M43,M15/42,T1
+75/46 M43,M15/42,T1
+Strv m/38,Strv m/31,T1
+Strv m/39,Strv m/38,P
+Toldi IIA,Strv m/38,P
+Strv m/40L,Strv m/39,T1
+Lago I (APDS),Strv m/40L,T1
+**Pvkv IV**,Strv m/40L,T1
+Strv m/42 EH,Lago I (APDS),T1
+**Pvkv m/43 (1963)**,Strv m/42 EH,T2
+**Strv m/42 DT**,Strv m/42 EH,T1
+**Strv 74**,**Strv m/42 DT**,T1
+40M Turan I,41M Turan II,P
+43M Turan III,40M Turan I,T2
+40/43M Zrinyi II,40M Turan I,T1
+Pz.35 (t),40M Turan I,T1
+44M Zrinyi I,40/43M Zrinyi II,T1
+Pz.38 (t) A,Pz.35 (t),T1
+Pz.38 (t) F,Pz.38 (t) A,T1
+Pz.38 (t) n.A.,Pz.38 (t) F,T1
+Jagdpanzer 38 (t),Pz.38 (t) F,T2
+Strv m/41 S-II,Pz.38 (t) F,T1
+Jagdpanzer 38 (t),Pz.38 (t) n.A.,T2
+Strv m/41 S-II,Pz.38 (t) n.A.,T1
+Strv m/41 S-II,Jagdpanzer 38 (t),T2
+Strv m/41 S-I,Strv m/41 S-II,P
+Sav m/43 (1944),Strv m/41 S-II,T2
+Sav m/43 (1946),Strv m/41 S-II,T1
+**Sav m/43 (1946)**,Sav m/43 (1946),T1
+H.39,H.35,T1
+SAu 40,S.35,T1
+B1 ter,B1 bis,P
+ARL-44,ARL-44 (ACL-1),T2
+AMX-13 (M24),AMX-13 (FL11),P
+**AMX-13**,AMX-13 (FL11),T2
+**AMX-13**,AMX-13 (M24),T2
+AMC.35 (ACG-1),AMC.34 YR,T1
+AMR.35 ZT3,AMC.34 YR,T1
+**Lorraine 40T**,**CA Lorraine**,T2
+Char 2C Bis,Char 2C,P
+**AMX-50**,**AMX M4**,T2
+**AMX-50-90**,**AMX M4**,P
+**AMX-50 Foch**,**AMX M4**,T2
+**AMX-50-90**,**AMX-50**,T1
+**AMX-50 Foch**,**AMX-50**,T2
+**AMX-50 Foch**,**AMX-50-90**,T2
+**AMX-50 Surbaisse**,**AMX-50**,T2

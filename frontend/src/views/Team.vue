@@ -23,13 +23,12 @@
       </v-data-table>
 
       <v-card-actions>
-        <v-btn color="error" @click="openSellTankDialog">Sell Tanks</v-btn>
+        <v-btn v-if="isCommander" color="error" @click="openSellTankDialog">Sell Tanks</v-btn>
       </v-card-actions>
     </v-card>
 
     <V-btn @click="goToManufacturers">Manufacturer</V-btn>
 
-    <!-- Tank Details Dialog -->
     <v-dialog v-model="showTankDetailsDialog" max-width="600px">
       <v-card>
         <v-card-title>
@@ -436,7 +435,7 @@ export default {
       if (tanksToSell.length === 0) return;
 
       try {
-        const response = await fetch('/api/league/transactions/sell_tank/', {
+        const response = await fetch('/api/league/transactions/sell_tanks/', {
           method: 'POST',
           headers: {
             'X-CSRFToken': this.csrfToken,

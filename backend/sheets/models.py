@@ -84,6 +84,45 @@ class Team(models.Model):
     def get_upgrade_kit_discount(self, tier):
         return self.upgrade_kits.get(tier, {"price": 0})["price"]
 
+    def upgrade_or_downgrade_tank(self, from_tank, to_tank, extra_upgrade_kit_tiers=[]):
+        possible_upgrades = self.get_possible_upgrades(from_tank)
+
+        upgrade_path = next((path for path in possible_upgrades if path['to_tank'] == to_tank.name), None)
+
+        if not upgrade_path:
+            raise ValidationError(f"No valid upgrade path from {from_tank.name} to {to_tank.name}.")
+
+        total_cost = upgrade_path['total_cost']
+        required_kits = upgrade_path['required_kits']
+
+        total_extra_discount = sum(
+            self.get_upgrade_kit_discount(tier) for tier in extra_upgrade_kit_tiers if tier in self.UPGRADE_KITS
+        )
+        total_cost = max(total_cost - total_extra_discount, 0)
+
+        for kit in extra_upgrade_kit_tiers:
+            if kit in required_kits:
+                required_kits[kit] += 1
+
+        missing_kits = [tier for tier, count in required_kits.items() if
+                        self.upgrade_kits.get(tier, {}).get('quantity', 0) < count]
+        if missing_kits:
+            raise ValidationError(f"Missing upgrade kits: {', '.join(missing_kits)}")
+
+        if total_cost > self.balance:
+            raise ValidationError("Insufficient balance for this upgrade.")
+
+        self.balance -= total_cost
+
+        for tier, count in required_kits.items():
+            self.upgrade_kits[tier]['quantity'] -= count
+
+        self.tanks.through.objects.filter(team=self, tank=from_tank).delete()
+        self.tanks.through.objects.create(team=self, tank=to_tank)
+        self.save()
+
+        return f"Tank {from_tank.name} upgraded to {to_tank.name}. Total cost: {total_cost}. Remaining balance: {self.balance}"
+
     def upgrade_tank_manu(self, from_tank, to_tank, extra_upgrade_kit_tiers=[]):
         all_needed_kits = extra_upgrade_kit_tiers
         missing_kits = [kit for kit in all_needed_kits if kit not in self.upgrade_kits or self.upgrade_kits[kit]['quantity'] <= 0]
@@ -267,11 +306,20 @@ class UpgradePath(models.Model):
 
     def calculate_cost(self):
         price_difference = self.to_tank.price - self.from_tank.price
-        print(price_difference)
         if self.from_tank.price > self.to_tank.price:
             self.cost = abs(price_difference / 2)
         else:
             self.cost = abs(price_difference)
+        if price_difference == 0:
+            rank = self.to_tank.rank
+            rank_based_costs = {
+                1: 3500,
+                2: 7500,
+                3: 10000,
+                4: 15000,
+                5: 20000
+            }
+            self.cost = rank_based_costs.get(rank, 0)
 
 
 class TeamTank(models.Model):

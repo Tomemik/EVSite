@@ -65,12 +65,12 @@ interface Manufacturer {
 
 const manufacturers = ref<Manufacturer[]>([]);
 const headers = ref([
-  { text: 'Select', value: 'select' },
-  { text: 'Name', value: 'name' },
-  { text: 'Battle Rating', value: 'battle_rating' },
-  { text: 'Price', value: 'price' },
-  { text: 'Rank', value: 'rank' },
-  { text: 'Type', value: 'type' },
+  { title: 'Select', value: 'select' },
+  { title: 'Name', value: 'name' },
+  { title: 'Battle Rating', value: 'battle_rating' },
+  { title: 'Price', value: 'price' },
+  { title: 'Rank', value: 'rank' },
+  { title: 'Type', value: 'type' },
 ]);
 
 const selectedItems = ref<Record<number, number[]>>({});

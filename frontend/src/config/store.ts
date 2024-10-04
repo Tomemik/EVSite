@@ -10,4 +10,5 @@ export const useUserStore = defineStore("user", {
     groups: string[];
     team: string;
   },
+  persist: true
 });

@@ -13,8 +13,8 @@
       :items-per-page="15"
     >
       <template v-slot:bottom>
-        <v-row v-if="userStore.groups.find(i => i.name === 'admin')">
-          <v-col cols="auto" class="d-flex align-center">
+        <v-row>
+          <v-col v-if="userStore.groups.find(i => i.name === 'admin')" cols="auto" class="d-flex align-center">
             <v-btn
               @click="removeTanks"
               color="error"

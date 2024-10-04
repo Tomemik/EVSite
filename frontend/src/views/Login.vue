@@ -70,9 +70,9 @@ const login = async () => {
       }),
     );
     await fetchUserData();
-    router.push({ name: 'Home' }); // Redirect to home or another route
+    router.push({ name: 'Home' });
   } catch (error) {
-    errorMessage.value = error.message; // Set error message for the user
+    errorMessage.value = error.message;
   }
 };
 </script>

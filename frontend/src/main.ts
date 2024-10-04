@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from "pinia";
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 
 // Vuetify
 import 'vuetify/styles'
@@ -16,6 +17,7 @@ import router from './router'
 
 const app = createApp(App);
 const pinia = createPinia()
+pinia.use(piniaPluginPersistedstate)
 const vuetify = createVuetify({
   defaults: {
     VSelect: {

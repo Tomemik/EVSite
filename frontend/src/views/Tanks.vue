@@ -2,7 +2,6 @@
   <v-container :height="'90vh'">
     <TankTable :tanks="tanks"></TankTable>
 
-    <!-- Add Tank Dialog -->
     <v-dialog v-model="showAddTankDialog" max-width="500px">
       <v-card>
         <v-card-title>

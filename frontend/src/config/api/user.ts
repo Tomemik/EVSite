@@ -1,8 +1,10 @@
 import router from "../../router/index.ts";
 import { useUserStore } from "../store.ts";
+import {inject} from "vue";
 
 const AUTH_HEADER_NAME: string = "auth-token";
 const AUTH_TOKEN_KEY: string = "authToken";
+
 
 export const fetchUserData = async () => {
   try {
@@ -35,6 +37,24 @@ export function isAuthenticated() {
     return authToken;
   }
   return false;
+}
+
+export async function logout(csrfToken) {
+    const userStore = useUserStore();
+    console.log(getAuthToken());
+    const response = await fetch('/api/user/logout/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'Content-Type': 'application/json',
+        'authorization': getAuthToken(),
+      },
+    });
+    if (response.status == 204){
+      userStore.$reset()
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      console.log("User successfully logged out")
+    }
 }
 
 export const checkAuth = () => {

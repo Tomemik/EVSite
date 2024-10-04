@@ -7,7 +7,28 @@
 
       <v-spacer></v-spacer>
 
-      <v-toolbar-items class="hidden-xs-only">
+      <v-toolbar-items v-if="isUserLoggedIn" class="hidden-xs-only">
+        <v-btn
+          flat
+          v-for="item in barItemsLoggedIn"
+          :key="item.title"
+          :to="item.path"
+          variant="text"
+        >
+          <v-icon right>{{ item.icon }}</v-icon>
+          {{ item.title }}
+        </v-btn>
+        <v-btn
+          flat
+          variant="text"
+          @click="logout(csrfToken)"
+        >
+          <v-icon right>{{ 'mdi-logout' }}</v-icon>
+           log-out
+        </v-btn>
+      </v-toolbar-items>
+
+      <v-toolbar-items v-else class="hidden-xs-only">
         <v-btn
           flat
           v-for="item in barItems"
@@ -41,12 +62,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import {inject, ref, watch} from 'vue';
+import {isAuthenticated} from "../config/api/user.ts";
+import {logout} from "../config/api/user.ts";
+import {useUserStore} from "../config/store.ts";
+const $cookies = inject("$cookies");
+const csrfToken = $cookies.get('csrftoken');
+const isUserLoggedIn = ref(isAuthenticated())
+const userStore = useUserStore()
 
 const drawer = ref<boolean>(false);
 
 const barItems = ref([
   { title: 'Log-in', path: '/login', icon: 'mdi-login' },
+]);
+
+const barItemsLoggedIn = ref([
+  { title: 'test', path: '/test', icon: '' },
 ]);
 
 const drawerItems = ref([
@@ -55,20 +87,32 @@ const drawerItems = ref([
   { title: 'Manufacturers', path: '/manufacturers' },
   { title: 'Matches', path: '/matches' },
 ]);
+
+watch(
+  () => userStore.username,
+  (newVal) => {
+    console.log(newVal)
+    if (newVal == '') {
+      isUserLoggedIn.value = false;
+    } else{
+      isUserLoggedIn.value = true;
+    }
+  }
+);
+
 </script>
 
 <style scoped>
 .main-content {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 64px); /* Adjust if app-bar height changes */
+  height: calc(100vh - 64px);
   overflow: auto;
 }
 
-/* Optional: Adjust for better mobile view */
 @media (max-width: 600px) {
   .main-content {
-    height: calc(100vh - 56px); /* Adjust if app-bar height changes */
+    height: calc(100vh - 56px);
   }
 }
 </style>

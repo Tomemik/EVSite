@@ -96,29 +96,37 @@ class TankDetailView(APIView):
 
 class PurchaseTankView(APIView):
     def post(self, request):
+        user = request.user
         team_name = request.data['team']
-        print(team_name)
+        if not user.has_perm('admin_permissions'):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        elif not user.has_perm('commander_permissions'):
+            user_team_name = user.team.name if user.team else None
+            if not team_name == user_team_name:
+                return Response(status=status.HTTP_403_FORBIDDEN)
         tanks = request.data.get('tanks', [])
         team = Team.objects.get(name=team_name)
-
         for tank in tanks:
-            print(tank)
             tank = Tank.objects.get(name=tank)
             team.purchase_tank(tank)
-
-        return Response(status=status.HTTP_201_CREATED)
+        return Response(status=status.HTTP_200_OK)
 
 
 class SellTankView(APIView):
     def post(self, request):
         user = request.user
         team_name = request.data['team']
+        if not user.has_perm('admin_permissions'):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        elif not user.has_perm('commander_permissions'):
+            user_team_name = user.team.name if user.team else None
+            if not team_name == user_team_name:
+                return Response(status=status.HTTP_403_FORBIDDEN)
         tanks = request.data.get('tanks', [])
         team = Team.objects.get(name=team_name)
         for tank in tanks:
             tank = Tank.objects.get(name=tank['name'])
             team.sell_tank(tank)
-
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -152,8 +160,6 @@ class UpgradeTankView(APIView):
                 extra_kits += ['T2'] * val
             if key == 'T3':
                 extra_kits += ['T3'] * val
-        print(extra_kits)
-        print(request.data)
 
         all_upgrades = team.upgrade_or_downgrade_tank(from_tank, to_tank, extra_kits)
 
@@ -198,7 +204,6 @@ class ManufacturerListView(APIView):
         if serializer.is_valid():
             serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
 
 
 class TankBoxView(APIView):
