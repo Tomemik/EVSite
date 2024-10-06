@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth.mixins import PermissionRequiredMixin
 
-from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch
+from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch, TeamLog
 from .serializers import TeamSerializer, ManufacturerSerializer, TankSerializer, MatchSerializer, SlimMatchSerializer, \
     MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer
 

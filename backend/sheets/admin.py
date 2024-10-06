@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, default_upgrade_kits, \
-    MatchResult, Substitute, TankLost, TeamResult
+    MatchResult, Substitute, TankLost, TeamResult, TeamLog
 
 
 class ManufacturerAdmin(admin.ModelAdmin):
@@ -87,6 +87,10 @@ class MatchResultAdmin(admin.ModelAdmin):
         return obj.judge.name if obj.judge else '-'
 
 
+class TeamLogAdmin(admin.ModelAdmin):
+    model = TeamLog
+
+
 admin.site.register(MatchResult, MatchResultAdmin)
 admin.site.register(Manufacturer, ManufacturerAdmin)
 admin.site.register(Team, TeamAdmin)
@@ -95,3 +99,4 @@ admin.site.register(UpgradePath, UpgradePathAdmin)
 admin.site.register(TeamTank, TeamTankAdmin)
 admin.site.register(Match, MatchAdmin)
 admin.site.register(TeamMatch, TeamMatchAdmin)
+admin.site.register(TeamLog, TeamLogAdmin)

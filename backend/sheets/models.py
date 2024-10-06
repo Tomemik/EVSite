@@ -1,8 +1,125 @@
+import json
+import re
+
 from django.db import models
 from django.db.models import F, Q
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 import heapq
+from functools import wraps
+from django.forms.models import model_to_dict
+import copy
+from collections import Counter
 
+
+def log_team_changes(method):
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        initial_state = model_to_dict(self)
+
+        initial_upgrade_kits = copy.deepcopy(self.upgrade_kits)
+        initial_state['upgrade_kits'] = initial_upgrade_kits
+        initial_state['manufacturers'] = [str(m) for m in self.manufacturers.all()]
+        initial_state['tanks'] = [str(t) for t in self.tanks.all()]
+
+        initial_tanks = [tank.name for tank in self.tanks.all()]
+
+        result = method(self, *args, **kwargs)
+
+        final_state = model_to_dict(self)
+
+        final_upgrade_kits = copy.deepcopy(self.upgrade_kits)
+        final_state['upgrade_kits'] = final_upgrade_kits
+        final_state['manufacturers'] = [str(m) for m in self.manufacturers.all()]
+        final_state['tanks'] = [str(t) for t in self.tanks.all()]
+
+        final_tanks = [tank.name for tank in self.tanks.all()]
+
+        changes = {}
+
+        for field, initial_value in initial_state.items():
+            final_value = final_state.get(field)
+            if initial_value != final_value:
+                changes[field] = {
+                    'from': initial_value,
+                    'to': final_value
+                }
+
+        upgrade_kit_changes = compare_upgrade_kits(initial_upgrade_kits, final_upgrade_kits)
+        if upgrade_kit_changes:
+            changes['upgrade_kits'] = upgrade_kit_changes
+
+        initial_counter = Counter(initial_tanks)
+        final_counter = Counter(final_tanks)
+
+        added_tanks = final_counter - initial_counter
+        removed_tanks = initial_counter - final_counter
+
+        if added_tanks or removed_tanks:
+            changes['tanks'] = {
+                'added': list(added_tanks.elements()),
+                'removed': list(removed_tanks.elements())
+            }
+
+        if changes:
+            readable_changes = parse_changes(changes)
+            TeamLog.objects.create(
+                team=self,
+                field_name='multiple_fields',
+                previous_value=json.dumps(initial_state),
+                new_value=json.dumps(final_state),
+                description=f"Changes made by method: {method.__name__}\n{readable_changes}",
+                method_name=method.__name__
+            )
+
+        return result
+
+    return wrapper
+
+
+def compare_upgrade_kits(initial_kits, final_kits):
+    changes = []
+
+    for tier, initial_data in initial_kits.items():
+        initial_quantity = initial_data.get('quantity', 0)
+        final_quantity = final_kits.get(tier, {}).get('quantity', 0)
+
+        if initial_quantity != final_quantity:
+            quantity_diff = final_quantity - initial_quantity
+            changes.append({
+                'tier': tier,
+                'diff': quantity_diff
+            })
+
+    return changes if changes else None
+
+
+def parse_changes(changes):
+    readable_changes = []
+
+    # Handle upgrade kits changes
+    if 'upgrade_kits' in changes:
+        for kit_change in changes['upgrade_kits']:
+            quantity_diff = kit_change['diff']
+            tier = kit_change['tier']
+            if quantity_diff > 0:
+                readable_changes.append(f"+{quantity_diff} {tier} kit")
+            else:
+                readable_changes.append(f"{quantity_diff} {tier} kit")
+
+    # Handle tank changes
+    if 'tanks' in changes:
+        if changes['tanks']['added']:
+            readable_changes.append(f"Added Tanks: {', '.join(changes['tanks']['added'])}")
+        if changes['tanks']['removed']:
+            readable_changes.append(f"Removed Tanks: {', '.join(changes['tanks']['removed'])}")
+
+    # Handle other field changes
+    for field, change in changes.items():
+        if field not in ['upgrade_kits', 'tanks']:
+            readable_changes.append(f"{field.capitalize()} changed from {change['from']} to {change['to']}")
+
+    return '\n'.join(readable_changes)
 
 def default_upgrade_kits():
     return {
@@ -34,6 +151,7 @@ class Team(models.Model):
     def __str__(self):
         return self.name
 
+    @log_team_changes
     def purchase_tank(self, tank):
         if tank.price > self.balance:
             raise ValidationError("Insufficient balance to purchase this tank.")
@@ -44,6 +162,7 @@ class Team(models.Model):
         TeamTank.objects.create(team=self, tank=tank)
         return f"Tank {tank.name} purchased successfully. Remaining balance: {self.balance}"
 
+    @log_team_changes
     def sell_tank(self, tank):
         try:
             teamtank = TeamTank.objects.filter(team=self, tank=tank).first()
@@ -55,6 +174,7 @@ class Team(models.Model):
         self.save()
         return f"Tank {tank.name} sold successfully. New balance: {self.balance}"
 
+    @log_team_changes
     def add_upgrade_kit(self, tier, quantity=1):
         if tier in self.UPGRADE_KITS:
             if tier in self.upgrade_kits:
@@ -64,6 +184,7 @@ class Team(models.Model):
         else:
             return "Invalid upgrade kit tier."
 
+    @log_team_changes
     def add_tank_boxes(self, tank_box_ids, amounts):
         if len(tank_box_ids) != len(amounts):
             raise ValueError("The length of tank_box_ids and amounts must be the same.")
@@ -84,8 +205,10 @@ class Team(models.Model):
     def get_upgrade_kit_discount(self, tier):
         return self.upgrade_kits.get(tier, {"price": 0})["price"]
 
+    @log_team_changes
     def upgrade_or_downgrade_tank(self, from_tank, to_tank, extra_upgrade_kit_tiers=[]):
         possible_upgrades = self.get_possible_upgrades(from_tank)
+
 
         upgrade_path = next((path for path in possible_upgrades if path['to_tank'] == to_tank.name), None)
 
@@ -117,12 +240,13 @@ class Team(models.Model):
         for tier, count in required_kits.items():
             self.upgrade_kits[tier]['quantity'] -= count
 
-        self.tanks.through.objects.filter(team=self, tank=from_tank).delete()
+        self.tanks.through.objects.filter(team=self, tank=from_tank).first().delete()
         self.tanks.through.objects.create(team=self, tank=to_tank)
         self.save()
 
         return f"Tank {from_tank.name} upgraded to {to_tank.name}. Total cost: {total_cost}. Remaining balance: {self.balance}"
 
+    @log_team_changes
     def upgrade_tank_manu(self, from_tank, to_tank, extra_upgrade_kit_tiers=[]):
         all_needed_kits = extra_upgrade_kit_tiers
         missing_kits = [kit for kit in all_needed_kits if kit not in self.upgrade_kits or self.upgrade_kits[kit]['quantity'] <= 0]
@@ -251,6 +375,36 @@ class Team(models.Model):
 
         return final_upgrade_paths
 
+    def reverse_change(self, log_entry):
+        previous_state = json.loads(log_entry.previous_value)
+
+        self.balance = int(previous_state['balance'])
+        self.upgrade_kits = previous_state['upgrade_kits']
+
+        added_tanks_match = re.search(r'Added Tanks: ([\w\s,]+)', log_entry.description)
+        removed_tanks_match = re.search(r'Removed Tanks: ([\w\s,]+)', log_entry.description)
+
+        added_tanks = []
+        removed_tanks = []
+
+        if added_tanks_match:
+            added_tanks = [tank.strip() for tank in added_tanks_match.group(1).split(',')]
+        if removed_tanks_match:
+            removed_tanks = [tank.strip() for tank in removed_tanks_match.group(1).split(',')]
+
+        current_tanks = [tank.name for tank in self.tanks.all()]
+
+        for tank_name in removed_tanks:
+            if tank_name in current_tanks:
+                self.tanks.through.objects.filter(team=self, tank__name=tank_name).delete()
+
+        for tank_name in added_tanks:
+            if tank_name not in current_tanks:
+                tank_to_add = Tank.objects.get(name=tank_name)
+                self.tanks.through.objects.create(team=self, tank=tank_to_add)
+
+        self.save()
+
 
 class Tank(models.Model):
 
@@ -260,7 +414,7 @@ class Tank(models.Model):
     rank = models.IntegerField(default=1)
     type = models.CharField(max_length=50, default='MT')
     upgrades = models.ManyToManyField('self', through='UpgradePath', symmetrical=False, related_name='downgrades')
-    manufacturers = models.ManyToManyField(Manufacturer, related_name='tanks')
+    manufacturers = models.ManyToManyField(Manufacturer, related_name='tanks', blank=True)
 
     def __str__(self):
         return self.name
@@ -386,7 +540,8 @@ class MatchResult(models.Model):
     is_calced = models.BooleanField(default=False)
 
     def calculate_average_rank(self):
-        tanks = Tank.objects.filter(team_matches__match=self.match)
+        tanks_lost = TankLost.objects.filter(match_result__match=self.match)
+        tanks = Tank.objects.filter(id__in=tanks_lost.values_list('tank_id', flat=True))
 
         total_rank_br = sum(tank.rank * tank.battle_rating for tank in tanks)
         total_br = sum(tank.battle_rating for tank in tanks)
@@ -541,7 +696,7 @@ class MatchResult(models.Model):
                 team_rewards[team_id] -= 10000 * average_rank * team_result.penalties
 
         combined_rewards = winner_base_reward + loser_base_reward
-        if self.match.tanks.count() >= 12:
+        if self.tanks_lost.all().count() >= 12:
             judge_reward = 0.075 * combined_rewards
         else:
             judge_reward = 0.05 * combined_rewards
@@ -550,17 +705,26 @@ class MatchResult(models.Model):
         else:
             judge_reward = max(judge_reward, 5000)
 
-        team_rewards[self.judge.id] += judge_reward
+        if self.judge:
+            team_rewards[self.judge.id] += judge_reward
 
         for team_id, reward in team_rewards.items():
-            print(team_id, reward)
             team = Team.objects.get(id=team_id)
+            initial_balance = team.balance
             team.balance += reward
             team.save()
 
+            TeamLog.objects.create(
+                team=team,
+                field_name='balance',
+                previous_value=initial_balance,
+                new_value=team.balance,
+                description=f"Match rewards applied. Change: {reward}"
+            )
+
         if self.match.mode in ["traditional", "domination"]:
             for team in winning_teams + losing_teams:
-                team.objects.get(id=team.id)
+                team = Team.objects.get(id=team)
                 team.add_upgrade_kit('T1', 1)
 
         self.is_calced = True
@@ -595,3 +759,16 @@ class Substitute(models.Model):
 
     def __str__(self):
         return f"Substitute from {self.team.name} on {self.side} with activity level {self.activity}"
+
+
+class TeamLog(models.Model):
+    team = models.ForeignKey('Team', on_delete=models.CASCADE)
+    field_name = models.CharField(max_length=255)
+    previous_value = models.JSONField()
+    new_value = models.JSONField()
+    description = models.TextField()
+    method_name = models.CharField(max_length=255)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Change in {self.field_name} for {self.team.name}"
