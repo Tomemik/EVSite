@@ -41,6 +41,7 @@
       :allTeamDetails="allTeamsDetails"
       @update:showResultsDialog="showResultsDialog = false"
       @postResults="postResults"
+      @calcMatch="calcMatch"
     />
 
     <MatchEdit
@@ -212,6 +213,24 @@ const postResults = async (resultData) => {
           'Authorization': getAuthToken(),
         },
         body: JSON.stringify(resultData),
+      });
+      if (!response.ok) throw new Error('Failed to update match details');
+      const data = await response.json();
+      console.log(data)
+  } catch (error) {
+    console.error('Error updating match:', error);
+  }
+}
+
+const calcMatch = async (id) => {
+  try {
+    const response = await fetch('/api/league/matches/' + id + '/calc/', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'Content-Type': 'application/json',
+          'Authorization': getAuthToken(),
+        },
       });
       if (!response.ok) throw new Error('Failed to update match details');
       const data = await response.json();

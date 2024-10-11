@@ -159,6 +159,7 @@
       </v-card-text>
 
       <v-card-actions>
+        <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" color="success" @click="calcMatch">Calc</v-btn>
         <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" color="success" @click="submitResults">Submit</v-btn>
         <v-btn color="error" @click="close">Close</v-btn>
       </v-card-actions>
@@ -169,10 +170,11 @@
 <script setup>
 import { ref, watch } from 'vue';
 import {useUserStore} from "../config/store.ts";
+import {getAuthToken} from "../config/api/user.ts";
 
 const userStore = useUserStore()
 const props = defineProps(['detailedMatch', 'showResultsDialog', 'allTeamDetails']);
-const emit = defineEmits(['update:showResultsDialog', 'postResults']);
+const emit = defineEmits(['update:showResultsDialog', 'postResults', 'calcMatch']);
 
 const localShowResultsDialog = ref(props.showResultsDialog);
 const allTeamNames = ref([]);
@@ -270,6 +272,11 @@ const submitResults = () => {
 
   emit('postResults', resultData);
 };
+
+const calcMatch = () => {
+  emit('calcMatch', props.detailedMatch.id);
+}
+
 </script>
 
 <style scoped>

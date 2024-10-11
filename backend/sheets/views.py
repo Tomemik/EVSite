@@ -138,6 +138,8 @@ class AllUpgradesView(APIView):
         tank = Tank.objects.get(name=tank)
 
         all_upgrades = team.get_possible_upgrades(tank)
+        for i in all_upgrades:
+            print(i)
 
         return Response(all_upgrades, status=status.HTTP_200_OK)
 
@@ -329,7 +331,7 @@ class MatchResultsView(APIView):
 
 
 class CalcTestView(APIView):
-    def get(self, request, pk):
+    def post(self, request, pk):
         matchResult = MatchResult.objects.get(match__pk=pk)
         if not matchResult.is_calced:
             matchResult.calculate_rewards()

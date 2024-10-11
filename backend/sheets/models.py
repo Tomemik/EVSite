@@ -274,59 +274,22 @@ class Team(models.Model):
 
         return f"Tank {from_tank.name} upgraded/downgraded to {to_tank.name}. Total cost: {cost}. Remaining balance: {self.balance}"
 
-    def get_possible_upgrades(self, from_tank):
+    import heapq
+
+    def get_possible_upgrades(self, from_tank, minimize_kits=True):
         best_upgrade_paths = {}
         priority_queue = []
-
-        upgrade_paths = UpgradePath.objects.filter(from_tank=from_tank)
-
-        for upgrade_path in upgrade_paths:
-            to_tank = upgrade_path.to_tank
-            base_cost = upgrade_path.cost
-
-            required_kit_tier = upgrade_path.required_kit_tier
-            kit_discount = self.get_upgrade_kit_discount(required_kit_tier) if required_kit_tier else 0
-
-            step_total_cost = base_cost - kit_discount
-            step_total_cost = max(step_total_cost, 0)
-
-            available_in_manufacturer = self.manufacturers.filter(id__in=to_tank.manufacturers.all()).exists()
-            manu_cost = None
-            if available_in_manufacturer:
-                manu_cost = abs(to_tank.price - from_tank.price) if to_tank.price >= from_tank.price else abs(
-                    to_tank.price - from_tank.price) / 2
-
-            required_kits = {
-                'T1': 0,
-                'T2': 0,
-                'T3': 0
-            }
-
-            if required_kit_tier:
-                required_kits[required_kit_tier] += 1
-
-            best_upgrade_paths[to_tank.id] = {
-                'from_tank': from_tank.name,
-                'to_tank': to_tank.name,
-                'base_cost': base_cost,
-                'kit_discount': kit_discount,
-                'required_kit_tier': required_kit_tier,
-                'total_cost': step_total_cost,
-                'available_in_manufacturer': available_in_manufacturer,
-                'manu_cost': manu_cost,
-                'required_kits': required_kits
-            }
-
-            heapq.heappush(priority_queue, (step_total_cost, to_tank.id, required_kits.copy()))
+        required_kits = {
+            'T1': 0,
+            'T2': 0,
+            'T3': 0
+        }
+        heapq.heappush(priority_queue, (0, 0, from_tank.id, required_kits.copy()))
 
         while priority_queue:
-            current_cost, current_tank_id, accumulated_kits = heapq.heappop(priority_queue)
+            kits, current_cost, current_tank_id, accumulated_kits = heapq.heappop(priority_queue)
 
             current_tank = Tank.objects.get(id=current_tank_id)
-
-            if current_tank.id in best_upgrade_paths and current_cost > best_upgrade_paths[current_tank.id][
-                'total_cost']:
-                continue
 
             upgrade_paths = UpgradePath.objects.filter(from_tank=current_tank)
 
@@ -341,69 +304,128 @@ class Team(models.Model):
                 step_total_cost = max(step_total_cost, 0)
                 total_cost = current_cost + step_total_cost
 
+
                 new_required_kits = accumulated_kits.copy()
 
                 if required_kit_tier:
                     new_required_kits[required_kit_tier] += 1
 
-                if to_tank.id != from_tank.id:
-                    if to_tank.id not in best_upgrade_paths or total_cost < best_upgrade_paths[to_tank.id][
-                        'total_cost']:
-                        available_in_manufacturer = self.manufacturers.filter(
-                            id__in=to_tank.manufacturers.all()).exists()
-                        manu_cost = None
-                        if available_in_manufacturer:
-                            manu_cost = abs(
-                                to_tank.price - from_tank.price) if to_tank.price >= from_tank.price else abs(
-                                to_tank.price - from_tank.price) / 2
+                if minimize_kits:
+                    if to_tank.id != from_tank.id:
+                        if (to_tank.id not in best_upgrade_paths or
+                                self.is_path_requirements_less(new_required_kits, best_upgrade_paths[to_tank.id]['required_kits'])):
 
-                        best_upgrade_paths[to_tank.id] = {
-                            'from_tank': current_tank.name,
-                            'to_tank': to_tank.name,
-                            'base_cost': base_cost,
-                            'kit_discount': kit_discount,
-                            'required_kit_tier': required_kit_tier,
-                            'total_cost': total_cost,
-                            'available_in_manufacturer': available_in_manufacturer,
-                            'manu_cost': manu_cost,
-                            'required_kits': new_required_kits
-                        }
+                            available_in_manufacturer = self.manufacturers.filter(
+                                id__in=to_tank.manufacturers.all()).exists()
+                            manu_cost = None
+                            if available_in_manufacturer:
+                                manu_cost = abs(
+                                    to_tank.price - from_tank.price) if to_tank.price >= from_tank.price else abs(
+                                    to_tank.price - from_tank.price) / 2
 
-                        heapq.heappush(priority_queue, (total_cost, to_tank.id, new_required_kits))
+                            kits = self.calculate_total_kits(new_required_kits)
+                            effective_cost = total_cost
+
+                            best_upgrade_paths[to_tank.id] = {
+                                'from_tank': current_tank.name,
+                                'to_tank': to_tank.name,
+                                'base_cost': base_cost,
+                                'kit_discount': kit_discount,
+                                'required_kit_tier': required_kit_tier,
+                                'total_cost': total_cost,
+                                'available_in_manufacturer': available_in_manufacturer,
+                                'manu_cost': manu_cost,
+                                'required_kits': new_required_kits
+                            }
+
+                            heapq.heappush(priority_queue, (kits, effective_cost, to_tank.id, new_required_kits))
+                else:
+                    if to_tank.id != from_tank.id:
+                        if (to_tank.id not in best_upgrade_paths or total_cost < best_upgrade_paths[to_tank.id][
+                            'total_cost']):
+
+                            available_in_manufacturer = self.manufacturers.filter(
+                                id__in=to_tank.manufacturers.all()).exists()
+                            manu_cost = None
+                            if available_in_manufacturer:
+                                manu_cost = abs(
+                                    to_tank.price - from_tank.price) if to_tank.price >= from_tank.price else abs(
+                                    to_tank.price - from_tank.price) / 2
+
+                            kits = self.calculate_total_kits(new_required_kits)
+                            effective_cost = total_cost
+
+                            best_upgrade_paths[to_tank.id] = {
+                                'from_tank': current_tank.name,
+                                'to_tank': to_tank.name,
+                                'base_cost': base_cost,
+                                'kit_discount': kit_discount,
+                                'required_kit_tier': required_kit_tier,
+                                'total_cost': total_cost,
+                                'available_in_manufacturer': available_in_manufacturer,
+                                'manu_cost': manu_cost,
+                                'required_kits': new_required_kits
+                            }
+
+                            heapq.heappush(priority_queue, (kits, effective_cost, to_tank.id, new_required_kits))
 
         final_upgrade_paths = [path for path in best_upgrade_paths.values() if path['to_tank'] != from_tank.name]
 
         return final_upgrade_paths
 
+    def calculate_total_kits(self, required_kits):
+        weights = {
+            'T1': 1,
+            'T2': 2,
+            'T3': 4
+        }
+
+        total_kits = 0
+
+        for kit_type, count in required_kits.items():
+            total_kits += weights[kit_type] * count
+
+        return total_kits
+
+    def is_path_requirements_less(self, path_a_kits, path_b_kits):
+        total_kits_a = self.calculate_total_kits(path_a_kits)
+        total_kits_b = self.calculate_total_kits(path_b_kits)
+
+        return total_kits_a < total_kits_b
+
     def reverse_change(self, log_entry):
         previous_state = json.loads(log_entry.previous_value)
+        if log_entry.method_name == 'calc_rewards':
+            self.balance = int(previous_state['balance'])
+            self.save()
 
-        self.balance = int(previous_state['balance'])
-        self.upgrade_kits = previous_state['upgrade_kits']
+        else:
+            self.balance = int(previous_state['balance'])
+            self.upgrade_kits = previous_state['upgrade_kits']
 
-        added_tanks_match = re.search(r'Added Tanks: ([\w\s,]+)', log_entry.description)
-        removed_tanks_match = re.search(r'Removed Tanks: ([\w\s,]+)', log_entry.description)
+            added_tanks_match = re.search(r'Added Tanks: ([\w\s,]+)', log_entry.description)
+            removed_tanks_match = re.search(r'Removed Tanks: ([\w\s,]+)', log_entry.description)
 
-        added_tanks = []
-        removed_tanks = []
+            added_tanks = []
+            removed_tanks = []
 
-        if added_tanks_match:
-            added_tanks = [tank.strip() for tank in added_tanks_match.group(1).split(',')]
-        if removed_tanks_match:
-            removed_tanks = [tank.strip() for tank in removed_tanks_match.group(1).split(',')]
+            if added_tanks_match:
+                added_tanks = [tank.strip() for tank in added_tanks_match.group(1).split(',')]
+            if removed_tanks_match:
+                removed_tanks = [tank.strip() for tank in removed_tanks_match.group(1).split(',')]
 
-        current_tanks = [tank.name for tank in self.tanks.all()]
+            current_tanks = [tank.name for tank in self.tanks.all()]
 
-        for tank_name in removed_tanks:
-            if tank_name in current_tanks:
-                self.tanks.through.objects.filter(team=self, tank__name=tank_name).delete()
+            for tank_name in removed_tanks:
+                if tank_name in current_tanks:
+                    self.tanks.through.objects.filter(team=self, tank__name=tank_name).delete()
 
-        for tank_name in added_tanks:
-            if tank_name not in current_tanks:
-                tank_to_add = Tank.objects.get(name=tank_name)
-                self.tanks.through.objects.create(team=self, tank=tank_to_add)
+            for tank_name in added_tanks:
+                if tank_name not in current_tanks:
+                    tank_to_add = Tank.objects.get(name=tank_name)
+                    self.tanks.through.objects.create(team=self, tank=tank_to_add)
 
-        self.save()
+            self.save()
 
 
 class Tank(models.Model):
@@ -474,6 +496,9 @@ class UpgradePath(models.Model):
                 5: 20000
             }
             self.cost = rank_based_costs.get(rank, 0)
+
+    def __str__(self):
+        return f"From {self.from_tank} to {self.to_tank} using {self.required_kit_tier} for {self.cost}"
 
 
 class TeamTank(models.Model):
@@ -592,15 +617,19 @@ class MatchResult(models.Model):
         best_of = self.match.best_of_number
 
         if mode == "traditional":
-            if best_of == 3:
-                return trad_bo3_rewards[min(int(round(average_rank)-1), 4)]["winner"], trad_bo3_rewards[min(int(round(average_rank)-1), 4)]["loser"]
             if best_of == 5:
-                return trad_bo5_rewards[min(int(round(average_rank)-1), 4)]["winner"], trad_bo5_rewards[min(int(round(average_rank)-1), 4)]["loser"]
+                return trad_bo5_rewards[min(int(round(average_rank)-1), 4)]["winner"], \
+                    trad_bo5_rewards[min(int(round(average_rank)-1), 4)]["loser"]
+            else:
+                return trad_bo3_rewards[min(int(round(average_rank) - 1), 4)]["winner"], \
+                    trad_bo3_rewards[min(int(round(average_rank) - 1), 4)]["loser"]
         elif mode == "advanced":
             if game_mode == "flag":
-                return flag_rewards[min(int(round(average_rank)-1), 4)]["winner"], flag_rewards[min(int(round(average_rank)-1), 4)]["loser"]
+                return flag_rewards[min(int(round(average_rank)-1), 4)]["winner"], \
+                    flag_rewards[min(int(round(average_rank)-1), 4)]["loser"]
             else:
-                return advanced_rewards[min(int(round(average_rank)-1), 4)]["winner"], advanced_rewards[min(int(round(average_rank)-1), 4)]["loser"]
+                return advanced_rewards[min(int(round(average_rank)-1), 4)]["winner"], \
+                    advanced_rewards[min(int(round(average_rank)-1), 4)]["loser"]
 
         return 0, 0
 
@@ -619,35 +648,6 @@ class MatchResult(models.Model):
             'team_1': len(teams_on_side['team_1']),
             'team_2': len(teams_on_side['team_2']),
         }
-
-        total_loss_penalty_team_1 = 0
-        total_gain_reward_team_1 = 0
-        total_loss_penalty_team_2 = 0
-        total_gain_reward_team_2 = 0
-
-        for tank_lost in self.tanks_lost.all():
-            team_id = tank_lost.team.id
-            tank_price = tank_lost.tank.price
-            quantity = tank_lost.quantity
-            side = 'team_1' if team_id in teams_on_side['team_1'] else 'team_2'
-            other_side = 'team_2' if side == 'team_1' else 'team_1'
-
-            loss_penalty = tank_price * 0.02 * quantity
-            gain_reward = tank_price * 0.03 * quantity
-
-            if side == 'team_1':
-                total_loss_penalty_team_1 += loss_penalty
-                total_gain_reward_team_2 += gain_reward
-            else:
-                total_gain_reward_team_1 += gain_reward
-                total_loss_penalty_team_2 += loss_penalty
-
-        if self.winning_side == 'team_1':
-            winner_base_reward += total_gain_reward_team_1 - total_loss_penalty_team_1
-            loser_base_reward += total_gain_reward_team_2 - total_loss_penalty_team_2
-        else:
-            winner_base_reward += total_gain_reward_team_2 - total_loss_penalty_team_2
-            loser_base_reward += total_gain_reward_team_1 - total_loss_penalty_team_1
 
         substitutes_rewards = {
             'team_1': 0,
@@ -680,6 +680,35 @@ class MatchResult(models.Model):
             for team in losing_teams:
                 team_rewards[team] = loser_base_reward
         else:
+            total_loss_penalty_team_1 = 0
+            total_gain_reward_team_1 = 0
+            total_loss_penalty_team_2 = 0
+            total_gain_reward_team_2 = 0
+
+            for tank_lost in self.tanks_lost.all():
+                team_id = tank_lost.team.id
+                tank_price = tank_lost.tank.price
+                quantity = tank_lost.quantity
+                side = 'team_1' if team_id in teams_on_side['team_1'] else 'team_2'
+                other_side = 'team_2' if side == 'team_1' else 'team_1'
+
+                loss_penalty = tank_price * 0.02 * quantity
+                gain_reward = tank_price * 0.03 * quantity
+
+                if side == 'team_1':
+                    total_loss_penalty_team_1 += loss_penalty
+                    total_gain_reward_team_2 += gain_reward
+                else:
+                    total_gain_reward_team_1 += gain_reward
+                    total_loss_penalty_team_2 += loss_penalty
+
+            if self.winning_side == 'team_1':
+                winner_base_reward += total_gain_reward_team_1 - total_loss_penalty_team_1
+                loser_base_reward += total_gain_reward_team_2 - total_loss_penalty_team_2
+            else:
+                winner_base_reward += total_gain_reward_team_2 - total_loss_penalty_team_2
+                loser_base_reward += total_gain_reward_team_1 - total_loss_penalty_team_1
+
             winner_total_reward = winner_base_reward
             loser_total_reward = loser_base_reward
 
@@ -708,24 +737,27 @@ class MatchResult(models.Model):
         if self.judge:
             team_rewards[self.judge.id] += judge_reward
 
+
         for team_id, reward in team_rewards.items():
             team = Team.objects.get(id=team_id)
             initial_balance = team.balance
             team.balance += reward
+            kits = {}
+            if self.match.mode in ["traditional", "domination"]:
+                kits = copy.deepcopy(team.upgrade_kits)
+                team.upgrade_kits['T1']['quantity'] += 1
             team.save()
 
             TeamLog.objects.create(
                 team=team,
                 field_name='balance',
-                previous_value=initial_balance,
-                new_value=team.balance,
-                description=f"Match rewards applied. Change: {reward}"
+                previous_value={'balance': initial_balance, 'upgrade_kits': kits},
+                new_value={'balance': team.balance, 'upgrade_kits': team.upgrade_kits},
+                description=f"Balance Changed by: {reward}"
+                            f"\n"
+                            f"Kits changed by: {compare_upgrade_kits(kits, team.upgrade_kits)}",
+                method_name='calc_rewards',
             )
-
-        if self.match.mode in ["traditional", "domination"]:
-            for team in winning_teams + losing_teams:
-                team = Team.objects.get(id=team)
-                team.add_upgrade_kit('T1', 1)
 
         self.is_calced = True
         self.save()
