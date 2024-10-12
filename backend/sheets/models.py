@@ -117,7 +117,7 @@ def parse_changes(changes):
     # Handle other field changes
     for field, change in changes.items():
         if field not in ['upgrade_kits', 'tanks']:
-            readable_changes.append(f"{field.capitalize()} changed from {change['from']} to {change['to']}")
+            readable_changes.append(f"{field.capitalize()} Changed by: {change['to'] - change['from']}")
 
     return '\n'.join(readable_changes)
 

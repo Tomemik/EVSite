@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "knox",
     "sheets",
     "user",
+    "django_filters"
 ]
 
 MIDDLEWARE = [

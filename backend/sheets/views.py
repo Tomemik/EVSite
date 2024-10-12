@@ -1,12 +1,16 @@
 from django.shortcuts import render, get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.generics import ListAPIView
 from django.contrib.auth.mixins import PermissionRequiredMixin
 
+from .filters import TeamLogFilter
 from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch, TeamLog
 from .serializers import TeamSerializer, ManufacturerSerializer, TankSerializer, MatchSerializer, SlimMatchSerializer, \
-    MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer
+    MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer, \
+    TeamLogSerializer
 
 
 class AllTeamsView(APIView):
@@ -332,9 +336,20 @@ class MatchResultsView(APIView):
 
 class CalcTestView(APIView):
     def post(self, request, pk):
-        matchResult = MatchResult.objects.get(match__pk=pk)
-        if not matchResult.is_calced:
-            matchResult.calculate_rewards()
+        user = request.user
+        if not any([user.has_perm('admin_permissions'), user.has_perm('judge_permissions')]):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        match_result = MatchResult.objects.get(match__pk=pk)
+        if not match_result.is_calced:
+            match_result.calculate_rewards()
             return Response(status=status.HTTP_200_OK)
         else:
             return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
+class TeamLogFilteredView(ListAPIView):
+    queryset = TeamLog.objects.all()
+    serializer_class = TeamLogSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = TeamLogFilter
+

@@ -1,7 +1,7 @@
 from django.db.models import Avg, Q
 from rest_framework import serializers
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, Substitute, MatchResult, \
-    TankLost, TeamResult, TankBox, TeamBox
+    TankLost, TeamResult, TankBox, TeamBox, TeamLog
 
 
 class TankSerializerSlim(serializers.ModelSerializer):
@@ -46,7 +46,6 @@ class TankBoxCreateSerializer(serializers.ModelSerializer):
         read_only_fields = ['price']
 
     def validate_tanks(self, tank_names):
-        """Validate that all provided tank names exist."""
         tanks = Tank.objects.filter(name__in=tank_names)
         if len(tanks) != len(tank_names):
             missing_tanks = set(tank_names) - set(tanks.values_list('name', flat=True))
@@ -54,14 +53,11 @@ class TankBoxCreateSerializer(serializers.ModelSerializer):
         return tanks
 
     def create(self, validated_data):
-        """Create TankBox with calculated price."""
         tanks = validated_data.pop('tanks')
         tank_box = TankBox.objects.create(name=validated_data['name'])
 
-        # Add tanks to the TankBox
         tank_box.tanks.set(tanks)
 
-        # Calculate and set the price as the mean of the tank prices
         mean_price = tanks.aggregate(average_price=Avg('price'))['average_price']
         tank_box.price = int(mean_price)
         tank_box.save()
@@ -119,6 +115,7 @@ class TeamSerializer(serializers.ModelSerializer):
         model = Team
         fields = ['id', 'name', 'color', 'balance', 'manufacturers', 'tanks', 'upgrade_kits', 'tank_boxes']
         depth = 1
+
 
 class TeamMatchSerializer(serializers.ModelSerializer):
     team = serializers.SlugRelatedField(slug_field='name', queryset=Team.objects.all())
@@ -335,3 +332,12 @@ class MatchResultSerializer(serializers.ModelSerializer):
                 **substitute_data
             )
         return match_result
+
+
+class TeamLogSerializer(serializers.ModelSerializer):
+    team_name = serializers.CharField(source='team.name', read_only=True)
+
+    class Meta:
+        model = TeamLog
+        fields = ['id', 'team', 'team_name', 'method_name', 'description', 'timestamp']
+        depth = 0

@@ -20,4 +20,5 @@ urlpatterns = [
     path("transactions/sell_tanks/", views.SellTankView.as_view(), name='sell-tanks'),
     path("transactions/view_upgrades/", views.AllUpgradesView.as_view(), name='upgrade-test'),
     path("transactions/upgrade_tank/", views.UpgradeTankView.as_view(), name='upgrade-tank'),
+    path("transactions/money_log/", views.TeamLogFilteredView.as_view(), name='money-log'),
 ]
