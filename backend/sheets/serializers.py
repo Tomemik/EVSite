@@ -226,6 +226,14 @@ class SlimTeamSerializer(serializers.ModelSerializer):
         fields = ['name', 'color', 'balance']
 
 
+class SlimTeamSerializerWithTanks(serializers.ModelSerializer):
+    tanks = TeamTankSerializer(many=True, read_only=True, source='teamtank_set')
+
+    class Meta:
+        model = Team
+        fields = ['id', 'name', 'color', 'balance', 'tanks']
+
+
 class SlimTeamMatchSerializer(serializers.ModelSerializer):
     team = SlimTeamSerializer()
 

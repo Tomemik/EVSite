@@ -6,11 +6,11 @@ from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView
 from django.contrib.auth.mixins import PermissionRequiredMixin
 
-from .filters import TeamLogFilter
+from .filters import TeamLogFilter, MatchFilter
 from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch, TeamLog
 from .serializers import TeamSerializer, ManufacturerSerializer, TankSerializer, MatchSerializer, SlimMatchSerializer, \
     MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer, \
-    TeamLogSerializer
+    TeamLogSerializer, SlimTeamSerializerWithTanks
 
 
 class AllTeamsView(APIView):
@@ -27,6 +27,13 @@ class AllTeamsView(APIView):
             serializer.save()
         print(serializer.errors)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class AllTeamsWithTanksView(APIView):
+    def get(self, request):
+        teams = Team.objects.all()
+        serializer = SlimTeamSerializerWithTanks(teams, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class TeamDetailView(APIView):
@@ -248,6 +255,8 @@ class AllMatchesView(APIView):
         serializer = MatchSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
+        print(request.data)
+        print(serializer.data)
         print(serializer.errors)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -263,6 +272,13 @@ class ArchivedAllMatchesView(APIView):
         if serializer.is_valid():
             serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class MatchFilteredView(ListAPIView):
+    queryset = Match.objects.all()
+    serializer_class = MatchSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = MatchFilter
 
 
 class MatchView(APIView):

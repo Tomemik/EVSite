@@ -1,5 +1,6 @@
 import json
 import re
+from datetime import timedelta
 
 from django.db import models
 from django.db.models import F, Q
@@ -150,6 +151,16 @@ class Team(models.Model):
 
     def __str__(self):
         return self.name
+
+    def matches_for_week(self, date):
+        start_of_week = date - timedelta(days=date.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+
+        return Match.objects.filter(
+            teammatch__team=self,
+            datetime__date__gte=start_of_week,
+            datetime__date__lte=end_of_week
+        ).count()
 
     @log_team_changes
     def purchase_tank(self, tank):

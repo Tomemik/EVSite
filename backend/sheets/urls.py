@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path("teams/", views.AllTeamsView.as_view(), name='teams'),
+    path("teams/tanks/", views.AllTeamsWithTanksView.as_view(), name='teams'),
     path("teams/<str:name>/", views.TeamDetailView.as_view(), name='team'),
     path("tanks/", views.AllTanksView.as_view(), name='tanks'),
     path("tanks/<str:name>/", views.TankDetailView.as_view(), name='tank'),
@@ -13,6 +14,7 @@ urlpatterns = [
     path('matches/', views.AllMatchesViewSlim.as_view(), name='matches'),
     path('matches/detailed/', views.AllMatchesView.as_view(), name='matches-detailed'),
     path('matches/archived/', views.AllMatchesView.as_view(), name='matches-archived'),
+    path('matches/filtered/', views.MatchFilteredView.as_view(), name='matches-filtered'),
     path('matches/<int:pk>/', views.MatchView.as_view(), name='match-details'),
     path('matches/<int:pk>/results/', views.MatchResultsView.as_view(), name='match-results'),
     path('matches/<int:pk>/calc/', views.CalcTestView.as_view(), name='match-calc'),

@@ -1,8 +1,39 @@
 <template>
   <v-container>
-    <div v-if="userStore.groups.some(i => ['commander', 'admin'].includes(i.name))" class="d-flex justify-end mb-3">
-      <v-btn color="primary" @click="openCreateMatchDialog">Create New Match</v-btn>
-    </div>
+    <v-row class="d-flex flex-wrap mt-3">
+      <!-- Teams Filter (v-select) -->
+      <v-col cols="12" md="3" class="mt-5">
+        <v-select
+          v-model="settingsStore.filterTeams"
+          :items="teamNames"
+          label="Filter Teams"
+          multiple
+          class="align-center"
+        ></v-select>
+      </v-col>
+
+      <!-- Date Range Picker and Show Played Checkbox -->
+      <v-col cols="12" md="6" class="d-flex align-center">
+        <div class="d-flex align-center" style="width: 100%;">
+          <VueDatePicker v-model="dateFilter" range placeholder="Select a date range to show" style="max-width: 60%" />
+          <v-checkbox
+            v-model="showPlayed"
+            class="d-inline-flex align-start text-no-wrap"
+            label="show played"
+            style="width: 40%;"
+          ></v-checkbox>
+        </div>
+      </v-col>
+
+      <!-- Apply Filters and Create New Match Button -->
+      <v-col cols="12" md="3" class="d-flex align-center justify-end">
+        <v-btn color="primary" class="mr-4" @click="fetchMatches">Apply Filters</v-btn>
+        <div v-if="userStore.groups.some(i => ['commander', 'admin'].includes(i.name))">
+          <v-btn color="primary" @click="openCreateMatchDialog">Create New Match</v-btn>
+        </div>
+      </v-col>
+    </v-row>
+
 
     <v-calendar
       ref="calendar"
@@ -11,6 +42,9 @@
       :events="formattedMatches"
       :weekdays="[1,2,3,4,5,6,0]"
       color="primary">
+
+
+
       <template #event="{ event }">
         <v-tooltip bottom>
           <template #activator="{ attrs }">
@@ -60,12 +94,13 @@ import { ref, onMounted, inject } from 'vue';
 import MatchDetails from "../components/MatchDetails.vue";
 import MatchEdit from "../components/MatchEdit.vue";
 import MatchResult from "../components/MatchResult.vue";
-import {useUserStore} from "../config/store.ts";
+import {useSettingsStore, useUserStore} from "../config/store.ts";
 import {getAuthToken} from "../config/api/user.ts";
 
 const $cookies = inject("$cookies");
 const csrfToken = $cookies.get('csrftoken');
 const userStore = useUserStore()
+const settingsStore = useSettingsStore()
 
 const today = ref<Date>(new Date());
 const showDetailsDialog = ref(false);
@@ -76,6 +111,10 @@ const matches = ref([]);
 const formattedMatches = ref([]);
 const detailedMatch = ref();
 const allTeamsDetails = ref([])
+const teamNames = ref([])
+const dateFilter = ref<[Date | null, Date | null] | null>(null);
+const showPlayed = ref<boolean>(false)
+
 
 const toggleEdit = () => {
   showEditDialog.value = true
@@ -106,15 +145,30 @@ const openCreateMatchDialog = () => {
 
 const fetchMatches = async () => {
   try {
-    const response = await fetch('/api/league/matches/');
+    const params = new URLSearchParams();
+    if (settingsStore.filterTeams.length > 0) {
+      params.append('team', settingsStore.filterTeams.join(','));
+    }
+    if (dateFilter.value && dateFilter.value[0]) {
+      params.append('from_date', dateFilter.value[0].toISOString());
+      if (dateFilter.value[1])
+      {
+        params.append('to_date', dateFilter.value[1].toISOString());
+      }
+    }
+    params.append('played', String(showPlayed.value))
+
+
+    const response = await fetch(`/api/league/matches/filtered/?${params.toString()}`);
     if (!response.ok) throw new Error('Failed to fetch matches');
     const data = await response.json();
-    matches.value = data;
+    console.log(data)
+    matches.value = data.results;
 
-    formattedMatches.value = data.map((match) => {
+    formattedMatches.value = data.results.map((match) => {
       const sides = match.teammatch_set.reduce((acc, tm) => {
         if (!acc[tm.side]) acc[tm.side] = [];
-        acc[tm.side].push(tm.team.name);
+        acc[tm.side].push(tm.team);
         return acc;
       }, {});
 
@@ -242,7 +296,7 @@ const calcMatch = async (id) => {
 
 const fetchAllTeams = async () => {
   try {
-    const response = await fetch('/api/league/teams/', {
+    const response = await fetch('/api/league/teams/tanks/', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -251,25 +305,9 @@ const fetchAllTeams = async () => {
 
     if (!response.ok) throw new Error('Failed to fetch teams');
 
-    const teams = await response.json();
-    const teamNames = teams.map(team => team.name);
-
-    const teamDetailsPromises = teamNames.map(async (teamName) => {
-      const teamResponse = await fetch(`/api/league/teams/${teamName}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!teamResponse.ok) throw new Error(`Failed to fetch details for team: ${teamName}`);
-
-      const teamData = await teamResponse.json();
-
-      return teamData;
-    });
-
-    allTeamsDetails.value = await Promise.all(teamDetailsPromises);
+    allTeamsDetails.value = await response.json();
+    teamNames.value = allTeamsDetails.value.map(item => item.name)
+    console.log(teamNames.value)
     console.log(allTeamsDetails.value);
 
   } catch (error) {

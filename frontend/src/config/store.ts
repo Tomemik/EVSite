@@ -12,3 +12,12 @@ export const useUserStore = defineStore("user", {
   },
   persist: true
 });
+
+export const useSettingsStore = defineStore("settings", {
+  state: () => ({
+    filterTeams: [useUserStore().team],
+  }) as {
+    filterTeams: string[];
+  },
+  persist: true
+})

@@ -210,7 +210,6 @@ const onTeamSelect = (side, index) => {
   editForm.value.teammatch_set[side][index].tanks = [];
 };
 
-// Helper method to get tanks for the selected team
 const getTeamTanks = (side, index) => {
   const selectedTeamName = editForm.value.teammatch_set[side][index].team;
 

@@ -7,6 +7,7 @@
       hide-default-footer
       class="teams-table elevation-1"
       v-if="teams.length"
+      :items-per-page="25"
     >
       <template v-slot:item="{ item }">
         <tr :style="{ backgroundColor: item.color, color: 'white', textAlign: 'center' }" class="team-row">

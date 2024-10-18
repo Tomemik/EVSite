@@ -63,8 +63,7 @@
 
 <script setup lang="ts">
 import {inject, ref, watch} from 'vue';
-import {isAuthenticated} from "../config/api/user.ts";
-import {logout} from "../config/api/user.ts";
+import {isAuthenticated, fetchUserData, logout} from "../config/api/user.ts";
 import {useUserStore} from "../config/store.ts";
 const $cookies = inject("$cookies");
 const csrfToken = $cookies.get('csrftoken');
@@ -92,14 +91,17 @@ const drawerItems = ref([
 watch(
   () => userStore.username,
   (newVal) => {
-    console.log(newVal)
-    if (newVal == '') {
-      isUserLoggedIn.value = false;
-    } else{
-      isUserLoggedIn.value = true;
-    }
-  }
+    isUserLoggedIn.value = !!newVal; // Set true if username is not empty
+  },
+  { immediate: true } // Run immediately to initialize state
 );
+
+if (isUserLoggedIn.value) {
+  fetchUserData().catch(error => {
+    console.error("Error fetching user data:", error);
+    isUserLoggedIn.value = false; // Fallback to logged out state on error
+  });
+}
 
 </script>
 
