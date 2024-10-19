@@ -1,8 +1,6 @@
 import router from "../../router/index.ts";
 import { useUserStore } from "../store.ts";
-import {inject} from "vue";
 
-const AUTH_HEADER_NAME: string = "auth-token";
 const AUTH_TOKEN_KEY: string = "authToken";
 
 

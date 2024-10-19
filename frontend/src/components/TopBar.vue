@@ -91,15 +91,15 @@ const drawerItems = ref([
 watch(
   () => userStore.username,
   (newVal) => {
-    isUserLoggedIn.value = !!newVal; // Set true if username is not empty
+    isUserLoggedIn.value = !!newVal;
   },
-  { immediate: true } // Run immediately to initialize state
+  { immediate: true }
 );
 
 if (isUserLoggedIn.value) {
   fetchUserData().catch(error => {
     console.error("Error fetching user data:", error);
-    isUserLoggedIn.value = false; // Fallback to logged out state on error
+    isUserLoggedIn.value = false;
   });
 }
 
