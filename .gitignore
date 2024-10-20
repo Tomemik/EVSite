@@ -2,6 +2,8 @@
 *.log
 db/
 .vscode/
+.backend/env/
+
 
 # exclude all working envs
 .env
