@@ -3,7 +3,7 @@
 db/
 .vscode/
 .backend/env/
-
+backend/env/
 
 # exclude all working envs
 .env
