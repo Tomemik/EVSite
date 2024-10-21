@@ -20,16 +20,16 @@ def chart_data(file_path):
     # Convert the 'Month' column to datetime objects (format: "Month Year")
     dates = [datetime.strptime(row['Month'], '%B %Y') for row in data]
     player_counts = [float(row['Avg_Players']) for row in data]
-    dates = [row['Month'] for row in data]  # Replace 'Date' with the actual date column name
+    #dates = [row['Month'] for row in data]  # Replace 'Date' with the actual date column name
 
-    # Create the plot
+
     plt.figure(figsize=(10, 6))
-    plt.bar(dates, player_counts, color='blue')
+    plt.plot(dates, player_counts, color='blue')
 
     # Set the title and labels
-    plt.title('War Thunder Player Count Over Time')
-    plt.xlabel('Date')
-    plt.ylabel('Player Count')
+    plt.title('Liczba graczy online na przestrzeni lat')
+    plt.xlabel('Data')
+    plt.ylabel('Liczba graczy [tyś]')
 
     # Set major ticks for every year and format them
     plt.gca().xaxis.set_major_locator(mdates.YearLocator())
@@ -42,10 +42,11 @@ def chart_data(file_path):
     plt.gca().tick_params(axis='x', which='minor', length=0)
 
     # Rotate the major tick labels for better readability
-    plt.xticks(rotation=45, ha='right')
+    # plt.xticks(rotation=45, ha='right')
 
     # Adjust layout to avoid label overlap
     plt.tight_layout()
+    plt.grid(True)
 
     # Show the chart
     plt.show()
