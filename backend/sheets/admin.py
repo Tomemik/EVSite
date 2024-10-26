@@ -11,7 +11,6 @@ class ManufacturerAdmin(admin.ModelAdmin):
 class TeamAdmin(admin.ModelAdmin):
     list_display = ('name', 'balance')
     search_fields = ('name',)
-    readonly_fields = ('upgrade_kits',)
 
     def save_model(self, request, obj, form, change):
         obj.upgrade_kits = {tier: data.copy() for tier, data in default_upgrade_kits().items()}
@@ -37,7 +36,7 @@ class UpgradePathAdmin(admin.ModelAdmin):
 
 
 class TeamTankAdmin(admin.ModelAdmin):
-    list_display = ('team', 'tank', 'is_upgradable')
+    list_display = ('team', 'tank', 'is_upgradable', 'is_trad')
     search_fields = ('team__name', 'tank__name')
     list_filter = ('is_upgradable',)
 

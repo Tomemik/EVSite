@@ -150,26 +150,26 @@ Henschel + Porsche,Sturmtiger
 Henschel + Porsche,JPz. VI 'Jagdtiger'
 Henschel + Porsche,Tiger II (H) 10.5cm
 Henschel + Porsche,Pz. VIII 'Maus'*
-Daimler-Benz + Škoda,Pz.III B
-Daimler-Benz + Škoda,Pz.III E
-Daimler-Benz + Škoda,Pz.35 (t)
-Daimler-Benz + Škoda,Pz.38 (t) A
-Daimler-Benz + Škoda,Pz.38 (t) F
-Daimler-Benz + Škoda,Pz.III F
-Daimler-Benz + Škoda,Pz.38 (t) n.A.
-Daimler-Benz + Škoda,Pz.III J
-Daimler-Benz + Škoda,StuG III A
-Daimler-Benz + Škoda,Pz.III J1
-Daimler-Benz + Škoda,Pz.III L
-Daimler-Benz + Škoda,Pz.III M
-Daimler-Benz + Škoda,Pz.III N
-Daimler-Benz + Škoda,StuH 42 G
-Daimler-Benz + Škoda,StuG III F
-Daimler-Benz + Škoda,StuG III G
-Daimler-Benz + Škoda,Jagdpanzer 38 (t)
-Daimler-Benz + Škoda,**M41A1**
-Daimler-Benz + Škoda,**M47**
-Daimler-Benz + Škoda,**M48A2 C**
+Daimler-Benz + Skoda,Pz.III B
+Daimler-Benz + Skoda,Pz.III E
+Daimler-Benz + Skoda,Pz.35 (t)
+Daimler-Benz + Skoda,Pz.38 (t) A
+Daimler-Benz + Skoda,Pz.38 (t) F
+Daimler-Benz + Skoda,Pz.III F
+Daimler-Benz + Skoda,Pz.38 (t) n.A.
+Daimler-Benz + Skoda,Pz.III J
+Daimler-Benz + Skoda,StuG III A
+Daimler-Benz + Skoda,Pz.III J1
+Daimler-Benz + Skoda,Pz.III L
+Daimler-Benz + Skoda,Pz.III M
+Daimler-Benz + Skoda,Pz.III N
+Daimler-Benz + Skoda,StuH 42 G
+Daimler-Benz + Skoda,StuG III F
+Daimler-Benz + Skoda,StuG III G
+Daimler-Benz + Skoda,Jagdpanzer 38 (t)
+Daimler-Benz + Skoda,**M41A1**
+Daimler-Benz + Skoda,**M47**
+Daimler-Benz + Skoda,**M48A2 C**
 MAN AG + Rheinmetall,Pz. Neubaufahrzeug
 MAN AG + Rheinmetall,VK 30.02 M
 MAN AG + Rheinmetall,Panther D
@@ -303,25 +303,25 @@ AMX,**Lorraine 40T**
 AMX,**AMX-50**
 AMX,**AMX-50 Foch**
 AMX,**AMX-50 Surbaisse**
-Travaux d'armement français,M22
-Travaux d'armement français,M5A1 Stuart
-Travaux d'armement français,Crusader Mk. II
-Travaux d'armement français,M3A3 Stuart
-Travaux d'armement français,Valentine Mk. IX
-Travaux d'armement français,M4A3 (105)
-Travaux d'armement français,M4A1
-Travaux d'armement français,Cromwell V
-Travaux d'armement français,M4A4
-Travaux d'armement français,M10 GMC
-Travaux d'armement français,M4A2
-Travaux d'armement français,M6A1
-Travaux d'armement français,**M4A4 (SA50)**
-Travaux d'armement français,M4A3E2
-Travaux d'armement français,M4A3 (76) W
-Travaux d'armement français,**M36B2**
-Travaux d'armement français,Panther G
-Travaux d'armement français,T26E1-1
-Travaux d'armement français,M26
+Travaux d'armement francais,M22
+Travaux d'armement francais,M5A1 Stuart
+Travaux d'armement francais,Crusader Mk. II
+Travaux d'armement francais,M3A3 Stuart
+Travaux d'armement francais,Valentine Mk. IX
+Travaux d'armement francais,M4A3 (105)
+Travaux d'armement francais,M4A1
+Travaux d'armement francais,Cromwell V
+Travaux d'armement francais,M4A4
+Travaux d'armement francais,M10 GMC
+Travaux d'armement francais,M4A2
+Travaux d'armement francais,M6A1
+Travaux d'armement francais,**M4A4 (SA50)**
+Travaux d'armement francais,M4A3E2
+Travaux d'armement francais,M4A3 (76) W
+Travaux d'armement francais,**M36B2**
+Travaux d'armement francais,Panther G
+Travaux d'armement francais,T26E1-1
+Travaux d'armement francais,M26
 RDE,Pz.38 (t) F
 RDE,Pz.IV E
 RDE,Pz.III J
@@ -826,3 +826,84 @@ CSOB,**PT-76B**
 CSOB,**ASU-85**
 CSOB,**T-54 (1949)**
 CSOB,**T-54 (1951)**
+AB Lndsv. + Scania-Vabis + Volvo,Strv m/31
+AB Lndsv. + Scania-Vabis + Volvo,Strv m/38
+AB Lndsv. + Scania-Vabis + Volvo,Strv m/39
+AB Lndsv. + Scania-Vabis + Volvo,Strv m/40L
+AB Lndsv. + Scania-Vabis + Volvo,Sav m/43 (1944)
+AB Lndsv. + Scania-Vabis + Volvo,Sav m/43 (1946)
+AB Lndsv. + Scania-Vabis + Volvo,Strv m/41 S-I
+AB Lndsv. + Scania-Vabis + Volvo,Strv m/41 S-II
+AB Lndsv. + Scania-Vabis + Volvo,Lago I (APDS)
+AB Lndsv. + Scania-Vabis + Volvo,Strv m/42 EH
+AB Lndsv. + Scania-Vabis + Volvo,**Sav m/43 (1946)**
+AB Lndsv. + Scania-Vabis + Volvo,**Pvkv IV**
+AB Lndsv. + Scania-Vabis + Volvo,**Pvkv m/43 (1963)**
+AB Lndsv. + Scania-Vabis + Volvo,**Strv m/42 DT**
+AB Lndsv. + Scania-Vabis + Volvo,**Strv 74**
+AB Lndsv. + Scania-Vabis + Volvo,**Centurion Mk.3**
+Vegemite Industries,M2A2
+Vegemite Industries,M2A4
+Vegemite Industries,A13 Mk. I
+Vegemite Industries,M13/40 (I)
+Vegemite Industries,M3 Stuart
+Vegemite Industries,M22
+Vegemite Industries,Crusader Mk. II
+Vegemite Industries,Matilda Hedgehog
+Vegemite Industries,Grant I
+Vegemite Industries,M3 Lee
+Vegemite Industries,Crusader Mk. III
+Vegemite Industries,M4A1
+Vegemite Industries,M4
+Vegemite Industries,M36 GMC
+Vegemite Industries,**M41A1**
+Vegemite Industries,**Charioteer**
+Vegemite Industries,Tortoise
+Vegemite Industries,**Centurion Mk.3**
+Vegemite Industries,**Centurion Mk.5/1**
+Gregor Extra,Pz.III E
+Gregor Extra,Pz.III F
+Gregor Extra,Pz.III M
+Gregor Extra,Pz.III N
+Gregor Extra,Pz.IV F2
+Gregor Extra,StuG III F
+Gregor Extra,Pz.IV H
+Gregor Extra,Panther D
+Gregor Extra,**PT-76B**
+Gregor Extra,**ASU-85**
+Gregor Extra,**T-54 (1949)**
+Gregor Extra,**T-54 (1951)**
+Mitsubishi Heavy Industries,Ha-Go
+Mitsubishi Heavy Industries,I-Go/Ko
+Mitsubishi Heavy Industries,Chi-Ha
+Mitsubishi Heavy Industries,Ka-Mi
+Mitsubishi Heavy Industries,Chi-Ha Short Gun
+Mitsubishi Heavy Industries,Ka-Chi
+Mitsubishi Heavy Industries,Chi-Ha-Kai
+Mitsubishi Heavy Industries,Ho-I
+Mitsubishi Heavy Industries,Chi-He
+Mitsubishi Heavy Industries,Chi-Nu
+Mitsubishi Heavy Industries,Chi-Nu II
+Kawasaki + Kobe,Chi-To
+Kawasaki + Kobe,Chi-to Late
+Kawasaki + Kobe,Chi-Ri II
+Kawasaki + Kobe,Ho-Ri Prototype
+Kawasaki + Kobe,Ho-Ri Production
+Osaka + Hino Mtrs + Hitachi Ltd,Ke-Ni
+Osaka + Hino Mtrs + Hitachi Ltd,Ro-Go
+Osaka + Hino Mtrs + Hitachi Ltd,Ho-Ni III
+Osaka + Hino Mtrs + Hitachi Ltd,Pz.III J1
+Osaka + Hino Mtrs + Hitachi Ltd,M24
+Osaka + Hino Mtrs + Hitachi Ltd,M4A4
+Osaka + Hino Mtrs + Hitachi Ltd,M4A3 (76) W
+Osaka + Hino Mtrs + Hitachi Ltd,Panther D
+CHT Extra,SMK
+CHT Extra,HT. No. VI
+CHT Extra,**M36B2**
+CHT Extra,**ST-A1**
+CHT Extra,**ST-A2**
+CHT Extra,**Type 61**
+CHT Extra,**M41A1**
+CHT Extra,**ST-A3**
+CHT Extra,**M47**
+CHT Extra,**M48**

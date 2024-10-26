@@ -19,9 +19,7 @@ class Command(BaseCommand):
                     manu, created = Manufacturer.objects.get_or_create(
                         name=row['Manu'],
                     )
-                    print(row)
                     tank = Tank.objects.get(name=row['Tank'])
-                    print(tank)
                     tank.manufacturers.add(manu)
 
 

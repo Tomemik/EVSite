@@ -1,6 +1,7 @@
 from django.shortcuts import render, get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView
@@ -253,12 +254,16 @@ class AllMatchesView(APIView):
         if not any([user.has_perm('admin_permissions'), user.has_perm('commander_permissions')]):
             return Response(status=status.HTTP_403_FORBIDDEN)
         serializer = MatchSerializer(data=request.data)
-        if serializer.is_valid():
+        try:
+            serializer.is_valid(raise_exception=True)
             serializer.save()
-        print(request.data)
-        print(serializer.data)
-        print(serializer.errors)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except ValidationError as e:
+            return Response(
+                {"detail": e.detail},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class ArchivedAllMatchesView(APIView):
@@ -294,10 +299,16 @@ class MatchView(APIView):
             return Response(status=status.HTTP_403_FORBIDDEN)
         match = Match.objects.get(pk=pk)
         serializer = MatchSerializer(match, data=request.data, partial=True)
-        if serializer.is_valid():
+        try:
+            serializer.is_valid(raise_exception=True)
             serializer.save()
-        print(serializer.errors)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except ValidationError as e:
+            return Response(
+                {"detail": e.detail},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class MatchResultsView(APIView):
     def get(self, request, pk):
@@ -313,7 +324,7 @@ class MatchResultsView(APIView):
             return Response(status=status.HTTP_403_FORBIDDEN)
         elif not user.has_perm('commander_permissions'):
             team_matches = request.data.get('teammatch_set', [])
-            user_team_name = user_team.name if user_team else None
+            user_team_name = user.team.name if user.team else None
             team_found = any(match['team'] == user_team_name for match in team_matches)
             if not team_found:
                 return Response(status=status.HTTP_403_FORBIDDEN)

@@ -218,8 +218,11 @@ class Team(models.Model):
 
     @log_team_changes
     def upgrade_or_downgrade_tank(self, from_tank, to_tank, extra_upgrade_kit_tiers=[]):
-        possible_upgrades = self.get_possible_upgrades(from_tank)
+        team_tank_entry = TeamTank.objects.filter(team=self, tank=from_tank, is_upgrable=True)
+        if not team_tank_entry:
+            raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
 
+        possible_upgrades = self.get_possible_upgrades(from_tank)
 
         upgrade_path = next((path for path in possible_upgrades if path['to_tank'] == to_tank.name), None)
 
@@ -288,6 +291,10 @@ class Team(models.Model):
     import heapq
 
     def get_possible_upgrades(self, from_tank, minimize_kits=True):
+        team_tank_entry = TeamTank.objects.filter(team=self, tank=from_tank, is_upgrable=True)
+        if not team_tank_entry:
+            raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
+
         best_upgrade_paths = {}
         priority_queue = []
         required_kits = {
@@ -515,6 +522,7 @@ class UpgradePath(models.Model):
 class TeamTank(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
     tank = models.ForeignKey(Tank, on_delete=models.CASCADE)
+    is_trad = models.BooleanField(default=False)
     is_upgradable = models.BooleanField(default=True)
 
     def __str__(self):

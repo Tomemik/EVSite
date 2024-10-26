@@ -1,4 +1,5 @@
-from django.db.models import Avg, Q
+from django.db.models import Avg, Q, Max
+from django.utils import timezone
 from rest_framework import serializers
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, Substitute, MatchResult, \
     TankLost, TeamResult, TankBox, TeamBox, TeamLog
@@ -99,10 +100,20 @@ class UpgradePathSerializer(serializers.ModelSerializer):
 
 class TeamTankSerializer(serializers.ModelSerializer):
     tank = TankSerializerSlim()
+    available = serializers.SerializerMethodField()
 
     class Meta:
         model = TeamTank
-        fields = ['id', 'tank', 'team']
+        fields = ['id', 'tank', 'team', 'is_trad', 'available']
+
+    def get_available(self, obj):
+        team_tanks = TeamTank.objects.filter(team=obj.team)
+
+        non_trad_tanks = team_tanks.filter(is_trad=False)
+        highest_non_trad_rank = non_trad_tanks.aggregate(max_rank=Max('tank__rank', default=0))['max_rank']
+        if highest_non_trad_rank is not None and obj.tank.rank <= highest_non_trad_rank:
+            return True
+        return False
 
 
 class TeamSerializer(serializers.ModelSerializer):
@@ -165,6 +176,28 @@ class MatchSerializer(serializers.ModelSerializer):
             'id', 'datetime', 'mode', 'gamemode', 'best_of_number',
             'map_selection', 'money_rules', 'special_rules', 'teammatch_set'
         ]
+
+    def validate(self, data):
+        team_matches_data = data.get('teammatch_set', [])
+        match_date = data.get('datetime', timezone.now()).date()
+
+        existing_team_ids = (
+            self.instance.teammatch_set.values_list('team_id', flat=True)
+            if self.instance else []
+        )
+
+        for team_match_data in team_matches_data:
+            team = team_match_data['team']
+
+            if team.id in existing_team_ids:
+                continue
+
+            if team.matches_for_week(match_date) >= 6:
+                raise serializers.ValidationError(
+                    f"Cannot add Team '{team.name}' to this match as it has already reached the limit of 6 matches this week."
+                )
+
+        return data
 
     def create(self, validated_data):
         team_matches_data = validated_data.pop('teammatch_set')
