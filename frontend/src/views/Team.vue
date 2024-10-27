@@ -8,10 +8,10 @@
     </v-card>
 
     <v-card>
-      <v-card-title>Inventory</v-card-title>
+      <v-card-title>Tanks</v-card-title>
       <v-data-table
-        :headers="additionalInfoHeaders"
-        :items="combinedItems"
+        :headers="regularHeaders"
+        :items="regularTanks"
         item-key="name"
         dense
         class="team-table"
@@ -25,6 +25,52 @@
       <v-card-actions>
         <v-btn v-if="isCommander" color="error" @click="openSellTankDialog">Sell Tanks</v-btn>
       </v-card-actions>
+    </v-card>
+
+    <v-card>
+      <v-card-title>Lore</v-card-title>
+      <v-data-table
+        :headers="tradHeaders"
+        :items="tradTanks"
+        item-key="name"
+        dense
+        class="team-table"
+      >
+        <template v-slot:[`item.available`]="{ item }">
+          <span>
+            <v-icon color="green" v-if="item.aval">mdi-check-circle</v-icon>
+            <v-icon color="red" v-else>mdi-cancel</v-icon>
+          </span>
+        </template>
+
+        <template v-slot:[`item.name`]="{ item }">
+          <span>{{ item.name }}</span>
+        </template>
+
+        <template v-slot:[`item.tier`]="{ item }">
+          <span>{{ item.tier || 'N/A' }}</span>
+        </template>
+
+        <template v-slot:[`item.quantity`]="{ item }">
+          <span>{{ item.quantity }}</span>
+        </template>
+      </v-data-table>
+    </v-card>
+
+    <v-card>
+      <v-card-title>Inventory</v-card-title>
+      <v-data-table
+        :headers="additionalInfoHeaders"
+        :items="combinedItems"
+        item-key="name"
+        dense
+        class="team-table"
+        @click:row="handleRowClick"
+      >
+        <template v-slot:[`item.tier`]="{ item }">
+          <span>{{ item.tier || 'N/A' }}</span>
+        </template>
+      </v-data-table>
     </v-card>
 
     <V-btn @click="goToManufacturers">Manufacturer</V-btn>
@@ -179,6 +225,17 @@ export default {
         { title: 'Tier', value: 'tier' },
         { title: 'Quantity', value: 'quantity' }
       ],
+      regularHeaders: [
+        { title: 'Name', value: 'name' },
+        { title: 'Battle Rating', value: 'tier' },
+        { title: 'Quantity', value: 'quantity' }
+      ],
+      tradHeaders: [
+        { title: '', value: 'available', width: '50px' },
+        { title: 'Name', value: 'name' },
+        { title: 'Battle Rating', value: 'tier' },
+        { title: 'Quantity', value: 'quantity' },
+      ],
       sellTankHeaders: [
         { title: 'Name', value: 'name' },
         { title: 'Tier', value: 'tier' },
@@ -189,7 +246,7 @@ export default {
     };
   },
   computed: {
-    combinedItems() {
+    regularTanks(){
       const tankCounts = this.team.tanks.reduce((acc, tank) => {
         acc[tank.tank.name] = acc[tank.tank.name] ? acc[tank.tank.name] + 1 : 1;
         return acc;
@@ -197,19 +254,46 @@ export default {
 
       const uniqueTanks = new Set();
 
-      const tanks = this.team.tanks.reduce((acc, tank) => {
+      const reg_tanks = this.team.tanks.reduce((acc, tank) => {
         const tankName = tank.tank.name;
-        if (!uniqueTanks.has(tankName)) {
+        if (!uniqueTanks.has(tankName) && !tank.is_trad) {
           uniqueTanks.add(tankName);
           acc.push({
             name: tankName,
             tier: tank.tank.battle_rating.toFixed(1),
-            quantity: tankCounts[tankName]
+            quantity: tankCounts[tankName],
           });
         }
         return acc;
       }, []);
 
+      return reg_tanks
+    },
+    tradTanks(){
+      const tankCounts = this.team.tanks.reduce((acc, tank) => {
+        acc[tank.tank.name] = acc[tank.tank.name] ? acc[tank.tank.name] + 1 : 1;
+        return acc;
+      }, {});
+
+      const uniqueTanks = new Set();
+
+      const trad_tanks = this.team.tanks.reduce((acc, tank) => {
+        const tankName = tank.tank.name;
+        if (!uniqueTanks.has(tankName) && tank.is_trad) {
+          uniqueTanks.add(tankName);
+          acc.push({
+            name: tankName,
+            tier: tank.tank.battle_rating.toFixed(1),
+            quantity: tankCounts[tankName],
+            aval: tank.available
+          });
+        }
+        return acc;
+      }, []);
+
+      return trad_tanks
+    },
+    combinedItems() {
       const tankBoxes = this.team.tank_boxes.map(box => ({
         name: box.box_name,
         tier: '',
@@ -222,7 +306,7 @@ export default {
         quantity: this.team.upgrade_kits[key].quantity
       }));
 
-      return [...tanks, ...tankBoxes, ...upgradeKits];
+      return [...tankBoxes, ...upgradeKits];
     },
     filteredTanks() {
       return this.team.tanks.reduce((acc, tank) => {
@@ -417,6 +501,7 @@ export default {
           throw new Error('Error fetching team details');
         }
         this.team = await response.json();
+        console.log(this.team)
       } catch (error) {
         console.error('Error fetching team details:', error);
       }

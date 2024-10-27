@@ -656,7 +656,14 @@ class MatchResult(models.Model):
         average_rank = self.calculate_average_rank()
         winner_base_reward, loser_base_reward = self.calculate_base_reward(average_rank)
 
-        team_rewards = {team.id: 0 for team in Team.objects.all()}
+        participating_teams = set(
+            TeamMatch.objects.filter(match=self.match).values_list('team_id', flat=True)
+        )
+        participating_teams.update(substitute.team.id for substitute in self.substitutes.all())
+        if self.judge:
+            participating_teams.add(self.judge.id)
+
+        team_rewards = {team_id: 0 for team_id in participating_teams}
 
         teams_on_side = {
             'team_1': list(TeamMatch.objects.filter(match=self.match, side='team_1').values_list('team_id', flat=True)),
@@ -762,8 +769,9 @@ class MatchResult(models.Model):
             initial_balance = team.balance
             team.balance += reward
             kits = {}
-            if self.match.mode in ["traditional", "domination"]:
+            if self.match.mode in ["traditional", "domination"] and team_id in TeamMatch.objects.filter(match=self.match).values_list('team_id', flat=True):
                 kits = copy.deepcopy(team.upgrade_kits)
+                print(team)
                 team.upgrade_kits['T1']['quantity'] += 1
             team.save()
 

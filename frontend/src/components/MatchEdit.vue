@@ -212,14 +212,26 @@ const onTeamSelect = (side, index) => {
 
 const getTeamTanks = (side, index) => {
   const selectedTeamName = editForm.value.teammatch_set[side][index].team;
+  const mode = editForm.value.mode; // Get the current mode
 
   const team = props.allTeamDetails.find(t => t.name === selectedTeamName);
 
   if (team) {
-    return team.tanks.map(tank => ({
-      id: tank.id,
-      title: tank.tank.name,
-    }));
+    return team.tanks
+      .filter(tank => {
+        // Return tanks based on the current mode
+        if (mode === 'traditional') {
+          // Only include available traditional tanks if the mode is "traditional"
+          return tank.is_trad && tank.available;
+        } else {
+          // Return all tanks that are not traditional (is_trad is false)
+          return !tank.is_trad;
+        }
+      })
+      .map(tank => ({
+        id: tank.id,
+        title: tank.tank.name,
+      }));
   }
 
   return [];
