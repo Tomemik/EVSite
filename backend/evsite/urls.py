@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 
 from sheets import urls as leagueUrls
 from user import urls as userUrls
@@ -25,3 +26,5 @@ urlpatterns = [
     path("api/league/", include(leagueUrls)),
     path("api/user/", include(userUrls)),
 ]
+
+urlpatterns += staticfiles_urlpatterns()

@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/dev/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/dev/ref/settings/
 """
-
+import os
 from pathlib import Path
 import environ
 
@@ -35,7 +35,7 @@ SECRET_KEY = 'django-insecure-v0!yjuw)ybrl8+8v1=y)7izx#mt$h*q4ntg5_m%ld(lgc15w(0
 DEBUG = env.bool("DEBUG", default=True)
 
 ALLOWED_HOSTS = env.list(
-    "DJANGO_ALLOWED_HOSTS", default=["localhost", "0.0.0.0", "127.0.0.1", "backend"]
+    "DJANGO_ALLOWED_HOSTS", default=["localhost", "0.0.0.0", "127.0.0.1", "backend", "13.61.57.127"]
 )
 CSRF_TRUSTED_ORIGINS = ['http://localhost:5173']
 
@@ -154,7 +154,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/dev/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/dev/ref/settings/#default-auto-field

@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:15
+    shm_size: 1gb
+    restart: on-failure:5
+    env_file: .env
+    ports:
+      - 5432:5432
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - db_logs:/var/log/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U league" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+     context: ./backend
+     dockerfile: Dockerfile.stage
+    restart: on-failure:5
+    command: ["gunicorn", "evsite.wsgi:application", "--bind", "0.0.0.0:8000"]
+    env_file: .env
+    ports:
+      - 8000:8000
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    restart: on-failure:5
+    build: ./frontend
+    env_file: .env
+    command: bash -c "npm install && npm run dev"
+    volumes:
+      - type: bind
+        source: ./frontend
+        target: /code
+    ports:
+      - 5173:5173
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  db_data:
+  db_logs:
