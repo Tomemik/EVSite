@@ -38,6 +38,7 @@ const errorMessage = ref('');
 const router = useRouter();
 const userStore = useUserStore();
 const $cookies = inject("$cookies");
+//@ts-ignore
 const csrfToken = $cookies.get('csrftoken');
 
 const login = async () => {
@@ -72,6 +73,7 @@ const login = async () => {
     await fetchUserData();
     router.push({ name: 'Home' });
   } catch (error) {
+    //@ts-ignore
     errorMessage.value = error.message;
   }
 };

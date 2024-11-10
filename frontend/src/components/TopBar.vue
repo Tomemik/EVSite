@@ -66,6 +66,7 @@ import {inject, ref, watch} from 'vue';
 import {isAuthenticated, fetchUserData, logout} from "../config/api/user.ts";
 import {useUserStore} from "../config/store.ts";
 const $cookies = inject("$cookies");
+//@ts-ignore
 const csrfToken = $cookies.get('csrftoken');
 const isUserLoggedIn = ref(isAuthenticated())
 const userStore = useUserStore()

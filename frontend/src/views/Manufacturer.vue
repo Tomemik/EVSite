@@ -22,8 +22,8 @@
             </v-data-table>
           </v-card-text>
           <v-card-actions>
-            <v-btn v-if="userStore.groups.some(i => i.name === 'commander') &&
-             userStore.team === teamName) || userStore.groups.some(i => i.name === 'admin'"
+            <v-btn v-if="(userStore.groups.some(i => i.name === 'commander') &&
+             userStore.team === teamName) || userStore.groups.some(i => i.name === 'admin')"
               @click="purchaseSelectedTanks(manufacturer.id)"
               color="primary"
               :disabled="!(selectedItems[manufacturer.id] && selectedItems[manufacturer.id].length > 0)"
@@ -45,8 +45,8 @@ import {useUserStore} from "../config/store.ts";
 
 const userStore = useUserStore();
 const $cookies = inject("$cookies");
+//@ts-ignore
 const csrfToken = $cookies.get('csrftoken');
-
 
 interface Tank {
   id: number;

@@ -15,6 +15,7 @@ import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = environ.Path(__file__) - 3
 
 env = environ.Env()
 
@@ -35,7 +36,7 @@ SECRET_KEY = 'django-insecure-v0!yjuw)ybrl8+8v1=y)7izx#mt$h*q4ntg5_m%ld(lgc15w(0
 DEBUG = env.bool("DEBUG", default=True)
 
 ALLOWED_HOSTS = env.list(
-    "DJANGO_ALLOWED_HOSTS", default=["localhost", "0.0.0.0", "127.0.0.1", "backend", "13.61.57.127"]
+    "DJANGO_ALLOWED_HOSTS", default=["localhost", "0.0.0.0", "127.0.0.1", "backend"]
 )
 CSRF_TRUSTED_ORIGINS = ['http://localhost:5173']
 
@@ -154,8 +155,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/dev/howto/static-files/
 
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+STATIC_URL = "api/static/"
+STATIC_ROOT = str(ROOT_DIR("staticfiles/"))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/dev/ref/settings/#default-auto-field

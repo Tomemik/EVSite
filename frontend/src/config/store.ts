@@ -7,7 +7,7 @@ export const useUserStore = defineStore("user", {
     team: "",
   }) as {
     username: string;
-    groups: string[];
+    groups: Group[];
     team: string;
   },
   persist: true
@@ -19,5 +19,9 @@ export const useSettingsStore = defineStore("settings", {
   }) as {
     filterTeams: string[];
   },
-  persist: true
-})
+  persist: true,
+});
+
+interface Group {
+  name: string;
+}

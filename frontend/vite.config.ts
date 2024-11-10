@@ -3,7 +3,7 @@ import vue from "@vitejs/plugin-vue";
 import path from "path";
 
 // https://vitejs.dev/config/
-export default ({ mode }) => {
+export default ({ mode } : {mode:any}) => {
   const env = loadEnv(mode, process.cwd());
 
   let proxyUrl: string = "http://localhost:8000",
@@ -14,7 +14,6 @@ export default ({ mode }) => {
   } catch (e) {
     proxyUrl = "http://localhost:8000";
   }
-  console.log(`Proxy url ${proxyUrl}, host: ${host}`);
   return defineConfig({
     plugins: [vue()],
     resolve: {

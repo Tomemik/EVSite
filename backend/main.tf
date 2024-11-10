@@ -118,11 +118,15 @@ resource "aws_security_group" "ec2_sg" {
 }
 
 
-# Define variables for the secret key and SSH key pair name
 variable "secret_key" {
   description = "The Secret Key for Django"
   type        = string
   sensitive   = true
+}
+
+variable "DJANGO_ALLOWED_HOSTS" {
+  description = "list of allowed hosts for the django server"
+  type        = string
 }
 
 variable "DEBUG" {
@@ -175,6 +179,7 @@ data "template_file" "env_file" {
     VITE_PROXY_URL=${var.VITE_PROXY_URL}
     VITE_HOST=${var.VITE_HOST}
     SECRET_KEY=${var.secret_key}
+    DJANGO_ALLOWED_HOSTS=${var.DJANGO_ALLOWED_HOSTS}
   EOT
 }
 

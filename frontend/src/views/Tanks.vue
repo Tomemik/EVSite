@@ -54,6 +54,7 @@ import { ref, onMounted, inject } from 'vue';
 import TankTable from "../components/TankTable.vue";
 
 const $cookies = inject("$cookies");
+//@ts-ignore
 const csrfToken = $cookies.get('csrftoken');
 
 interface Tank {
@@ -67,7 +68,6 @@ interface Tank {
 
 const tanks = ref<Tank[]>([]);
 
-const selectedItems = ref<number[]>([]);
 const showAddTankDialog = ref(false);
 const newTankName = ref('');
 const newTankBattleRating = ref<number | null>(null);
@@ -124,36 +124,6 @@ const addTank = async () => {
   } catch (error) {
     console.error('There was a problem with the fetch operation:', error);
   }
-};
-
-const removeSelectedTanks = async () => {
-  if (selectedItems.value.length === 0) {
-    return;
-  }
-
-  try {
-    const response = await fetch('/api/league/tanks/', {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrfToken,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ tank_ids: selectedItems.value }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-
-    selectedItems.value = [];
-    await fetchTanks();
-  } catch (error) {
-    console.error('There was a problem with the fetch operation:', error);
-  }
-};
-
-const openAddTankDialog = () => {
-  showAddTankDialog.value = true;
 };
 
 onMounted(() => {

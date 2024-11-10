@@ -94,6 +94,7 @@
 import { ref, onMounted, inject } from 'vue';
 
 const $cookies = inject('$cookies');
+//@ts-ignore
 const csrfToken = $cookies.get('csrftoken');
 
 interface Tank {

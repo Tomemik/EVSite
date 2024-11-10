@@ -86,7 +86,6 @@
 
 <script setup lang="ts">
 import {onMounted, ref} from 'vue';
-import {de} from "vuetify/locale";
 
 interface Team {
   name: string;
@@ -115,6 +114,7 @@ const methodOptions = [
 ];
 
 function filteredLogsByTeam(TeamName: string) {
+  //@ts-ignore
   return logs.value.filter(log => log.team === TeamName);
 }
 

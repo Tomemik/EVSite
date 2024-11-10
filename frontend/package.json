@@ -12,6 +12,7 @@
     "@mdi/font": "^7.4.47",
     "@mdi/js": "^7.4.47",
     "@vuepic/vue-datepicker": "^9.0.3",
+    "@types/node": "^22.9.0",
     "path": "^0.12.7",
     "pinia": "^2.2.2",
     "pinia-plugin-persistedstate": "^4.0.2",
@@ -22,6 +23,7 @@
     "vuetify-datetime-picker": "^2.1.1"
   },
   "devDependencies": {
+    "@types/node": "^22.9.0",
     "@vitejs/plugin-vue": "^5.1.2",
     "typescript": "^5.5.3",
     "vite": "^5.4.1",

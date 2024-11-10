@@ -47,9 +47,9 @@
 
       <template #event="{ event }">
         <v-tooltip bottom>
-          <template #activator="{ attrs }">
+          <template #activator="{ props }">
             <div
-              v-bind="attrs"
+              v-bind="props"
               @click="fetchMatchDetails(event)"
               class="event"
             >
@@ -90,6 +90,7 @@
 </template>
 
 <script setup lang="ts">
+//@ts-nocheck
 import { ref, onMounted, inject } from 'vue';
 import MatchDetails from "../components/MatchDetails.vue";
 import MatchEdit from "../components/MatchEdit.vue";
@@ -98,6 +99,7 @@ import {useSettingsStore, useUserStore} from "../config/store.ts";
 import {getAuthToken} from "../config/api/user.ts";
 
 const $cookies = inject("$cookies");
+//@ts-ignore
 const csrfToken = $cookies.get('csrftoken');
 const userStore = useUserStore()
 const settingsStore = useSettingsStore()
@@ -174,7 +176,7 @@ const fetchMatches = async () => {
 
       const matchDate = new Date(match.datetime);
       const time = `${matchDate.getUTCHours().toString().padStart(2, '0')}:${matchDate.getUTCMinutes().toString().padStart(2, '0')} UTC`;
-
+      //@ts-ignore
       const title = `${Object.values(sides).map(teams => teams.join(' + ')).join(' vs ')} ${time}`;
 
       return {
@@ -306,6 +308,7 @@ const fetchAllTeams = async () => {
     if (!response.ok) throw new Error('Failed to fetch teams');
 
     allTeamsDetails.value = await response.json();
+    //@ts-ignore
     teamNames.value = allTeamsDetails.value.map(item => item.name)
     console.log(teamNames.value)
     console.log(allTeamsDetails.value);
