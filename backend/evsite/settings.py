@@ -38,7 +38,10 @@ DEBUG = env.bool("DEBUG", default=True)
 ALLOWED_HOSTS = env.list(
     "DJANGO_ALLOWED_HOSTS", default=["localhost", "0.0.0.0", "127.0.0.1", "backend"]
 )
-CSRF_TRUSTED_ORIGINS = ['http://localhost:5173']
+
+CSRF_TRUSTED_ORIGINS = env.list(
+    "CSRF_TRUSTED_ORIGINS", default=["http://localhost:5173",]
+)
 
 # Application definition
 

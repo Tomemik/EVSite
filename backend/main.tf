@@ -10,7 +10,7 @@ resource "aws_vpc" "default" {
   enable_dns_support   = true
   enable_dns_hostnames = true
   tags = {
-    Name = "Django_EC2_VPC"
+    Name = "EV_EC2_VPC"
   }
 }
 
@@ -18,7 +18,7 @@ resource "aws_vpc" "default" {
 resource "aws_internet_gateway" "default" {
   vpc_id = aws_vpc.default.id
   tags = {
-    Name = "Django_EC2_Internet_Gateway"
+    Name = "EV_EC2_Internet_Gateway"
   }
 }
 
@@ -30,7 +30,7 @@ resource "aws_route_table" "default" {
     gateway_id = aws_internet_gateway.default.id
   }
   tags = {
-    Name = "Django_EC2_Route_Table"
+    Name = "EV_EC2_Route_Table"
   }
 }
 
@@ -41,7 +41,7 @@ resource "aws_subnet" "subnet1" {
   map_public_ip_on_launch = true
   availability_zone       = "eu-north-1a"
   tags = {
-    Name = "Django_EC2_Subnet_1"
+    Name = "EV_EC2_Subnet_1"
   }
 }
 
@@ -51,7 +51,7 @@ resource "aws_subnet" "subnet2" {
   map_public_ip_on_launch = true
   availability_zone       = "eu-north-1b"
   tags = {
-    Name = "Django_EC2_Subnet_2"
+    Name = "EV_EC2_Subnet_2"
   }
 }
 
@@ -84,23 +84,9 @@ resource "aws_security_group" "ec2_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  ingress {
-    from_port = 5432
-    to_port   = 5432
-    protocol  = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port = 8000
-    to_port   = 8000
-    protocol  = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port = 5173
-    to_port   = 5173
+    ingress {
+    from_port = 443
+    to_port   = 443
     protocol  = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -126,6 +112,11 @@ variable "secret_key" {
 
 variable "DJANGO_ALLOWED_HOSTS" {
   description = "list of allowed hosts for the django server"
+  type        = string
+}
+
+variable "CSRF_TRUSTED_ORIGINS" {
+  description = "list of trusted CSRF origins for the django server"
   type        = string
 }
 
@@ -164,6 +155,11 @@ variable "VITE_HOST" {
   type        = number
 }
 
+variable "SERVER_NAME" {
+  description = "server name"
+  type        = string
+}
+
 locals {
   DATABASE_URL = "postgres://${var.POSTGRES_USER}:${var.POSTGRES_PASSWORD}@db:5432/${var.POSTGRES_DB}"
 }
@@ -180,6 +176,83 @@ data "template_file" "env_file" {
     VITE_HOST=${var.VITE_HOST}
     SECRET_KEY=${var.secret_key}
     DJANGO_ALLOWED_HOSTS=${var.DJANGO_ALLOWED_HOSTS}
+    CSRF_TRUSTED_ORIGINS=${var.CSRF_TRUSTED_ORIGINS}
+  EOT
+}
+
+data "template_file" "nginx" {
+  template = <<-EOT
+  error_log /var/log/nginx/error.log debug;
+  pid /var/run/nginx.pid;
+
+  events {
+      worker_connections 1024;
+  }
+
+
+  http {
+      include /etc/nginx/mime.types;
+      default_type application/octet-stream;
+
+      log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for"';
+
+      access_log /var/log/nginx/access.log main;
+
+      sendfile on;
+      keepalive_timeout 65;
+
+      server {
+          listen 80;
+          server_name gupevolution.click;
+
+          location /.well-known/acme-challenge/ {
+            root /var/www/certbot;
+          }
+
+          location / {
+            return 301 https://$host$request_uri;
+          }
+      }
+
+      server {
+        listen 443 ssl;
+        server_name gupevolution.click;
+
+        ssl_certificate /usr/share/certs/fullchain.pem;
+        ssl_certificate_key /usr/share/certs/privkey.pem;
+
+        location /api/static/ {
+            alias /usr/share/nginx/static/;
+        }
+
+        location /api/media/ {
+            alias /usr/share/nginx/media/;
+        }
+
+        location /api/ {
+            proxy_pass http://backend:8000/api/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location / {
+            root /usr/share/nginx/html;
+            try_files $uri /index.html;
+        }
+
+        error_log /var/log/nginx/app-error-log debug;
+        access_log /var/log/nginx/app-access-log combined;
+      }
+  }
+  EOT
+}
+
+data "template_file" "compose" {
+  template = <<-EOT
   EOT
 }
 
@@ -215,7 +288,7 @@ resource "aws_instance" "web" {
   subnet_id              = aws_subnet.subnet1.id
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
 
-  associate_public_ip_address = false
+  associate_public_ip_address = true
   user_data_replace_on_change = true
 
   iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
@@ -233,33 +306,22 @@ resource "aws_instance" "web" {
     # Install AWS CLI
     yum install -y aws-cli
 
-    # Install Docker Compose
-    curl -SL https://github.com/docker/compose/releases/download/v2.30.3/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
-    chmod +x /usr/local/bin/docker-compose
-
-    # Authenticate to ECR
-    docker login -u AWS -p $(aws ecr get-login-password --region eu-north-1) 762233752592.dkr.ecr.eu-north-1.amazonaws.com/evsite
-
-    # Pull the Docker image from ECR
-    docker pull 762233752592.dkr.ecr.eu-north-1.amazonaws.com/evsite:frontend
-    docker pull 762233752592.dkr.ecr.eu-north-1.amazonaws.com/evsite:backend
-    docker pull postgres:15
-
     # Create the .env file
     echo '${data.template_file.env_file.rendered}' > /home/ec2-user/.env
 
+    # Create nginx config file
+    mkdir /home/ec2-user/nginx
+    echo '${data.template_file.nginx.rendered}' > home/ec2-user/nginx/nginx.conf
+
     # Set up Docker Compose
-    cd /home/ec2-user
-    # Copy the docker-compose.yml file to the instance
-    echo
-    'services:
+    cd /home/ec2-user/
+    cat << 'EOF' > docker-compose.yml
+    services:
       db:
         image: postgres:15
         shm_size: 1gb
         restart: on-failure:5
         env_file: .env
-        ports:
-          - 5432:5432
         volumes:
           - db_data:/var/lib/postgresql/data
           - db_logs:/var/log/postgresql
@@ -272,10 +334,12 @@ resource "aws_instance" "web" {
       backend:
         image: 762233752592.dkr.ecr.eu-north-1.amazonaws.com/evsite:backend
         restart: on-failure:5
-        command: bash -c "python manage.py migrate && gunicorn evsite.wsgi:application --bind 0.0.0.0:8000"
+        command: bash -c "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn evsite.wsgi:application --bind 0.0.0.0:8000"
         env_file: .env
-        ports:
-          - 8000:8000
+        volumes:
+          - backend_staticfiles:/staticfiles
+        expose:
+          - 8000
         depends_on:
           db:
             condition: service_healthy
@@ -284,34 +348,77 @@ resource "aws_instance" "web" {
         image: 762233752592.dkr.ecr.eu-north-1.amazonaws.com/evsite:frontend
         restart: on-failure:5
         env_file: .env
-        command: bash -c "npm install && npm run dev"
+        command: bash -c "npm install && npm run build"
         volumes:
-          - type: bind
-            source: ./frontend
-            target: /code
+          - frontend_dist:/code/dist
+
+      certbot:
+        image: certbot/certbot:latest
+        volumes:
+          - ./certbot/www/:/var/www/certbot/:rw
+          - ./certbot/conf/:/etc/letsencrypt/:rw
+
+      nginx:
+        image: nginx:1.27
+        restart: on-failure:5
+        healthcheck:
+          test: ["CMD", "service", "nginx", "status"]
+          interval: 30s
+          timeout: 10s
+          retries: 3
         ports:
-          - 5173:5173
+          - "80:80"
+          - "443:443"
+        volumes:
+          - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+          - ./nginx/maintenance_mode.json:/etc/nginx/maintenance_mode.json:ro
+          - ./certbot/conf/live/gupevolution.click/fullchain.pem:/usr/share/certs/fullchain.pem:ro
+          - ./certbot/conf/live/gupevolution.click/privkey.pem:/usr/share/certs/privkey.pem:ro
+          - frontend_dist:/usr/share/nginx/html
+          - backend_staticfiles:/usr/share/nginx/static
+          - nginx_logs:/var/log/nginx
         depends_on:
           backend:
             condition: service_started
+          frontend:
+            condition: service_completed_successfully
+        entrypoint: sh -c "mkdir -p /usr/share/nginx/static && nginx -g 'daemon off;'"
+
 
     volumes:
+      backend_staticfiles:
+      frontend_dist:
       db_data:
-      db_logs:' > docker-compose.yml
+      db_logs:
+      nginx_logs:
+    'EOF'
+
+    # Install Docker Compose
+    curl -SL https://github.com/docker/compose/releases/download/v2.30.3/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+
+    # Authenticate to ECR
+    docker login -u AWS -p $(aws ecr get-login-password --region eu-north-1) 762233752592.dkr.ecr.eu-north-1.amazonaws.com/evsite
+
+    # Pull the Docker image from ECR
+    docker pull 762233752592.dkr.ecr.eu-north-1.amazonaws.com/evsite:frontend
+    docker pull 762233752592.dkr.ecr.eu-north-1.amazonaws.com/evsite:backend
+    docker pull postgres:15
+    docker pull nginx:1.27
 
     # Start Docker Compose
     docker-compose --env-file .env up -d
   EOF
 
   tags = {
-    Name = "Django_EC2_evsite"
+    Name = "EV_Website"
   }
 }
 
-resource "aws_eip_association" "eip_assoc" {
-  instance_id = aws_instance.web.id
-  allocation_id = "eipalloc-024ee5656548aa974"
-}
+#resource "aws_eip_association" "eip_assoc" {
+#  instance_id = aws_instance.web.id
+#  allocation_id = "eipalloc-024ee5656548aa974"
+#}
 
 output "ec2_public_ip" {
   value = aws_instance.web.public_ip

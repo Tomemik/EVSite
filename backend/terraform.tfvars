@@ -6,4 +6,6 @@ POSTGRES_USER="league"
 POSTGRES_PASSWORD="league"
 VITE_PROXY_URL="http://backend:8000"
 VITE_HOST=1
-DJANGO_ALLOWED_HOSTS="localhost,0.0.0.0,127.0.0.1,backend"
+DJANGO_ALLOWED_HOSTS="localhost,0.0.0.0,127.0.0.1,backend,gupevolution.click"
+SERVER_NAME="gupevolution.click"
+CSRF_TRUSTED_ORIGINS="http://localhost:5173,https://gupevolution.click"
