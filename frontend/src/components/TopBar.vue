@@ -75,6 +75,7 @@ const drawer = ref<boolean>(false);
 
 const barItems = ref([
   { title: 'Log-in', path: '/login', icon: 'mdi-login' },
+  { title: 'Register', path: '/register'},
 ]);
 
 const barItemsLoggedIn = ref([

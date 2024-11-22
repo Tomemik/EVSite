@@ -23,6 +23,9 @@ export default ({ mode } : {mode:any}) => {
     },
     server: {
       host: host,
+      watch: {
+        usePolling: true,
+      },
       proxy: {
         "/api": proxyUrl,
       },

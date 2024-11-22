@@ -548,7 +548,7 @@ class Match(models.Model):
         ('even_split', 'Even Split'),
     ]
 
-    datetime = models.DateTimeField()
+    datetime = models.DateTimeField(db_index=True)
     mode = models.CharField(max_length=50, choices=MODE_CHOICES)
     gamemode = models.CharField(max_length=50, choices=GAMEMODE_CHOICES)
     best_of_number = models.IntegerField()
@@ -826,8 +826,8 @@ class TeamLog(models.Model):
     previous_value = models.JSONField()
     new_value = models.JSONField()
     description = models.TextField()
-    method_name = models.CharField(max_length=255)
-    timestamp = models.DateTimeField(auto_now_add=True)
+    method_name = models.CharField(max_length=255, db_index=True)
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
 
     def __str__(self):
         return f"Change in {self.field_name} for {self.team.name}"

@@ -56,7 +56,8 @@ INSTALLED_APPS = [
     "knox",
     "sheets",
     "user",
-    "django_filters"
+    "django_filters",
+    "django_spaghetti",
 ]
 
 MIDDLEWARE = [
@@ -166,3 +167,7 @@ STATIC_ROOT = str(ROOT_DIR("staticfiles/"))
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+SPAGHETTI_SAUCE = {
+    'apps': ['user', 'sheets'],
+    'show_fields': True,
+}

@@ -1,8 +1,8 @@
 <template>
-  <div class="login-container">
-    <div class="login-box">
-      <h1 class="login-title">Login</h1>
-      <form @submit.prevent="login" class="login-form">
+  <div class="register-container">
+    <div class="register-box">
+      <h1 class="register-title">Register</h1>
+      <form @submit.prevent="register" class="register-form">
         <div class="form-group">
           <label for="username" class="form-label">Username</label>
           <input
@@ -10,7 +10,7 @@
             id="username"
             v-model="username"
             class="form-input"
-            placeholder="Enter your username"
+            placeholder="Choose a username"
             required
           />
         </div>
@@ -21,39 +21,52 @@
             id="password"
             v-model="password"
             class="form-input"
-            placeholder="Enter your password"
+            placeholder="Create a password"
             required
           />
         </div>
-        <button type="submit" class="btn-submit">Login</button>
+        <div class="form-group">
+          <label for="confirmPassword" class="form-label">Confirm Password</label>
+          <input
+            type="password"
+            id="confirmPassword"
+            v-model="confirmPassword"
+            class="form-input"
+            placeholder="Confirm your password"
+            required
+          />
+        </div>
+        <button type="submit" class="btn-submit">Register</button>
         <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
       </form>
-      <p class="redirect-message">
-        Don't have an account?
-        <router-link to="/register" class="redirect-link">Register here</router-link>
-      </p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { inject, ref } from 'vue';
-import { useUserStore } from '../config/store.ts';
-import { fetchUserData } from '../config/api/user.ts';
+import {inject, ref} from 'vue';
 import { useRouter } from 'vue-router';
+import {fetchUserData} from "@/config/api/user.ts";
+import { useUserStore } from '../config/store.ts';
 
 const username = ref('');
 const password = ref('');
+const confirmPassword = ref('');
 const errorMessage = ref('');
 const router = useRouter();
-const userStore = useUserStore();
 const $cookies = inject("$cookies");
 //@ts-ignore
 const csrfToken = $cookies.get('csrftoken');
+const userStore = useUserStore();
 
-const login = async () => {
+const register = async () => {
+  if (password.value !== confirmPassword.value) {
+    errorMessage.value = "Passwords do not match";
+    return;
+  }
+
   try {
-    const response = await fetch('/api/user/login/', {
+    const response = await fetch('/api/user/register/', {
       method: 'POST',
       headers: {
         'X-CSRFToken': csrfToken,
@@ -62,14 +75,18 @@ const login = async () => {
       body: JSON.stringify({
         username: username.value,
         password: password.value,
+        password2 : confirmPassword.value,
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Login failed: ${response.statusText}`);
-    }
+
 
     const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(`Registration failed: ${data.password}`);
+    }
+
     userStore.username = username.value;
     let expiryDate = new Date().getTime() + 1800000;
     localStorage.setItem(
@@ -92,7 +109,7 @@ const login = async () => {
 
 <style scoped>
 /* Overall layout */
-.login-container {
+.register-container {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -100,8 +117,8 @@ const login = async () => {
   background-color: #f5f5f5;
 }
 
-/* Login box */
-.login-box {
+/* Register box */
+.register-box {
   width: 100%;
   max-width: 400px;
   padding: 20px;
@@ -112,14 +129,14 @@ const login = async () => {
 }
 
 /* Title */
-.login-title {
+.register-title {
   margin-bottom: 20px;
   font-size: 24px;
   color: #333;
 }
 
 /* Form styles */
-.login-form {
+.register-form {
   display: flex;
   flex-direction: column;
   gap: 15px;

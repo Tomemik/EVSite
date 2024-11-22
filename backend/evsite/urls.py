@@ -25,6 +25,7 @@ urlpatterns = [
     path("api/admin/", admin.site.urls),
     path("api/league/", include(leagueUrls)),
     path("api/user/", include(userUrls)),
+    path('api/plate/', include('django_spaghetti.urls')),
 ]
 
 urlpatterns += staticfiles_urlpatterns()

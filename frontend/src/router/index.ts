@@ -8,6 +8,7 @@ import Manufacturer from "../views/Manufacturer.vue";
 import Manufacturers from "../views/Manufacturers.vue";
 import Login from '../views/Login.vue';
 import Log from "../views/Log.vue";
+import Register from "../views/Register.vue";
 
 const routes = [
     { path: '/home', name: 'Home', component: Home },
@@ -19,6 +20,7 @@ const routes = [
     { path: '/matches', name: 'matches', component: Matches },
     { path: '/manufacturers', name: 'manufacturers', component: Manufacturers },
     { path: '/log', name: 'log', component: Log },
+    { path: '/register', name: 'register', component: Register },
 ];
 
 const router = createRouter({

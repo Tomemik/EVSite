@@ -347,10 +347,9 @@ resource "aws_instance" "web" {
       frontend:
         image: 762233752592.dkr.ecr.eu-north-1.amazonaws.com/evsite:frontend
         restart: on-failure:5
-        env_file: .env
-        command: bash -c "npm install && npm run build"
         volumes:
           - frontend_dist:/code/dist
+        env_file: .env
 
       certbot:
         image: certbot/certbot:latest
