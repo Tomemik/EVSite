@@ -334,4 +334,12 @@ onMounted(() => {
   z-index: 2;
 }
 
+.grid-cell-content {
+  color: black;
+}
+
+.log-entry {
+  color: black;
+}
+
 </style>

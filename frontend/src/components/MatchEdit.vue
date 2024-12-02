@@ -18,7 +18,11 @@
           ></v-select>
 
           <v-text-field v-model="editForm.map_selection" label="Map Selection"></v-text-field>
-          <v-text-field v-model="editForm.best_of_number" label="Best of Number" type="number"></v-text-field>
+          <v-select
+            v-model="editForm.best_of_number"
+            label="Best of Number"
+            :items="bestOfOptions"
+          ></v-select>
           <v-text-field v-model="editForm.special_rules" label="Special Rules"></v-text-field>
           <v-select
             v-model="editForm.money_rules"
@@ -127,6 +131,11 @@ const gamemodeOptions = [
   { value: 'annihilation', title: 'Annihilation' },
   { value: 'domination', title: 'Domination' },
   { value: 'flag_tank', title: 'Flag Tank' }
+];
+
+const bestOfOptions = [
+  { value: '3', title: '3' },
+  { value: '5', title: '5' },
 ];
 
 const modeOptions = [

@@ -26,6 +26,7 @@
           <v-icon right>{{ 'mdi-logout' }}</v-icon>
            log-out
         </v-btn>
+        <v-btn @click="toggleTheme">toggle theme</v-btn>
       </v-toolbar-items>
 
       <v-toolbar-items v-else class="hidden-xs-only">
@@ -39,6 +40,7 @@
           <v-icon right>{{ item.icon }}</v-icon>
           {{ item.title }}
         </v-btn>
+        <v-btn @click="toggleTheme">toggle theme</v-btn>
       </v-toolbar-items>
     </v-app-bar>
 
@@ -70,6 +72,13 @@ const $cookies = inject("$cookies");
 const csrfToken = $cookies.get('csrftoken');
 const isUserLoggedIn = ref(isAuthenticated())
 const userStore = useUserStore()
+import { useTheme } from 'vuetify'
+
+const theme = useTheme()
+
+function toggleTheme () {
+  theme.global.name.value = theme.global.current.value.dark ? 'light' : 'dark'
+}
 
 const drawer = ref<boolean>(false);
 
@@ -79,7 +88,7 @@ const barItems = ref([
 ]);
 
 const barItemsLoggedIn = ref([
-  { title: 'test', path: '/test', icon: '' },
+  {title: '', path:'/', icon:''},
 ]);
 
 const drawerItems = ref([

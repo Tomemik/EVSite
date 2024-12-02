@@ -1,6 +1,14 @@
 <template>
   <v-container>
-    <v-row v-for="manufacturer in manufacturers" :key="manufacturer.id" class="mb-8">
+    <v-text-field
+      v-model="search"
+      label="Search Tanks"
+      clearable
+      class="mb-6"
+    ></v-text-field>
+    <p v-if="team.balance">Current Balance: {{ team!.balance.toLocaleString() }} $</p>
+
+    <v-row v-for="manufacturer in filteredManufacturers" :key="manufacturer.id" class="mb-8">
       <v-col cols="12">
         <v-card>
           <v-card-title>{{ manufacturer.name }}</v-card-title>
@@ -17,7 +25,7 @@
                 <span>{{ item.battle_rating.toFixed(1) }}</span>
               </template>
               <template v-slot:[`item.price`]="{ item }">
-                <span>{{ item.price.toLocaleString() }}$</span>
+                <span>{{ item.price.toLocaleString() }}</span>
               </template>
             </v-data-table>
           </v-card-text>
@@ -34,14 +42,33 @@
         </v-card>
       </v-col>
     </v-row>
+
+    <v-dialog v-model="successDialog" max-width="400">
+      <v-card>
+        <v-card-title class="text-h6">Purchase Successful</v-card-title>
+        <v-card-text>
+          <p>Tanks purchased: </p>
+          <ul>
+            <li v-for="(tank, index) in purchasedTanks" :key="index">
+              {{ tank }}
+            </li>
+          </ul>
+          <p>New Balance: {{ newBalance.toLocaleString() }}$</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" @click="successDialog = false">Close</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, inject } from 'vue';
+import { ref, onMounted, inject, computed } from 'vue';
 import { useRoute } from 'vue-router';
-import {getAuthToken} from "../config/api/user.ts";
-import {useUserStore} from "../config/store.ts";
+import { getAuthToken } from "../config/api/user.ts";
+import { useUserStore } from "../config/store.ts";
 
 const userStore = useUserStore();
 const $cookies = inject("$cookies");
@@ -57,6 +84,11 @@ interface Tank {
   type: string;
 }
 
+interface Team {
+  name: string;
+  balance: number;
+}
+
 interface Manufacturer {
   id: number;
   name: string;
@@ -65,17 +97,42 @@ interface Manufacturer {
 
 const manufacturers = ref<Manufacturer[]>([]);
 const headers = ref([
-  { title: 'Select', value: 'select' },
-  { title: 'Name', value: 'name' },
-  { title: 'Battle Rating', value: 'battle_rating' },
-  { title: 'Price', value: 'price' },
-  { title: 'Rank', value: 'rank' },
-  { title: 'Type', value: 'type' },
+  { title: '', value: 'select' },
+  { title: 'Name', value: 'name', sortable: true },
+  { title: 'Battle Rating', value: 'battle_rating', sortable: true },
+  { title: 'Price', value: 'price', sortable: true },
+  { title: 'Rank', value: 'rank', sortable: true },
+  { title: 'Type', value: 'type', sortable: true },
 ]);
 
 const selectedItems = ref<Record<number, number[]>>({});
 const route = useRoute();
 const teamName = route.params.TName;
+
+const team = ref<Team>({name: '', balance: 0})
+const search = ref(""); // Search term
+const successDialog = ref(false);
+const purchasedTanks = ref<string[]>([]);
+const newBalance = ref<number>(0);
+
+const filteredManufacturers = computed(() => {
+  if (!search.value.trim()) {
+    return manufacturers.value;
+  }
+
+  const searchTerm = search.value.toLowerCase();
+
+  return manufacturers.value.map((manufacturer) => ({
+    ...manufacturer,
+    tanks: manufacturer.tanks.filter(
+      (tank) =>
+        tank.name.toLowerCase().includes(searchTerm) ||
+        tank.type.toLowerCase().includes(searchTerm) ||
+        tank.rank.toString().includes(searchTerm) ||
+        tank.battle_rating.toFixed(1).includes(searchTerm)
+    ),
+  })).filter((manufacturer) => manufacturer.tanks.length > 0);
+});
 
 const fetchManufacturers = async () => {
   try {
@@ -107,8 +164,6 @@ const purchaseSelectedTanks = async (manufacturerId: number) => {
       ?.tanks.filter(t => selectedTankIds.includes(t.id))
       .map(t => t.name) || [];
 
-    console.log(selectedTankNames)
-
     const response = await fetch(`/api/league/transactions/buy_tanks/`, {
       method: 'POST',
       headers: {
@@ -123,16 +178,34 @@ const purchaseSelectedTanks = async (manufacturerId: number) => {
       throw new Error('Network response was not ok');
     }
 
+    const responseData = await response.json();
+    purchasedTanks.value = selectedTankNames;
+    newBalance.value = responseData.new_balance;
+    team.value.balance = newBalance.value
+
     selectedItems.value[manufacturerId] = [];
-    await fetchManufacturers();
-    console.log('Purchase successful!');
+    successDialog.value = true;
   } catch (error) {
     console.error('There was a problem with the purchase operation:', error);
   }
 };
 
-// Initialize data on component mount
+const fetchTeamDetails = async () => {
+  try {
+    const response = await fetch(`/api/league/teams/${teamName}/`);
+    if (!response.ok) {
+      throw new Error('Error fetching team details');
+    }
+    team.value = await response.json();
+    console.log(team.value)
+  } catch (error) {
+    console.error('Error fetching team details:', error);
+  }
+}
+
 onMounted(() => {
   fetchManufacturers();
+  fetchTeamDetails()
 });
+
 </script>

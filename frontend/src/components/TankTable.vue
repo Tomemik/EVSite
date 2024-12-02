@@ -1,5 +1,12 @@
 <template>
   <v-container>
+    <v-text-field
+      v-model="search"
+      label="Search Tanks"
+      clearable
+      class="mb-6"
+    ></v-text-field>
+
     <v-data-table
       :fixed-header="true"
       :headers="headers"
@@ -11,7 +18,11 @@
       v-model="selected"
       height="calc(100vh - 250px)"
       :items-per-page="15"
+      :search="search"
     >
+      <template v-slot:[`item.price`]="{ item }">
+        <span>{{ item.price.toLocaleString() }}</span>
+      </template>
       <template v-slot:bottom>
         <v-row>
           <v-col v-if="userStore.groups.find(i => i.name === 'admin')" cols="auto" class="d-flex align-center">
@@ -47,6 +58,7 @@
       </template>
     </v-data-table>
 
+    <!-- Loading Indicator -->
     <v-progress-circular
       v-else
       indeterminate
@@ -54,6 +66,7 @@
       class="ma-5"
     ></v-progress-circular>
 
+    <!-- Add New Tank Dialog -->
     <v-dialog v-model="showAddNewTankDialog" max-width="500px">
       <v-card>
         <v-card-title>
@@ -137,15 +150,16 @@
 
 <script>
 
-import {useUserStore} from "../config/store.ts"
-import {getAuthToken} from "../config/api/user.ts"
-import {inject} from "vue"
+import { useUserStore } from "../config/store.ts"
+import { getAuthToken } from "../config/api/user.ts"
+import { inject, ref } from "vue"
 
 export default {
   data() {
     const userStore = useUserStore();
     const $cookies = inject("$cookies");
     const csrfToken = $cookies.get('csrftoken');
+
     return {
       headers: [
         { title: 'Name', value: 'name', align: 'center', sortable: true },
@@ -165,7 +179,8 @@ export default {
       newTankType: '',
       currentTank: '',
       csrfToken,
-      userStore
+      userStore,
+      search: ref(''),
     };
   },
   created() {
@@ -175,9 +190,7 @@ export default {
     async fetchTanks() {
       try {
         const response = await fetch('/api/league/tanks/');
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
+        if (!response.ok) throw new Error('Network response was not ok');
         const data = await response.json();
         this.tanks = data;
       } catch (error) {

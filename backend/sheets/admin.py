@@ -13,14 +13,14 @@ class TeamAdmin(admin.ModelAdmin):
     search_fields = ('name',)
 
     def save_model(self, request, obj, form, change):
-        obj.upgrade_kits = {tier: data.copy() for tier, data in default_upgrade_kits().items()}
+        if not change and not obj.upgrade_kits:
+            obj.upgrade_kits = {tier: data.copy() for tier, data in default_upgrade_kits().items()}
         super().save_model(request, obj, form, change)
 
     def get_users(self, obj):
         return ", ".join([user.username for user in obj.members.all()])
 
     get_users.short_description = 'Users'
-
 
 
 class TankAdmin(admin.ModelAdmin):

@@ -159,7 +159,7 @@
       </v-card-text>
 
       <v-card-actions>
-        <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" color="success" @click="calcMatch">Calc</v-btn>
+        <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" :disabled="calcOverride" color="success" @click="calcMatch">Calc</v-btn>
         <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" color="success" @click="submitResults">Submit</v-btn>
         <v-btn color="error" @click="close">Close</v-btn>
       </v-card-actions>
@@ -173,7 +173,7 @@ import {useUserStore} from "../config/store.ts";
 import {getAuthToken} from "../config/api/user.ts";
 
 const userStore = useUserStore()
-const props = defineProps(['detailedMatch', 'showResultsDialog', 'allTeamDetails']);
+const props = defineProps(['detailedMatch', 'showResultsDialog', 'allTeamDetails', 'results', 'calcOverride']);
 const emit = defineEmits(['update:showResultsDialog', 'postResults', 'calcMatch']);
 
 const localShowResultsDialog = ref(props.showResultsDialog);
@@ -199,6 +199,12 @@ watch(() => props.allTeamDetails, (newValue) => {
   }
 });
 
+watch(() => props.calcOverride, (newValue) => {
+  if (newValue) {
+    console.log(newValue)
+  }
+});
+
 const judgeName = ref('');
 const winningSide = ref('');
 const teamResults = ref({});
@@ -218,6 +224,44 @@ watch(() => props.detailedMatch, (newMatch) => {
   }
 });
 
+
+watch(() => props.results, (newResults) => {
+  const sides = ['team_1', 'team_2'];
+  sides.forEach((side) => {
+    teamResults.value[side] = props.detailedMatch.sides[side].map((team) => {
+      const existingResult = props.results?.team_results?.find(
+        (result) => result.team === team.team
+      ) || {};
+      return {
+        bonuses: existingResult.bonuses || 0,
+        penalties: existingResult.penalties || 0,
+      };
+    });
+    tanksLost.value[side] = props.detailedMatch.sides[side].map((team) =>
+      team.tanks.map((tank) => {
+        const lostTankData = props.results?.tanks_lost?.find(
+          (lostTank) =>
+            lostTank.team === team.team && lostTank.tank === tank.tank.name
+        ) || {};
+        return {
+          quantity: lostTankData.quantity || 0,
+          notUsed: false,
+          used: true,
+        };
+      })
+    );
+    substitutes.value[side] = props.detailedMatch.sides[side].map((team) => {
+      return (
+        props.results?.substitutes?.filter(
+          (sub) => sub.team_played_for_name === team.team
+        ) || []
+      );
+    });
+  });
+
+  winningSide.value = props.results?.winning_side || '';
+  judgeName.value = props.results?.judge || '';
+});
 
 const addSubstitute = (side, teamIndex) => {
   substitutes.value[side][teamIndex].push({

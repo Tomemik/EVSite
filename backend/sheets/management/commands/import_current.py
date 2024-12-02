@@ -27,15 +27,16 @@ class Command(BaseCommand):
                             count = count.strip()
                             tank_name = tank_name.strip()
 
+                            print(tank_name)
                             tank_model = Tank.objects.get(name=tank_name)
 
                             for _ in range(int(count)):
                                 tank = TeamTank.objects.create(
                                     team=team,
                                     tank=tank_model,
-                                    is_trad=True,
-                                    is_upgradable=False,
+                                    is_trad=False,
+                                    is_upgradable=True,
                                 )
 
 
-        self.stdout.write(self.style.SUCCESS('Successfully imported Teams and their Tanks'))
+        self.stdout.write(self.style.SUCCESS('Successfully imported current Tanks'))

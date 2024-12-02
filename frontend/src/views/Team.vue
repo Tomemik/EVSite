@@ -65,7 +65,7 @@
         item-key="name"
         dense
         class="team-table"
-        @click:row="handleRowClick"
+        @click:row="handleKitClick"
       >
         <template v-slot:[`item.tier`]="{ item }">
           <span>{{ item.tier || 'N/A' }}</span>
@@ -74,6 +74,79 @@
     </v-card>
 
     <V-btn @click="goToManufacturers">Manufacturer</V-btn>
+
+    <v-dialog v-model="showMergeSplitDialog" max-width="600px">
+      <v-card>
+        <v-card-title>
+          <span class="headline">
+            {{ selectedKit?.tier }} Upgrade Kit Conversion
+          </span>
+        </v-card-title>
+        <v-card-text>
+            <template v-if="previousKitTier">
+              <strong>Current {{ previousKitTier }} Kits:</strong> {{ previousKitQuantity }}
+            </template>
+            <div>
+              <strong>Current {{ selectedKit?.tier }} Kits:</strong> {{ selectedKit?.quantity }}
+              <template v-if="selectedKit?.tier !== 'T3'">
+                <br/>
+                <strong>Current {{ nextKitTier }} Kits:</strong> {{ nextKitQuantity }}
+              </template>
+              <br/>
+            </div>
+
+          <v-row v-if="selectedKit?.tier !== 'T1'">
+            <v-col cols="6">
+              <v-text-field
+                v-model.number="splittingInput"
+                label="Number of Kits to Split"
+                type="number"
+                :rules="[value => value >= 0 && value <= selectedKit?.quantity || 'Invalid quantity']"
+                @input="updateSplitInput"
+              ></v-text-field>
+            </v-col>
+            <v-col cols="6">
+              <v-text-field
+                v-model.number="splittingOutput"
+                label="Number of Kits Received After Split"
+                type="number"
+                :rules="[value => value >= 0 || 'Invalid quantity']"
+                @input="updateSplitOutput"
+                step="2"
+              ></v-text-field>
+            </v-col>
+          </v-row>
+
+          <v-row v-if="selectedKit?.tier !== 'T3'">
+            <v-col cols="6">
+              <v-text-field
+                v-model.number="conversionInput"
+                label="Number of Kits to Merge"
+                type="number"
+                :rules="[value => value >= 0 && value <= selectedKit?.quantity || 'Invalid quantity']"
+                @input="updateFromInput"
+                step="2"
+              ></v-text-field>
+            </v-col>
+            <v-col cols="6">
+              <v-text-field
+                v-model.number="conversionOutput"
+                label="Number of Kits Received After Merge"
+                type="number"
+                :rules="[value => value >= 0 || 'Invalid quantity']"
+                @input="updateFromOutput"
+              ></v-text-field>
+            </v-col>
+          </v-row>
+
+        </v-card-text>
+        <v-card-actions>
+          <v-btn v-if="selectedKit?.tier !== 'T3'" color="primary" @click="submitMergeSplit('merge', selectedKit?.tier, conversionOutput)">Merge</v-btn>
+          <v-btn v-if="selectedKit?.tier !== 'T1'" color="primary" @click="submitMergeSplit('split', selectedKit?.tier, splittingInput)">Split</v-btn>
+          <v-btn @click="showMergeSplitDialog = false">Cancel</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-dialog v-model="showTankDetailsDialog" max-width="600px">
       <v-card>
@@ -155,7 +228,7 @@
           <v-form ref="sellTankForm">
             <v-data-table
               :headers="sellTankHeaders"
-              :items="filteredTanks"
+              :items="regularTanks"
               item-key="name"
               dense
             >
@@ -178,11 +251,54 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="showSuccessDialog" max-width="400">
+      <v-card>
+        <v-card-title class="text-h6">Tanks Sold Successfully</v-card-title>
+        <v-card-text>
+          <p>Tanks Sold:</p>
+          <ul>
+            <li v-for="(tank, index) in soldTanks" :key="index">
+              {{ tank.name }} (Quantity: {{ tank.quantity }})
+            </li>
+          </ul>
+          <p>New Balance: {{ newBalance.toLocaleString() }}$</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" @click="showSuccessDialog = false">Close</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+  <v-dialog v-model="showUpgradeSuccessDialog" max-width="400">
+    <v-card>
+      <v-card-title class="text-h6">Tanks Upgraded Successfully</v-card-title>
+      <v-card-text>
+        <p>
+          {{ selectedTank.item.name }} ->
+          {{ upgradeOptions.find(u => u.to_tank === this.selectedUpgrade).to_tank }}
+        </p>
+        <p>New Balance: {{ newBalance.toLocaleString() }}$</p>
+        <p>Updated Kits:</p>
+        <ul>
+          <li v-for="(kit, type) in newKits" :key="type">
+            {{ type }} kits: {{ kit.quantity }}
+          </li>
+        </ul>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn color="primary" @click="showUpgradeSuccessDialog = false">Close</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
   </v-container>
 </template>
 
 <script>
-import { inject } from "vue";
+import {inject, toRef} from "vue";
 import {useUserStore} from "../config/store.ts";
 import {getAuthToken} from "../config/api/user.ts";
 import Manufacturer from "./Manufacturer.vue";
@@ -202,6 +318,11 @@ export default {
         tank_boxes: [],
         upgrade_kits: {}
       },
+      soldTanks: '',
+      newBalance: 0,
+      showSuccessDialog: false,
+      showKitSuccessDialog: false,
+      showUpgradeSuccessDialog: false,
       showSellTankDialog: false,
       showTankDetailsDialog: false,
       selectedTank: null,
@@ -242,15 +363,43 @@ export default {
         { title: 'Available Quantity', value: 'quantity' },
         { title: 'Quantity to Sell', value: 'quantityToSell' }
       ],
-      userStore
+      userStore,
+      showMergeSplitDialog: false,
+      selectedKit: null,
+      conversionInput: 0,
+      conversionOutput: 0,
+      splittingInput: 0,
+      splittingOutput: 0,
+      newKits: {},
     };
   },
   computed: {
+    nextKitTier() {
+      if (!this.selectedKit) return '';
+      return this.selectedKit.tier === 'T1' ? 'T2' : this.selectedKit.tier === 'T2' ? 'T3' : '';
+    },
+    nextKitQuantity() {
+      const nextTier = this.nextKitTier;
+      const nextKit = this.combinedItems.find(item => item.tier === nextTier);
+      return nextKit ? nextKit.quantity : 0;
+    },
+    previousKitTier() {
+      if (!this.selectedKit) return '';
+      return this.selectedKit.tier === 'T2' ? 'T1' : this.selectedKit.tier === 'T3' ? 'T2' : '';
+    },
+    previousKitQuantity() {
+      const prevTier = this.previousKitTier;
+      const prevKit = this.combinedItems.find(item => item.tier === prevTier);
+      return prevKit ? prevKit.quantity : 0;
+    },
     regularTanks(){
       const tankCounts = this.team.tanks.reduce((acc, tank) => {
-        acc[tank.tank.name] = acc[tank.tank.name] ? acc[tank.tank.name] + 1 : 1;
+        if (!tank.is_trad) {
+          acc[tank.tank.name] = acc[tank.tank.name] ? acc[tank.tank.name] + 1 : 1;
+        }
         return acc;
       }, {});
+
 
       const uniqueTanks = new Set();
 
@@ -271,7 +420,9 @@ export default {
     },
     tradTanks(){
       const tankCounts = this.team.tanks.reduce((acc, tank) => {
-        acc[tank.tank.name] = acc[tank.tank.name] ? acc[tank.tank.name] + 1 : 1;
+        if (tank.is_trad) {
+          acc[tank.tank.name] = acc[tank.tank.name] ? acc[tank.tank.name] + 1 : 1;
+        }
         return acc;
       }, {});
 
@@ -343,7 +494,6 @@ export default {
 
       if (this.selectedUpgradeDetails) {
         const requiredKits = this.selectedUpgradeDetails.required_kits;
-        console.log(requiredKits)
 
         for (const tier in requiredKits) {
           if (requiredKits[tier] > 0) {
@@ -382,16 +532,18 @@ export default {
       if (newUpgrade) {
         const upgradeDetails = this.upgradeOptions.find(u => u.to_tank === newUpgrade);
         this.selectedUpgradeDetails = upgradeDetails || null;
-        console.log(this.selectedUpgradeDetails.required_kits);
       } else {
         this.selectedUpgradeDetails = null;
       }
-    }
+    },
+    conversionInput(newVal) {
+      this.conversionOutput = Math.floor(newVal / 2);
+    },
   },
   methods: {
     async goToManufacturers() {
       const teamName = this.team.name;
-      this.$router.push({ name: 'Manufacturer', params: { TName: teamName } });
+      this.$router.push({name: 'Manufacturer', params: {TName: teamName}});
     },
     handleRowClick(event, row) {
       this.selectedTank = row;
@@ -417,7 +569,6 @@ export default {
         }
 
         const upgrades = await response.json();
-        console.log(upgrades)
         this.upgradeOptions = upgrades.map(upgrade => ({
           title: upgrade.to_tank,
           upgrade_path_id: upgrade.upgrade_path_id,
@@ -434,8 +585,7 @@ export default {
     async sellTank() {
       if (!this.selectedTank) return;
 
-      const tanksToSell = [{ name: this.selectedTank.item.name, quantity: 1 }];
-      console.log(tanksToSell);
+      const tanksToSell = [{name: this.selectedTank.item.name, quantity: 1}];
 
       try {
         const response = await fetch('/api/league/transactions/sell_tanks/', {
@@ -455,8 +605,13 @@ export default {
           throw new Error('Error selling tank');
         }
 
+        const responseData = await response.json();
+        this.soldTanks = responseData.sold_tanks;
+        this.newBalance = responseData.new_balance;
+
         await this.fetchTeamDetails();
         this.showTankDetailsDialog = false;
+        this.showSuccessDialog = true;
       } catch (error) {
         console.error('Error during the sell operation:', error);
       }
@@ -487,8 +642,14 @@ export default {
           throw new Error("Error upgrading tank");
         }
 
+        const responseData = await response.json();
+        this.newKits = responseData.new_kits;
+        this.newBalance = responseData.new_balance;
+
         await this.fetchTeamDetails();
         this.showTankDetailsDialog = false;
+        this.showUpgradeSuccessDialog = true;
+
       } catch (error) {
         console.error('Error upgrading tank:', error);
       }
@@ -501,7 +662,6 @@ export default {
           throw new Error('Error fetching team details');
         }
         this.team = await response.json();
-        console.log(this.team)
       } catch (error) {
         console.error('Error fetching team details:', error);
       }
@@ -537,24 +697,81 @@ export default {
           throw new Error('Error selling tanks');
         }
 
+        const responseData = await response.json();
+        this.soldTanks = responseData.sold_tanks;
+        this.newBalance = responseData.new_balance;
+
         await this.fetchTeamDetails();
-        this.showSellTankDialog = false;
+        this.showTankDetailsDialog = false;
+        this.showSuccessDialog = true;
       } catch (error) {
         console.error('Error during the sell operation:', error);
       }
     },
     getMaxKits(tier) {
-      console.log(this.combinedItems)
       const tierKits = this.combinedItems.filter(item => item.tier === tier);
       const kitNumber = tierKits.reduce((total, item) => total + item.quantity, 0)
-      console.log(kitNumber)
-      return ;
+      return;
+    },
+    handleKitClick(event, row) {
+      if (row.item.name === 'Upgrade Kit') {
+        this.selectedKit = row.item;
+        this.showMergeSplitDialog = true;
+        this.conversionInput = 0;
+        this.conversionOutput = 0;
+      }
+    },
+    updateFromInput() {
+      this.conversionOutput = Math.floor(this.conversionInput / 2);
+    },
+    updateFromOutput() {
+      this.conversionInput = this.conversionOutput * 2;
+    },
+    updateSplitInput() {
+      this.splittingOutput = this.splittingInput * 2;
+    },
+    updateSplitOutput() {
+      this.splittingInput = Math.floor(this.splittingOutput / 2);
+    },
+    async submitMergeSplit(action, type, amount) {
+      try {
+        console.log(this.combinedItems);
+        const response = await fetch('/api/league/transactions/merge_split_kit/', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': this.csrfToken,
+            'Content-Type': 'application/json',
+            'authorization': getAuthToken()
+          },
+          body: JSON.stringify({
+            team: this.team.name,
+            action: action,
+            kit_type: type,
+            kit_amount: amount,
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Error');
+        }
+
+        await this.fetchTeamDetails();
+
+        this.showKitSuccessDialog = true
+        this.splittingInput = 0;
+        this.splittingOutput = 0;
+        this.conversionInput = 0;
+        this.conversionOutput = 0;
+      } catch (error) {
+        console.error('Error during the merge operation:', error);
+      }
     },
   },
   created() {
     this.fetchTeamDetails();
-  }
+  },
 };
+
 </script>
 
 <style scoped>

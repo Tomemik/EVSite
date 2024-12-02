@@ -91,41 +91,37 @@ const login = async () => {
 </script>
 
 <style scoped>
-/* Overall layout */
 .login-container {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background-color: #f5f5f5;
+  background-color: var(--v-background-base);
+  color: var(--v-text-primary);
 }
 
-/* Login box */
 .login-box {
   width: 100%;
   max-width: 400px;
   padding: 20px;
   border-radius: 8px;
-  background-color: #fff;
+  background-color: var(--v-surface);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   text-align: center;
 }
 
-/* Title */
 .login-title {
   margin-bottom: 20px;
   font-size: 24px;
-  color: #333;
+  color: var(--v-text-primary);
 }
 
-/* Form styles */
 .login-form {
   display: flex;
   flex-direction: column;
   gap: 15px;
 }
 
-/* Form group */
 .form-group {
   display: flex;
   flex-direction: column;
@@ -135,30 +131,31 @@ const login = async () => {
 .form-label {
   margin-bottom: 8px;
   font-size: 14px;
-  color: #666;
+  color: var(--v-text-secondary);
 }
 
 .form-input {
   width: 100%;
   padding: 10px;
   font-size: 14px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--v-divider);
   border-radius: 4px;
+  background-color: var(--v-surface);
+  color: var(--v-text-primary);
   transition: border-color 0.3s;
 }
 
 .form-input:focus {
-  border-color: #007bff;
+  border-color: var(--v-primary);
   outline: none;
 }
 
-/* Submit button */
 .btn-submit {
   width: 100%;
   padding: 12px;
   font-size: 16px;
-  color: #fff;
-  background-color: #007bff;
+  color: var(--v-text-primary-inverse);
+  background-color: var(--v-primary);
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -166,13 +163,12 @@ const login = async () => {
 }
 
 .btn-submit:hover {
-  background-color: #0056b3;
+  background-color: var(--v-primary-darken1);
 }
 
-/* Error message */
 .error-message {
   margin-top: 10px;
-  color: red;
+  color: var(--v-error);
   font-size: 14px;
 }
 </style>

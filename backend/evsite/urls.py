@@ -24,8 +24,7 @@ from user import urls as userUrls
 urlpatterns = [
     path("api/admin/", admin.site.urls),
     path("api/league/", include(leagueUrls)),
-    path("api/user/", include(userUrls)),
-    path('api/plate/', include('django_spaghetti.urls')),
+    path("api/user/", include(userUrls))
 ]
 
 urlpatterns += staticfiles_urlpatterns()

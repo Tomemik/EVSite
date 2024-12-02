@@ -7,26 +7,26 @@ Rock Island + Cadillac + US Army Ordnance Dept.,T14
 Rock Island + Cadillac + US Army Ordnance Dept.,T1E1
 Rock Island + Cadillac + US Army Ordnance Dept.,T1E1 (90 mm)
 Rock Island + Cadillac + US Army Ordnance Dept.,M6A1
-Rock Island + Cadillac + US Army Ordnance Dept.,**M41A3**
+Rock Island + Cadillac + US Army Ordnance Dept.,M41A3
 Rock Island + Cadillac + US Army Ordnance Dept.,T20
 Rock Island + Cadillac + US Army Ordnance Dept.,T25
-Rock Island + Cadillac + US Army Ordnance Dept.,**M41A1**
+Rock Island + Cadillac + US Army Ordnance Dept.,M41A1
 Rock Island + Cadillac + US Army Ordnance Dept.,M26
 Rock Island + Cadillac + US Army Ordnance Dept.,M26 T99
 Rock Island + Cadillac + US Army Ordnance Dept.,T26E1-1
 Rock Island + Cadillac + US Army Ordnance Dept.,T26E5
 Rock Island + Cadillac + US Army Ordnance Dept.,M26E1
 Rock Island + Cadillac + US Army Ordnance Dept.,M6A2E1
-Rock Island + Cadillac + US Army Ordnance Dept.,**M46**
-Rock Island + Cadillac + US Army Ordnance Dept.,**M47**
-Rock Island + Cadillac + US Army Ordnance Dept.,**M48**
+Rock Island + Cadillac + US Army Ordnance Dept.,M46
+Rock Island + Cadillac + US Army Ordnance Dept.,M47
+Rock Island + Cadillac + US Army Ordnance Dept.,M48
 General Motors + Marmon-Herrington + PACCAR,M3 Stuart
 General Motors + Marmon-Herrington + PACCAR,M3A1 Stuart
 General Motors + Marmon-Herrington + PACCAR,M22
 General Motors + Marmon-Herrington + PACCAR,M5A1 Stuart
 General Motors + Marmon-Herrington + PACCAR,M3A3 Stuart
-General Motors + Marmon-Herrington + PACCAR,T28 GMC*
-General Motors + Marmon-Herrington + PACCAR,T95 GMC*
+General Motors + Marmon-Herrington + PACCAR,T28 GMC
+General Motors + Marmon-Herrington + PACCAR,T95 GMC
 Chrysler + Detroit Tank Arsenal,M3 Lee
 Chrysler + Detroit Tank Arsenal,Grant I
 Chrysler + Detroit Tank Arsenal,M4A3 (105)
@@ -44,14 +44,14 @@ Chrysler + Detroit Tank Arsenal,M4A3 (76) W
 Chrysler + Detroit Tank Arsenal,M36 GMC
 Chrysler + Detroit Tank Arsenal,M4A3E2
 Chrysler + Detroit Tank Arsenal,M4/T26
-Chrysler + Detroit Tank Arsenal,**M36B2**
+Chrysler + Detroit Tank Arsenal,M36B2
 Chrysler + Detroit Tank Arsenal,M4A3E2 (76) W
 Chrysler + Detroit Tank Arsenal,Super Hellcat
-Chrysler + Detroit Tank Arsenal,T34*
-Chrysler + Detroit Tank Arsenal,T30*
-Chrysler + Detroit Tank Arsenal,T29*
-Chrysler + Detroit Tank Arsenal,T32*
-Chrysler + Detroit Tank Arsenal,T32E1*
+Chrysler + Detroit Tank Arsenal,T34
+Chrysler + Detroit Tank Arsenal,T30
+Chrysler + Detroit Tank Arsenal,T29
+Chrysler + Detroit Tank Arsenal,T32
+Chrysler + Detroit Tank Arsenal,T32E1
 MLW,Ram Mk II
 MLW,Sherman II
 Factory No. 38 + Factory No. 75,T-60
@@ -80,16 +80,17 @@ Ural Tank Factory No. 183 + STZ,T-44
 Ural Tank Factory No. 183 + STZ,T-44-122
 Ural Tank Factory No. 183 + STZ,T-34-100
 Ural Tank Factory No. 183 + STZ,T-44-100
-Ural Tank Factory No. 183 + STZ,**SU-122-54**
-Ural Tank Factory No. 183 + STZ,**T-54 (1947)**
-Ural Tank Factory No. 183 + STZ,**T-54 (1949)**
-Ural Tank Factory No. 183 + STZ,**T-54 (1951)**
+Ural Tank Factory No. 183 + STZ,SU-122-54
+Ural Tank Factory No. 183 + STZ,T-54 (1947)
+Ural Tank Factory No. 183 + STZ,T-54 (1949)
+Ural Tank Factory No. 183 + STZ,T-54 (1951)
 LKZ,KV-1 (L-11)
 LKZ,SMK
 LKZ,KV-2 (1939)
 LKZ,KV-2 (1940)
 LKZ,KV-1S
 LKZ,KV-1E
+LKZ,KV-7 (U-13)
 LKZ,KV-1 (ZiS-5)
 LKZ,KV-1 (1942)
 LKZ,KV-85
@@ -100,19 +101,19 @@ LKZ,IS-2
 LKZ,KV-220
 LKZ,IS-2 (1944)
 LKZ,IS-2 'Revenge'
-LKZ,IS-3*
+LKZ,IS-3
 Factory No. 100 + UMTZ,SU-122
 Factory No. 100 + UMTZ,SU-85
 Factory No. 100 + UMTZ,SU-152
-Factory No. 100 + UMTZ,**PT-76B**
+Factory No. 100 + UMTZ,PT-76B
 Factory No. 100 + UMTZ,ISU-152
 Factory No. 100 + UMTZ,SU-85M
 Factory No. 100 + UMTZ,ISU-122
 Factory No. 100 + UMTZ,ISU-122S
 Factory No. 100 + UMTZ,SU-122P
 Factory No. 100 + UMTZ,SU-100
-Factory No. 100 + UMTZ,**ASU-85**
-Factory No. 100 + UMTZ,IS-6*
+Factory No. 100 + UMTZ,ASU-85
+Factory No. 100 + UMTZ,IS-6
 Factory No. 174 + No. 185 + GAZ,T-28 (1938)
 Factory No. 174 + No. 185 + GAZ,T-35
 Factory No. 174 + No. 185 + GAZ,T-28
@@ -149,7 +150,7 @@ Henschel + Porsche,Tiger II (H) Sla. 16
 Henschel + Porsche,Sturmtiger
 Henschel + Porsche,JPz. VI 'Jagdtiger'
 Henschel + Porsche,Tiger II (H) 10.5cm
-Henschel + Porsche,Pz. VIII 'Maus'*
+Henschel + Porsche,Pz. VIII 'Maus'
 Daimler-Benz + Skoda,Pz.III B
 Daimler-Benz + Skoda,Pz.III E
 Daimler-Benz + Skoda,Pz.35 (t)
@@ -167,9 +168,9 @@ Daimler-Benz + Skoda,StuH 42 G
 Daimler-Benz + Skoda,StuG III F
 Daimler-Benz + Skoda,StuG III G
 Daimler-Benz + Skoda,Jagdpanzer 38 (t)
-Daimler-Benz + Skoda,**M41A1**
-Daimler-Benz + Skoda,**M47**
-Daimler-Benz + Skoda,**M48A2 C**
+Daimler-Benz + Skoda,M41A1
+Daimler-Benz + Skoda,M47
+Daimler-Benz + Skoda,M48A2 C
 MAN AG + Rheinmetall,Pz. Neubaufahrzeug
 MAN AG + Rheinmetall,VK 30.02 M
 MAN AG + Rheinmetall,Panther D
@@ -191,7 +192,7 @@ Nuffield + Leyland,Cromwell I
 Nuffield + Leyland,Avenger
 Nuffield + Leyland,A30 Challenger
 Nuffield + Leyland,Comet
-Nuffield + Leyland,**Charioteer**
+Nuffield + Leyland,Charioteer
 Nuffield + Leyland,Tortoise
 Vauxhall & Engl. Electric,Grant I
 Vauxhall & Engl. Electric,3in Gun Carrier
@@ -203,7 +204,7 @@ Vauxhall & Engl. Electric,Excelsior
 Vauxhall & Engl. Electric,Churchill Mk. VII
 Vauxhall & Engl. Electric,Churchill Crocodile
 Vauxhall & Engl. Electric,TOG II
-Vauxhall & Engl. Electric,Black Prince*
+Vauxhall & Engl. Electric,Black Prince
 Vickers - Armstrong + Messrs Vulcan,Tetrarch
 Vickers - Armstrong + Messrs Vulcan,Vickers Independent
 Vickers - Armstrong + Messrs Vulcan,Stuart I
@@ -219,24 +220,24 @@ Vickers - Armstrong + Messrs Vulcan,Sherman IC "Trzyniec"
 Vickers - Armstrong + Messrs Vulcan,M4 Tipo IC
 Vickers - Armstrong + Messrs Vulcan,Sherman VC
 Vickers - Armstrong + Messrs Vulcan,Sherman VC (APDS)
-Vickers - Armstrong + Messrs Vulcan,Centurion Mk.1*
-Vickers - Armstrong + Messrs Vulcan,**FV4005**
-Vickers - Armstrong + Messrs Vulcan,Centurion Mk.2*
-Vickers - Armstrong + Messrs Vulcan,**FV4202**
-Vickers - Armstrong + Messrs Vulcan,**Centurion Mk.3**
+Vickers - Armstrong + Messrs Vulcan,Centurion Mk.1
+Vickers - Armstrong + Messrs Vulcan,FV4005
+Vickers - Armstrong + Messrs Vulcan,Centurion Mk.2
+Vickers - Armstrong + Messrs Vulcan,FV4202
+Vickers - Armstrong + Messrs Vulcan,Centurion Mk.3
 NSWGR,A.C.I
 NSWGR,M4A2
 NSWGR,A.C.IV
 Imaginary,SMK
 Imaginary,HT. No. VI
-JSDF,**M36B2**
-JSDF,**ST-A1**
-JSDF,**ST-A2**
-JSDF,**Type 61**
-JSDF,**M41A1**
-JSDF,**ST-A3**
-JSDF,**M47**
-JSDF,**M48**
+JSDF,M36B2
+JSDF,ST-A1
+JSDF,ST-A2
+JSDF,Type 61
+JSDF,M41A1
+JSDF,ST-A3
+JSDF,M47
+JSDF,M48
 FIAT - Ansaldo,M11/39
 FIAT - Ansaldo,L3/33 CC
 FIAT - Ansaldo,L6/40
@@ -263,9 +264,9 @@ Supporto alleato,Sherman VC (APDS)
 Supporto alleato,M36B1
 Supporto alleato,M26A1
 Supporto alleato,M26
-Supporto alleato,**M46**
-Supporto alleato,**M47**
-Supporto alleato,**M48**
+Supporto alleato,M46
+Supporto alleato,M47
+Supporto alleato,M48
 Supporto dell'asse,Toldi IIA
 Supporto dell'asse,41M Turan II
 Supporto dell'asse,Pz.III N
@@ -281,7 +282,7 @@ Hotchkiss+SOMUA+FCM,S.35
 Hotchkiss+SOMUA+FCM,SAu 40
 Hotchkiss+SOMUA+FCM,Char 2C
 Hotchkiss+SOMUA+FCM,Char 2C Bis
-Hotchkiss+SOMUA+FCM,**Somua SM**
+Hotchkiss+SOMUA+FCM,Somua SM
 Renault,AMC.34 YR
 Renault,R.35 (SA38)
 Renault,AMR.35 ZT3
@@ -293,16 +294,16 @@ FAMH,ARL-44 (ACL-1)
 FAMH,ARL-44
 AMX,AMX-13 (M24)
 AMX,AMX-13 (FL11)
-AMX,**M4A1 (FL10)**
-AMX,**CA Lorraine**
-AMX,**AMX-13**
-AMX,**AMX M4**
-AMX,**Char 25T**
-AMX,**AMX-50-90**
-AMX,**Lorraine 40T**
-AMX,**AMX-50**
-AMX,**AMX-50 Foch**
-AMX,**AMX-50 Surbaisse**
+AMX,M4A1 (FL10)
+AMX,CA Lorraine
+AMX,AMX-13
+AMX,AMX M4
+AMX,Char 25T
+AMX,AMX-50-90
+AMX,Lorraine 40T
+AMX,AMX-50
+AMX,AMX-50 Foch
+AMX,AMX-50 Surbaisse
 Travaux d'armement francais,M22
 Travaux d'armement francais,M5A1 Stuart
 Travaux d'armement francais,Crusader Mk. II
@@ -315,10 +316,10 @@ Travaux d'armement francais,M4A4
 Travaux d'armement francais,M10 GMC
 Travaux d'armement francais,M4A2
 Travaux d'armement francais,M6A1
-Travaux d'armement francais,**M4A4 (SA50)**
+Travaux d'armement francais,M4A4 (SA50)
 Travaux d'armement francais,M4A3E2
 Travaux d'armement francais,M4A3 (76) W
-Travaux d'armement francais,**M36B2**
+Travaux d'armement francais,M36B2
 Travaux d'armement francais,Panther G
 Travaux d'armement francais,T26E1-1
 Travaux d'armement francais,M26
@@ -356,13 +357,13 @@ De enige tank,M4A2 (76) W
 De enige tank,M4A3E2
 De enige tank,Panther A
 De enige tank,T25
-De enige tank,T34*
-De enige tank,T32E1*
+De enige tank,T34
+De enige tank,T32E1
 De enige tank,T26E5
-De enige tank,**M41A1**
-De enige tank,**M46**
-De enige tank,**M47**
-De enige tank,**M48**
+De enige tank,M41A1
+De enige tank,M46
+De enige tank,M47
+De enige tank,M48
 Skladove za bulgarski oruzhiya,H.39
 Skladove za bulgarski oruzhiya,L3/33 CC
 Skladove za bulgarski oruzhiya,Pz.35 (t)
@@ -384,7 +385,7 @@ Skladove za bulgarski oruzhiya,44M Zrinyi I
 Skladove za bulgarski oruzhiya,StuG III G
 Skladove za bulgarski oruzhiya,T-34E STZ
 Skladove za bulgarski oruzhiya,Pz.IV H
-Skladove za bulgarski oruzhiya,**PT-76**
+Skladove za bulgarski oruzhiya,PT-76
 Skladove za bulgarski oruzhiya,Jagdpanzer IV
 Skladove za bulgarski oruzhiya,75/46 M43
 Skladove za bulgarski oruzhiya,Jagdpanzer 38 (t)
@@ -395,11 +396,11 @@ Skladove za bulgarski oruzhiya,T-34-85
 Skladove za bulgarski oruzhiya,Panther G
 Skladove za bulgarski oruzhiya,SU-100
 Skladove za bulgarski oruzhiya,IS-2 (1944)
-Skladove za bulgarski oruzhiya,**SU-122-54**
-Skladove za bulgarski oruzhiya,IS-3*
-Skladove za bulgarski oruzhiya,**SU-122-54**
-Skladove za bulgarski oruzhiya,**T-54 (1947)**
-Skladove za bulgarski oruzhiya,**T-54 (1949)**
+Skladove za bulgarski oruzhiya,SU-122-54
+Skladove za bulgarski oruzhiya,IS-3
+Skladove za bulgarski oruzhiya,SU-122-54
+Skladove za bulgarski oruzhiya,T-54 (1947)
+Skladove za bulgarski oruzhiya,T-54 (1949)
 WKGA,Tetrarch
 WKGA,A13 Mk. II
 WKGA,Stuart I
@@ -423,13 +424,13 @@ WKGA,Sherman VC (APDS)
 WKGA,Comet
 WKGA,M36 GMC
 WKGA,A30 Challenger
-WKGA,Centurion Mk.1*
-WKGA,Black Prince*
+WKGA,Centurion Mk.1
+WKGA,Black Prince
 WKGA,Tortoise
-WKGA,Centurion Mk.2*
-WKGA,**Charioteer**
-WKGA,**FV4202**
-WKGA,**Centurion Mk.3**
+WKGA,Centurion Mk.2
+WKGA,Charioteer
+WKGA,FV4202
+WKGA,Centurion Mk.3
 IAP,H.35
 IAP,H.39
 IAP,M2A2
@@ -442,9 +443,9 @@ IAP,Sherman VC
 IAP,ARL-44
 IAP,Pz. VI B 'Tiger II' (P)
 IAP,Pz. VI B 'Tiger II' (H)
-IAP,**M47**
-IAP,**M48**
-IAP,**Centurion Mk.3**
+IAP,M47
+IAP,M48
+IAP,Centurion Mk.3
 KBP,R.35 (SA38)
 KBP,L3/33 CC
 KBP,M2A2
@@ -471,14 +472,14 @@ KBP,Jagdpanzer IV
 KBP,M4A1 (76) W
 KBP,M4A3 (76) W
 KBP,M36B1
-KBP,**M41A1**
+KBP,M41A1
 KBP,M4A3E2 (76) W
 KBP,M26
-KBP,T34*
-KBP,T32E1*
-KBP,**M46**
-KBP,**M47**
-KBP,**M48**
+KBP,T34
+KBP,T32E1
+KBP,M46
+KBP,M47
+KBP,M48
 PZInz,M2A2
 PZInz,L3/33 CC
 PZInz,Vickers Mk.E
@@ -506,7 +507,7 @@ Ludowa Fabryka Pojazdow Pancernych,T-50
 Ludowa Fabryka Pojazdow Pancernych,T-34 (1941)
 Ludowa Fabryka Pojazdow Pancernych,T-34 (1942)
 Ludowa Fabryka Pojazdow Pancernych,KV-1 (L-11)
-Ludowa Fabryka Pojazdow Pancernych,**PT-76B**
+Ludowa Fabryka Pojazdow Pancernych,PT-76B
 Ludowa Fabryka Pojazdow Pancernych,SU-85
 Ludowa Fabryka Pojazdow Pancernych,T-34-57
 Ludowa Fabryka Pojazdow Pancernych,ISU-152
@@ -516,11 +517,11 @@ Ludowa Fabryka Pojazdow Pancernych,ISU-122S
 Ludowa Fabryka Pojazdow Pancernych,IS-2
 Ludowa Fabryka Pojazdow Pancernych,SU-100
 Ludowa Fabryka Pojazdow Pancernych,IS-2 (1944)
-Ludowa Fabryka Pojazdow Pancernych,**ASU-85**
-Ludowa Fabryka Pojazdow Pancernych,IS-3*
-Ludowa Fabryka Pojazdow Pancernych,**SU-122-54**
-Ludowa Fabryka Pojazdow Pancernych,**T-54 (1949)**
-Ludowa Fabryka Pojazdow Pancernych,**T-54 (1951)**
+Ludowa Fabryka Pojazdow Pancernych,ASU-85
+Ludowa Fabryka Pojazdow Pancernych,IS-3
+Ludowa Fabryka Pojazdow Pancernych,SU-122-54
+Ludowa Fabryka Pojazdow Pancernych,T-54 (1949)
+Ludowa Fabryka Pojazdow Pancernych,T-54 (1951)
 CAPTURED TANKS,Jagdpanzer 38 (t)
 CAPTURED TANKS,Panther G
 Suomalaiset panssariteokset,Ha-Go
@@ -543,17 +544,17 @@ Suomalaiset panssariteokset,Pz.IV H
 Suomalaiset panssariteokset,KV-1S
 Suomalaiset panssariteokset,KV-1 (ZiS-5)
 Suomalaiset panssariteokset,KV-1 (1942)
-Suomalaiset panssariteokset,**PT-76B**
+Suomalaiset panssariteokset,PT-76B
 Suomalaiset panssariteokset,ISU-152
 Suomalaiset panssariteokset,T-34-85 (D-5T)
 Suomalaiset panssariteokset,T-34-85
 Suomalaiset panssariteokset,Comet
 Suomalaiset panssariteokset,Panther G
 Suomalaiset panssariteokset,SU-100
-Suomalaiset panssariteokset,**Charioteer**
+Suomalaiset panssariteokset,Charioteer
 Suomalaiset panssariteokset,Pz. VI B 'Tiger II' (H)
 Suomalaiset panssariteokset,T-44-100
-Suomalaiset panssariteokset,**T-54 (1951)**
+Suomalaiset panssariteokset,T-54 (1951)
 Leonida,R.35 (SA38)
 Leonida,T-60
 Leonida,Pz.35 (t)
@@ -590,10 +591,10 @@ Leonida,Panther G
 Leonida,SU-100
 Leonida,IS-2 (1944)
 Leonida,T-44-100
-Leonida,IS-3*
-Leonida,**SU-122-54**
-Leonida,**T-54 (1947)**
-Leonida,**T-54 (1949)**
+Leonida,IS-3
+Leonida,SU-122-54
+Leonida,T-54 (1947)
+Leonida,T-54 (1949)
 TTG,Ha-Go
 TTG,I-Go/Ko
 TTG,Tetrarch
@@ -616,22 +617,22 @@ TTG,M4A4
 TTG,M4A4 (1st PTG)
 TTG,M4A1 (75) W
 TTG,Chi-Nu II
-TTG,**PT-76**
+TTG,PT-76
 TTG,Chi-to Late
 TTG,Churchill Mk. VII
 TTG,Chi-Ri II
 TTG,M4A2 (76) W
 TTG,Comet
-TTG,**Type 63-I**
+TTG,Type 63-I
 TTG,T-34-85 Gai
-TTG,**Object 211**
-TTG,**Type 62**
-TTG,**ST-A1**
+TTG,Object 211
+TTG,Type 62
+TTG,ST-A1
 TTG,M26
 TTG,T26E1-1
-TTG,T32*
+TTG,T32
 TTG,Ho-Ri Production
-TTG,**T-54 (1949)**
+TTG,T-54 (1949)
 FiBIS,I-Go/Ko
 FiBIS,H.39
 FiBIS,M2A4
@@ -660,9 +661,9 @@ FiBIS,PzBfw VI (P)
 FiBIS,Panther G
 FiBIS,Pz. VI B 'Tiger II' (P)
 FiBIS,Pz. VI B 'Tiger II' (H)
-FiBIS,Pz. VIII 'Maus'*
-FiBIS,**M47**
-FiBIS,**M48**
+FiBIS,Pz. VIII 'Maus'
+FiBIS,M47
+FiBIS,M48
 BRD,T-60
 BRD,Pz.III E
 BRD,Pz.II C
@@ -692,10 +693,10 @@ BRD,SU-100
 BRD,JPz. V 'Jagdpanther'
 BRD,JPz. VI 'Ferdinand'
 BRD,JPz. VI 'Jagdtiger'
-BRD,IS-3*
-BRD,**PT-76B**
-BRD,**T-54 (1949)**
-BRD,**T-54 (1951)**
+BRD,IS-3
+BRD,PT-76B
+BRD,T-54 (1949)
+BRD,T-54 (1951)
 Fabricacion espanola de tanques,L3/33 CC
 Fabricacion espanola de tanques,L6/40
 Fabricacion espanola de tanques,Pz.35 (t)
@@ -718,12 +719,12 @@ Fabricacion espanola de tanques,Pz.IV H
 Fabricacion espanola de tanques,SU-85
 Fabricacion espanola de tanques,T-34-85
 Fabricacion espanola de tanques,Panther G
-Fabricacion espanola de tanques,**M41A1**
+Fabricacion espanola de tanques,M41A1
 Fabricacion espanola de tanques,T-44
 Fabricacion espanola de tanques,SU-100
 Fabricacion espanola de tanques,Pz. VI B 'Tiger II' (H)
-Fabricacion espanola de tanques,**M47**
-Fabricacion espanola de tanques,**M48A2 C**
+Fabricacion espanola de tanques,M47
+Fabricacion espanola de tanques,M48A2 C
 MPL,Tetrarch
 MPL,A13 Mk. I
 MPL,M2 Medium
@@ -755,16 +756,16 @@ MPL,M4A3 (76) W
 MPL,Comet
 MPL,M4/T26
 MPL,M4A3E2 (76) W
-MPL,Centurion Mk.1*
-MPL,Centurion Mk.2*
+MPL,Centurion Mk.1
+MPL,Centurion Mk.2
 MPL,Tortoise
-MPL,T32*
-MPL,**M46**
-MPL,**FV4202**
-MPL,**Centurion Mk.3**
-MPL,**M46**
-MPL,**FV4202**
-MPL,**Centurion Mk.3**
+MPL,T32
+MPL,M46
+MPL,FV4202
+MPL,Centurion Mk.3
+MPL,M46
+MPL,FV4202
+MPL,Centurion Mk.3
 UN Supplies,Tetrarch
 UN Supplies,A13 Mk. II
 UN Supplies,Pz.III F
@@ -780,12 +781,12 @@ UN Supplies,M4A2
 UN Supplies,Panther D
 UN Supplies,Jagdpanzer IV/70 (V)
 UN Supplies,Panther G
-UN Supplies,Centurion Mk.1*
-UN Supplies,T28 GMC*
+UN Supplies,Centurion Mk.1
+UN Supplies,T28 GMC
 UN Supplies,JPz. V 'Jagdpanther'
 UN Supplies,Sturmtiger
-UN Supplies,T95 GMC*
-UN Supplies,T32*
+UN Supplies,T95 GMC
+UN Supplies,T32
 CKD-I,Pz.35 (t)
 CKD-I,L6/40
 CKD-I,Pz.38 (t) A
@@ -808,7 +809,7 @@ CSTB,T-34-85 (D-5T)
 CSTB,IS-2
 CSTB,SU-100
 CSTB,IS-2 (1944)
-CSTB,IS-3*
+CSTB,IS-3
 CSOB,Crusader Mk. II
 CSOB,Valentine Mk. XI
 CSOB,Cromwell V
@@ -822,10 +823,10 @@ CSOB,Pz.IV F2
 CSOB,StuG III F
 CSOB,Pz.IV H
 CSOB,Panther D
-CSOB,**PT-76B**
-CSOB,**ASU-85**
-CSOB,**T-54 (1949)**
-CSOB,**T-54 (1951)**
+CSOB,PT-76B
+CSOB,ASU-85
+CSOB,T-54 (1949)
+CSOB,T-54 (1951)
 AB Lndsv. + Scania-Vabis + Volvo,Strv m/31
 AB Lndsv. + Scania-Vabis + Volvo,Strv m/38
 AB Lndsv. + Scania-Vabis + Volvo,Strv m/39
@@ -836,12 +837,12 @@ AB Lndsv. + Scania-Vabis + Volvo,Strv m/41 S-I
 AB Lndsv. + Scania-Vabis + Volvo,Strv m/41 S-II
 AB Lndsv. + Scania-Vabis + Volvo,Lago I (APDS)
 AB Lndsv. + Scania-Vabis + Volvo,Strv m/42 EH
-AB Lndsv. + Scania-Vabis + Volvo,**Sav m/43 (1946)**
-AB Lndsv. + Scania-Vabis + Volvo,**Pvkv IV**
-AB Lndsv. + Scania-Vabis + Volvo,**Pvkv m/43 (1963)**
-AB Lndsv. + Scania-Vabis + Volvo,**Strv m/42 DT**
-AB Lndsv. + Scania-Vabis + Volvo,**Strv 74**
-AB Lndsv. + Scania-Vabis + Volvo,**Centurion Mk.3**
+AB Lndsv. + Scania-Vabis + Volvo,Sav m/43 (1946)
+AB Lndsv. + Scania-Vabis + Volvo,Pvkv IV
+AB Lndsv. + Scania-Vabis + Volvo,Pvkv m/43 (1963)
+AB Lndsv. + Scania-Vabis + Volvo,Strv m/42 DT
+AB Lndsv. + Scania-Vabis + Volvo,Strv 74
+AB Lndsv. + Scania-Vabis + Volvo,Centurion Mk.3
 Vegemite Industries,M2A2
 Vegemite Industries,M2A4
 Vegemite Industries,A13 Mk. I
@@ -856,11 +857,11 @@ Vegemite Industries,Crusader Mk. III
 Vegemite Industries,M4A1
 Vegemite Industries,M4
 Vegemite Industries,M36 GMC
-Vegemite Industries,**M41A1**
-Vegemite Industries,**Charioteer**
+Vegemite Industries,M41A1
+Vegemite Industries,Charioteer
 Vegemite Industries,Tortoise
-Vegemite Industries,**Centurion Mk.3**
-Vegemite Industries,**Centurion Mk.5/1**
+Vegemite Industries,Centurion Mk.3
+Vegemite Industries,Centurion Mk.5/1
 Gregor Extra,Pz.III E
 Gregor Extra,Pz.III F
 Gregor Extra,Pz.III M
@@ -869,10 +870,10 @@ Gregor Extra,Pz.IV F2
 Gregor Extra,StuG III F
 Gregor Extra,Pz.IV H
 Gregor Extra,Panther D
-Gregor Extra,**PT-76B**
-Gregor Extra,**ASU-85**
-Gregor Extra,**T-54 (1949)**
-Gregor Extra,**T-54 (1951)**
+Gregor Extra,PT-76B
+Gregor Extra,ASU-85
+Gregor Extra,T-54 (1949)
+Gregor Extra,T-54 (1951)
 Mitsubishi Heavy Industries,Ha-Go
 Mitsubishi Heavy Industries,I-Go/Ko
 Mitsubishi Heavy Industries,Chi-Ha
@@ -899,11 +900,11 @@ Osaka + Hino Mtrs + Hitachi Ltd,M4A3 (76) W
 Osaka + Hino Mtrs + Hitachi Ltd,Panther D
 CHT Extra,SMK
 CHT Extra,HT. No. VI
-CHT Extra,**M36B2**
-CHT Extra,**ST-A1**
-CHT Extra,**ST-A2**
-CHT Extra,**Type 61**
-CHT Extra,**M41A1**
-CHT Extra,**ST-A3**
-CHT Extra,**M47**
-CHT Extra,**M48**
+CHT Extra,M36B2
+CHT Extra,ST-A1
+CHT Extra,ST-A2
+CHT Extra,Type 61
+CHT Extra,M41A1
+CHT Extra,ST-A3
+CHT Extra,M47
+CHT Extra,M48

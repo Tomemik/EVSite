@@ -21,7 +21,6 @@ class Command(BaseCommand):
                     )
                     tank = Tank.objects.get(name=row['Tank'])
                     tank.manufacturers.add(manu)
-                    print(tank)
 
 
         self.stdout.write(self.style.SUCCESS('Successfully imported manufacturers'))

@@ -326,7 +326,7 @@ class MatchResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = MatchResult
         fields = ['match', 'match_id', 'winning_side', 'judge', 'judge_name', 'team_results', 'tanks_lost',
-                  'substitutes']
+                  'substitutes', 'is_calced']
         depth = 1
 
     def create(self, validated_data):

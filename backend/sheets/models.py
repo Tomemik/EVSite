@@ -122,6 +122,7 @@ def parse_changes(changes):
 
     return '\n'.join(readable_changes)
 
+
 def default_upgrade_kits():
     return {
         'T1': {'quantity': 0, 'price': 25000},
@@ -152,6 +153,44 @@ class Team(models.Model):
     def __str__(self):
         return self.name
 
+    def split_merge_kit(self, action, kit_type, kit_amount):
+        if action not in ['merge', 'split']:
+            raise ValueError("Action must be 'merge' or 'split'.")
+        if kit_type not in self.upgrade_kits:
+            raise ValueError(f"Invalid kit type '{kit_type}'. Valid options are: {list(self.upgrade_kits.keys())}.")
+
+        if action == 'merge':
+            if kit_type == 'T1':
+                target_kit = 'T2'
+            elif kit_type == 'T2':
+                target_kit = 'T3'
+            else:
+                return False
+
+            if self.upgrade_kits[kit_type]['quantity'] < 2:
+                return False
+
+            self.upgrade_kits[kit_type]['quantity'] -= 2 * kit_amount
+            self.upgrade_kits[target_kit]['quantity'] += 1 * kit_amount
+
+        elif action == 'split':
+            if kit_type == 'T3':
+                target_kit = 'T2'
+            elif kit_type == 'T2':
+                target_kit = 'T1'
+            else:
+                return False
+
+            if self.upgrade_kits[kit_type]['quantity'] < 1:
+                return False
+
+            self.upgrade_kits[kit_type]['quantity'] -= 1 * kit_amount
+            self.upgrade_kits[target_kit]['quantity'] += 2 * kit_amount
+
+        self.save()
+        return True
+
+
     def matches_for_week(self, date):
         start_of_week = date - timedelta(days=date.weekday())
         end_of_week = start_of_week + timedelta(days=6)
@@ -176,7 +215,7 @@ class Team(models.Model):
     @log_team_changes
     def sell_tank(self, tank):
         try:
-            teamtank = TeamTank.objects.filter(team=self, tank=tank).first()
+            teamtank = TeamTank.objects.filter(team=self, tank=tank, is_trad=False).first()
         except TeamTank.DoesNotExist:
             raise ValidationError("You do not own this tank.")
 
@@ -218,7 +257,7 @@ class Team(models.Model):
 
     @log_team_changes
     def upgrade_or_downgrade_tank(self, from_tank, to_tank, extra_upgrade_kit_tiers=[]):
-        team_tank_entry = TeamTank.objects.filter(team=self, tank=from_tank, is_upgrable=True)
+        team_tank_entry = TeamTank.objects.filter(team=self, tank=from_tank, is_upgradable=True)
         if not team_tank_entry:
             raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
 
@@ -230,7 +269,12 @@ class Team(models.Model):
             raise ValidationError(f"No valid upgrade path from {from_tank.name} to {to_tank.name}.")
 
         total_cost = upgrade_path['total_cost']
-        required_kits = upgrade_path['required_kits']
+        required_kits = upgrade_path['required_kits'] if not self.manufacturers.filter(id__in=to_tank.manufacturers.all()).exists() else (
+        {
+            'T1': 0,
+            'T2': 0,
+            'T3': 0
+        })
 
         total_extra_discount = sum(
             self.get_upgrade_kit_discount(tier) for tier in extra_upgrade_kit_tiers if tier in self.UPGRADE_KITS
@@ -291,7 +335,7 @@ class Team(models.Model):
     import heapq
 
     def get_possible_upgrades(self, from_tank, minimize_kits=True):
-        team_tank_entry = TeamTank.objects.filter(team=self, tank=from_tank, is_upgrable=True)
+        team_tank_entry = TeamTank.objects.filter(team=self, tank=from_tank, is_upgradable=True)
         if not team_tank_entry:
             raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
 

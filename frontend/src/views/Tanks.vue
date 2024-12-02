@@ -67,14 +67,12 @@ interface Tank {
 }
 
 const tanks = ref<Tank[]>([]);
-
 const showAddTankDialog = ref(false);
 const newTankName = ref('');
 const newTankBattleRating = ref<number | null>(null);
 const newTankPrice = ref<number | null>(null);
 const newTankRank = ref<number | null>(null);
 const newTankType = ref('');
-
 
 const fetchTanks = async () => {
   try {
@@ -84,13 +82,22 @@ const fetchTanks = async () => {
     }
     const data = await response.json();
     tanks.value = data;
+
+    localStorage.setItem('tanks', JSON.stringify(data));
+    localStorage.setItem('tanksTimestamp', Date.now().toString());
   } catch (error) {
     console.error('There was a problem with the fetch operation:', error);
   }
 };
 
 const addTank = async () => {
-  if (!newTankName.value.trim() || newTankBattleRating.value === null || newTankPrice.value === null || newTankRank.value === null || !newTankType.value.trim()) {
+  if (
+    !newTankName.value.trim() ||
+    newTankBattleRating.value === null ||
+    newTankPrice.value === null ||
+    newTankRank.value === null ||
+    !newTankType.value.trim()
+  ) {
     return;
   }
 
@@ -106,7 +113,7 @@ const addTank = async () => {
         battle_rating: newTankBattleRating.value,
         price: newTankPrice.value,
         rank: newTankRank.value,
-        type: newTankType.value.trim()
+        type: newTankType.value.trim(),
       }),
     });
 
@@ -114,19 +121,31 @@ const addTank = async () => {
       throw new Error('Network response was not ok');
     }
 
+    // Clear form fields
     newTankName.value = '';
     newTankBattleRating.value = null;
     newTankPrice.value = null;
     newTankRank.value = null;
     newTankType.value = '';
+
     showAddTankDialog.value = false;
+
+    // Fetch fresh data and update the cache
     await fetchTanks();
   } catch (error) {
     console.error('There was a problem with the fetch operation:', error);
   }
 };
 
-onMounted(() => {
-  fetchTanks();
+onMounted(async () => {
+  const cachedData = localStorage.getItem('tanks');
+  const cacheTimestamp = localStorage.getItem('tanksTimestamp');
+  const now = Date.now();
+
+  if (cachedData && cacheTimestamp && now - parseInt(cacheTimestamp, 10) < 15 * 60 * 1000) {
+    tanks.value = JSON.parse(cachedData);
+  } else {
+    await fetchTanks();
+  }
 });
 </script>

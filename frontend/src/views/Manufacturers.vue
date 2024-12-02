@@ -1,6 +1,13 @@
 <template>
   <v-container>
-    <v-row v-for="manufacturer in manufacturers" :key="manufacturer.id" class="mb-8">
+    <v-text-field
+      v-model="search"
+      label="Search Tanks"
+      clearable
+      class="mb-6"
+    ></v-text-field>
+
+    <v-row v-for="manufacturer in filteredManufacturers" :key="manufacturer.id" class="mb-8">
       <v-col cols="12">
         <v-card>
           <v-card-title>{{ manufacturer.name }}</v-card-title>
@@ -15,6 +22,9 @@
             >
               <template v-slot:[`item.battle_rating`]="{ item }">
                 <span>{{ item.battle_rating.toFixed(1) }}</span>
+              </template>
+              <template v-slot:[`item.price`]="{ item }">
+                <span>{{ item.price.toLocaleString() }}</span>
               </template>
             </v-data-table>
           </v-card-text>
@@ -91,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, inject } from 'vue';
+import { ref, onMounted, inject, computed } from 'vue';
 
 const $cookies = inject('$cookies');
 //@ts-ignore
@@ -114,12 +124,12 @@ interface Manufacturer {
 
 const manufacturers = ref<Manufacturer[]>([]);
 const headers = ref([
-  { text: 'Select', value: 'select' },
-  { text: 'Name', value: 'name' },
-  { text: 'Battle Rating', value: 'battle_rating' },
-  { text: 'Price', value: 'price' },
-  { text: 'Rank', value: 'rank' },
-  { text: 'Type', value: 'type' },
+  { title: '', value: 'select' },
+  { title: 'Name', value: 'name', sortable: true },
+  { title: 'Battle Rating', value: 'battle_rating', sortable: true },
+  { title: 'Price', value: 'price', sortable: true },
+  { title: 'Rank', value: 'rank', sortable: true },
+  { title: 'Type', value: 'type', sortable: true },
 ]);
 
 const selectedItems = ref<Record<number, number[]>>({});
@@ -128,6 +138,9 @@ const currentManufacturerId = ref<number | null>(null);
 const tanks = ref<Tank[]>([]);
 const selectedTank = ref<Tank | null>(null);
 
+const LOCAL_STORAGE_KEY = 'manufacturers_data';
+const TIMEOUT_DURATION = 15 * 60 * 1000;
+
 const tankDetails = ref({
   battle_rating: '',
   price: '',
@@ -135,7 +148,8 @@ const tankDetails = ref({
   type: '',
 });
 
-// Handle when a tank is selected
+const search = ref('');
+
 const handleTankSelection = (tank: Tank) => {
   if (tank) {
     tankDetails.value.battle_rating = tank.battle_rating.toFixed(1);
@@ -145,6 +159,27 @@ const handleTankSelection = (tank: Tank) => {
   }
 };
 
+const filteredManufacturers = computed(() => {
+  if (!search.value.trim()) {
+    return manufacturers.value;
+  }
+
+  const searchTerm = search.value.toLowerCase();
+
+  return manufacturers.value
+    .map((manufacturer) => ({
+      ...manufacturer,
+      tanks: manufacturer.tanks.filter(
+        (tank) =>
+          tank.name.toLowerCase().includes(searchTerm) ||
+          tank.type.toLowerCase().includes(searchTerm) ||
+          tank.rank.toString().includes(searchTerm) ||
+          tank.battle_rating.toFixed(1).includes(searchTerm)
+      ),
+    }))
+    .filter((manufacturer) => manufacturer.tanks.length > 0);
+});
+
 const fetchManufacturers = async () => {
   try {
     const response = await fetch('/api/league/manufacturers');
@@ -153,6 +188,11 @@ const fetchManufacturers = async () => {
     }
     const data = await response.json();
     manufacturers.value = data;
+
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ data, timestamp: Date.now() })
+    );
 
     manufacturers.value.forEach((m) => {
       selectedItems.value[m.id] = [];
@@ -225,22 +265,20 @@ const openAddTankDialog = (manufacturerId: number) => {
   showAddTankDialog.value = true;
 };
 
-const fetchTanks = async () => {
-  try {
-    const response = await fetch('/api/league/tanks/');
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-    const data = await response.json();
-    tanks.value = data;
-  } catch (error) {
-    console.error('Error fetching tanks:', error);
-  }
-};
 
-// Initialize data on component mount
 onMounted(() => {
-  fetchManufacturers();
-  fetchTanks();
+  const cachedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+  if (cachedData) {
+    const { data, timestamp } = JSON.parse(cachedData);
+
+    if (Date.now() - timestamp < TIMEOUT_DURATION) {
+      manufacturers.value = data;
+      manufacturers.value.forEach((m) => {
+        selectedItems.value[m.id] = [];
+      });
+    }
+  } else {
+    fetchManufacturers();
+  }
 });
 </script>

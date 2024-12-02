@@ -14,12 +14,12 @@
           <td>
             <router-link
               :to="{ name: 'team', params: { TName: item.name } }"
-              style="color: white; text-decoration: none; font-weight: bold;"
+              style="color: black; text-decoration: none; font-weight: bold;"
             >
               {{ item.name }}
             </router-link>
           </td>
-          <td style="color: white; text-decoration: none; font-weight: bold;">
+          <td style="color: black; text-decoration: none; font-weight: bold;">
               {{ item.balance }}
           </td>
         </tr>
@@ -75,10 +75,12 @@ export default {
   text-align: center;
 }
 
-
 .team-row td {
   padding: 16px;
   text-align: center;
   border: 1px solid #000;
+  color: black;
 }
+
+
 </style>

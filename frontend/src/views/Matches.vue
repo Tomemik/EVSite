@@ -72,10 +72,12 @@
     <MatchResult
       :detailedMatch="detailedMatch"
       :showResultsDialog="showResultsDialog"
+      :results="fetchedResults"
       :allTeamDetails="allTeamsDetails"
       @update:showResultsDialog="showResultsDialog = false"
       @postResults="postResults"
       @calcMatch="calcMatch"
+      :calcOverride="calcOverride"
     />
 
     <MatchEdit
@@ -86,6 +88,21 @@
       @updateMatch="updateMatch"
       :isNewMatch="isNewMatch"
     />
+
+    <v-dialog v-model="showSuccessDialog" max-width="400">
+      <v-card>
+        <v-card-title class="text-h6">Success!</v-card-title>
+        <v-card-text>
+          {{successMsg}}
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" @click="showSuccessDialog = false">Close</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+
   </v-container>
 </template>
 
@@ -97,6 +114,7 @@ import MatchEdit from "../components/MatchEdit.vue";
 import MatchResult from "../components/MatchResult.vue";
 import {useSettingsStore, useUserStore} from "../config/store.ts";
 import {getAuthToken} from "../config/api/user.ts";
+import {tr} from "vuetify/locale";
 
 const $cookies = inject("$cookies");
 //@ts-ignore
@@ -116,13 +134,17 @@ const allTeamsDetails = ref([])
 const teamNames = ref([])
 const dateFilter = ref<[Date | null, Date | null] | null>(null);
 const showPlayed = ref<boolean>(false)
-
+const fetchedResults = ref()
+const successMsg = ref('')
+const showSuccessDialog = ref(false)
+const calcOverride = ref(false)
 
 const toggleEdit = () => {
   showEditDialog.value = true
 }
 
-const showResults = () => {
+const showResults = async () => {
+  fetchedResults.value = await fetchResults(detailedMatch)
   showResultsDialog.value = true
 }
 
@@ -133,7 +155,7 @@ const openCreateMatchDialog = () => {
     gamemode: '',
     map_selection: '',
     mode: '',
-    best_of_number: 1,
+    best_of_number: 3,
     money_rules: '',
     special_rules: '',
     sides: {
@@ -272,11 +294,37 @@ const postResults = async (resultData) => {
       });
       if (!response.ok) throw new Error('Failed to update match details');
       const data = await response.json();
-      console.log(data)
+      successMsg.value = 'Match results posted successfully. You can now Calculate the match.'
+      calcOverride.value = false
+      showSuccessDialog.value = true
   } catch (error) {
     console.error('Error updating match:', error);
   }
 }
+
+const fetchResults = async (resultData) => {
+  try {
+    const response = await fetch('/api/league/matches/' + resultData.value.id + '/results/', {
+      method: 'GET',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'Content-Type': 'application/json',
+        'Authorization': getAuthToken(),
+      },
+    });
+    if (!response.ok){
+      calcOverride.value = true
+      throw new Error('Failed to update match details');
+    }
+    const data =  await response.json();
+    calcOverride.value = data.is_calced
+    console.log(calcOverride.value)
+    return data;
+  } catch (error) {
+    return null;
+  }
+}
+
 
 const calcMatch = async (id) => {
   try {
@@ -289,10 +337,11 @@ const calcMatch = async (id) => {
         },
       });
       if (!response.ok) throw new Error('Failed to update match details');
-      const data = await response.json();
-      console.log(data)
+      successMsg.value = 'Match successfully calculated. Check out the log to see the results.'
+      showSuccessDialog.value = true
+      calcOverride.value = false
   } catch (error) {
-    console.error('Error updating match:', error);
+    console.error('Match is already calced', error);
   }
 }
 
