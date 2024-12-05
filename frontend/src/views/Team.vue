@@ -7,6 +7,10 @@
       <v-card-subtitle>Balance: {{ team.balance.toLocaleString() }} $</v-card-subtitle>
     </v-card>
 
+    <V-btn @click="goToManufacturers" style="margin-top: 10px; margin-bottom: 10px; margin-right: 10px">Manufacturer</V-btn>
+    <V-btn v-if="(userStore.groups.some(i => i.name === 'commander') &&
+             userStore.team === team.name) || userStore.groups.some(i => i.name === 'admin')" @click="showTransferDialog=true" style="margin-top: 10px; margin-bottom: 10px">Transfer</V-btn>
+
     <v-card>
       <v-card-title>Tanks</v-card-title>
       <v-data-table
@@ -16,6 +20,7 @@
         dense
         class="team-table"
         @click:row="handleRowClick"
+
       >
         <template v-slot:[`item.tier`]="{ item }">
           <span>{{ item.tier || 'N/A' }}</span>
@@ -73,7 +78,61 @@
       </v-data-table>
     </v-card>
 
-    <V-btn @click="goToManufacturers">Manufacturer</V-btn>
+    <V-btn @click="goToManufacturers" style="margin-top: 10px; margin-bottom: 10px; margin-right: 10px">Manufacturer</V-btn>
+    <V-btn v-if="(userStore.groups.some(i => i.name === 'commander') &&
+             userStore.team === team.name) || userStore.groups.some(i => i.name === 'admin')" @click="showTransferDialog=true" style="margin-top: 10px; margin-bottom: 10px">Transfer</V-btn>
+
+    <v-dialog v-model="showTransferDialog" max-width="600px">
+      <v-card>
+        <v-card-title>
+          <span class="headline">
+            Money Transfer
+          </span>
+        </v-card-title>
+        <v-card-text>
+          <v-row>
+
+            <v-col cols="12">
+              <v-select
+                v-model="selectedToTeam"
+                :items="teams"
+                item-text="name"
+                item-value="id"
+                label="Select Team to Transfer To"
+                :rules="[value => !!value || 'Team is required']"
+              ></v-select>
+            </v-col>
+
+            <v-col cols="6">
+              <v-text-field
+                v-model.number="preTaxAmount"
+                label="Pre-Tax Amount"
+                type="number"
+                :rules="[value => value > 0 || 'Amount must be greater than 0']"
+                @input="calculatePostTax"
+              ></v-text-field>
+            </v-col>
+
+            <v-col cols="6">
+              <v-text-field
+                v-model.number="postTaxAmount"
+                label="Post-Tax Amount"
+                type="number"
+                :rules="[value => value > 0 || 'Amount must be greater than 0']"
+                @input="calculatePreTax"
+              ></v-text-field>
+            </v-col>
+          </v-row>
+        </v-card-text>
+
+        <v-card-actions>
+          <v-btn color="primary" @click="submitMoneyTransfer" :disabled="!selectedToTeam || !postTaxAmount || !preTaxAmount">
+            Transfer
+          </v-btn>
+          <v-btn @click="showTransferDialog = false">Cancel</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-dialog v-model="showMergeSplitDialog" max-width="600px">
       <v-card>
@@ -236,10 +295,10 @@
                 <v-text-field
                   v-model.number="sellQuantities[item.name]"
                   :max="item.quantity"
-                  label="Quantity"
                   type="number"
                   min="0"
                   :rules="[value => value >= 0 && value <= item.quantity || 'Invalid quantity']"
+                  style="display: flex; align-items: center;"
                 ></v-text-field>
               </template>
             </v-data-table>
@@ -271,28 +330,42 @@
       </v-card>
     </v-dialog>
 
-  <v-dialog v-model="showUpgradeSuccessDialog" max-width="400">
-    <v-card>
-      <v-card-title class="text-h6">Tanks Upgraded Successfully</v-card-title>
-      <v-card-text>
-        <p>
-          {{ selectedTank.item.name }} ->
-          {{ upgradeOptions.find(u => u.to_tank === this.selectedUpgrade).to_tank }}
-        </p>
-        <p>New Balance: {{ newBalance.toLocaleString() }}$</p>
-        <p>Updated Kits:</p>
-        <ul>
-          <li v-for="(kit, type) in newKits" :key="type">
-            {{ type }} kits: {{ kit.quantity }}
-          </li>
-        </ul>
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer></v-spacer>
-        <v-btn color="primary" @click="showUpgradeSuccessDialog = false">Close</v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+    <v-dialog v-model="showTransferSuccessDialog" max-width="400">
+      <v-card>
+        <v-card-title class="text-h6">Money Transferred Successfully</v-card-title>
+        <v-card-text>
+          <p>{{ preTaxAmount }} Transferred to {{ selectedToTeam }}</p>
+          <p>New Balance: {{ newBalance.toLocaleString() }}$</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" @click="closeDialog()">Close</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="showUpgradeSuccessDialog" max-width="400">
+      <v-card>
+        <v-card-title class="text-h6">Tanks Upgraded Successfully</v-card-title>
+        <v-card-text>
+          <p>
+            {{ selectedTank.item.name }} ->
+            {{ upgradeOptions.find(u => u.to_tank === this.selectedUpgrade).to_tank }}
+          </p>
+          <p>New Balance: {{ newBalance.toLocaleString() }}$</p>
+          <p>Updated Kits:</p>
+          <ul>
+            <li v-for="(kit, type) in newKits" :key="type">
+              {{ type }} kits: {{ kit.quantity }}
+            </li>
+          </ul>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" @click="showUpgradeSuccessDialog = false">Close</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
   </v-container>
 </template>
@@ -342,26 +415,26 @@ export default {
       },
       baseCost: 0,
       additionalInfoHeaders: [
-        { title: 'Name', value: 'name' },
-        { title: 'Tier', value: 'tier' },
-        { title: 'Quantity', value: 'quantity' }
+        { title: 'Name', value: 'name' , sortable: true},
+        { title: 'Tier', value: 'tier' , sortable: true},
+        { title: 'Quantity', value: 'quantity', sortable: true }
       ],
       regularHeaders: [
-        { title: 'Name', value: 'name' },
-        { title: 'Battle Rating', value: 'tier' },
-        { title: 'Quantity', value: 'quantity' }
+        { title: 'Name', value: 'name' , sortable: true},
+        { title: 'Battle Rating', value: 'tier', sortable: true },
+        { title: 'Quantity', value: 'quantity', sortable: true }
       ],
       tradHeaders: [
-        { title: '', value: 'available', width: '50px' },
-        { title: 'Name', value: 'name' },
-        { title: 'Battle Rating', value: 'tier' },
-        { title: 'Quantity', value: 'quantity' },
+        { title: '', value: 'available', width: '50px', sortable: true },
+        { title: 'Name', value: 'name', sortable: true },
+        { title: 'Battle Rating', value: 'tier', sortable: true },
+        { title: 'Quantity', value: 'quantity', sortable: true },
       ],
       sellTankHeaders: [
-        { title: 'Name', value: 'name' },
-        { title: 'Tier', value: 'tier' },
-        { title: 'Available Quantity', value: 'quantity' },
-        { title: 'Quantity to Sell', value: 'quantityToSell' }
+        { title: 'Name', value: 'name', sortable: true },
+        { title: 'Tier', value: 'tier', sortable: true },
+        { title: 'Available Quantity', value: 'quantity', sortable: true },
+        { title: 'Quantity to Sell', value: 'quantityToSell', sortable: true }
       ],
       userStore,
       showMergeSplitDialog: false,
@@ -371,6 +444,12 @@ export default {
       splittingInput: 0,
       splittingOutput: 0,
       newKits: {},
+      teams: null,
+      showTransferDialog: false,
+      showTransferSuccessDialog: false,
+      selectedToTeam: null,
+      preTaxAmount: 0,
+      postTaxAmount: 0,
     };
   },
   computed: {
@@ -541,6 +620,19 @@ export default {
     },
   },
   methods: {
+    async fetchTeams() {
+      try {
+        const response = await fetch('/api/league/teams/');
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        const data = await response.json();
+        const teamNames = data.map(team => team.name);
+        this.teams = teamNames;
+      } catch (error) {
+        console.error('Error fetching teams:', error);
+      }
+    },
     async goToManufacturers() {
       const teamName = this.team.name;
       this.$router.push({name: 'Manufacturer', params: {TName: teamName}});
@@ -662,6 +754,7 @@ export default {
           throw new Error('Error fetching team details');
         }
         this.team = await response.json();
+        console.log(this.team)
       } catch (error) {
         console.error('Error fetching team details:', error);
       }
@@ -735,7 +828,6 @@ export default {
     },
     async submitMergeSplit(action, type, amount) {
       try {
-        console.log(this.combinedItems);
         const response = await fetch('/api/league/transactions/merge_split_kit/', {
           method: 'POST',
           headers: {
@@ -766,9 +858,83 @@ export default {
         console.error('Error during the merge operation:', error);
       }
     },
+    calculatePostTax() {
+      if (this.preTaxAmount === 0) {
+        this.postTaxAmount = 0;
+        return;
+      }
+
+      const amount = this.preTaxAmount;
+
+      if (amount > 25000) {
+        this.postTaxAmount = amount * 0.8;
+      } else if (amount > 10000) {
+        this.postTaxAmount = amount * 0.9;
+      } else {
+        this.postTaxAmount = amount * 0.95;
+      }
+      this.postTaxAmount = Math.floor(this.postTaxAmount)
+    },
+    calculatePreTax() {
+      if (this.postTaxAmount === 0) {
+        this.preTaxAmount = 0;
+        return;
+      }
+
+      const taxedAmount = this.postTaxAmount;
+
+      if (taxedAmount <= 10000 * 0.95) {
+        this.preTaxAmount = taxedAmount / 0.95;
+      } else if (taxedAmount <= 25000 * 0.9) {
+        this.preTaxAmount = taxedAmount / 0.9;
+      } else {
+        this.preTaxAmount = taxedAmount / 0.8;
+      }
+      this.preTaxAmount = Math.floor(this.preTaxAmount)
+    },
+    async submitMoneyTransfer () {
+      if (!this.selectedToTeam || !this.postTaxAmount || !this.preTaxAmount) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/league/transactions/transfer/', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': this.csrfToken,
+            'Content-Type': 'application/json',
+            'authorization': getAuthToken()
+          },
+          body: JSON.stringify({
+            team: this.team.name,
+            to_team: this.selectedToTeam,
+            amount: this.preTaxAmount,
+          }),
+        });
+
+        if (response.ok) {
+          const responseData = await response.json();
+          this.newBalance = responseData.new_balance;
+
+          this.showTransferSuccessDialog = true;
+          this.showTransferDialog = false;
+        } else {
+          alert(`Error: ${error.message}`);
+        }
+      } catch (error) {
+        console.error('Error submitting transfer:', error);
+        alert('There was an error processing your transfer.');
+      }
+    },
+    closeDialog() {
+      this.showTransferSuccessDialog = false
+      this.preTaxAmount = 0
+      this.postTaxAmount = 0
+    }
   },
   created() {
     this.fetchTeamDetails();
+    this.fetchTeams();
   },
 };
 

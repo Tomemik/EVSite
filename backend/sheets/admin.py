@@ -1,6 +1,7 @@
 from django.contrib import admin
+from django.db import transaction
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, default_upgrade_kits, \
-    MatchResult, Substitute, TankLost, TeamResult, TeamLog
+    MatchResult, Substitute, TankLost, TeamResult, TeamLog, TankBox, TeamBox
 
 
 class ManufacturerAdmin(admin.ModelAdmin):
@@ -21,6 +22,30 @@ class TeamAdmin(admin.ModelAdmin):
         return ", ".join([user.username for user in obj.members.all()])
 
     get_users.short_description = 'Users'
+
+
+class BoxAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'get_tanks', 'price', 'is_national')
+
+    def get_tanks(self, obj):
+        return ", ".join([tank.name for tank in obj.tanks.all()])
+    get_tanks.short_description = 'Tanks'
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+
+        if 'tanks' in form.cleaned_data:
+            tanks = form.cleaned_data['tanks']
+            obj.tanks.set(tanks)
+            obj.save()
+
+
+class TeamBoxAdmin(admin.ModelAdmin):
+    list_display = ('team', 'box', 'amount')
+
+    def box(self, obj):
+        return obj.box.name
+    box.short_description = 'Box Name'
 
 
 class TankAdmin(admin.ModelAdmin):
@@ -99,3 +124,5 @@ admin.site.register(TeamTank, TeamTankAdmin)
 admin.site.register(Match, MatchAdmin)
 admin.site.register(TeamMatch, TeamMatchAdmin)
 admin.site.register(TeamLog, TeamLogAdmin)
+admin.site.register(TankBox, BoxAdmin)
+admin.site.register(TeamBox, TeamBoxAdmin)

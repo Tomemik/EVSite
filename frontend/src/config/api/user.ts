@@ -7,21 +7,32 @@ const AUTH_TOKEN_KEY: string = "authToken";
 export const fetchUserData = async () => {
   try {
     const userStore = useUserStore();
+    const authToken = checkAuth();
+
+    if (!authToken) {
+      throw new Error("User is not authenticated");
+    }
+
     const response = await fetch("/api/user/", {
       method: "GET",
       headers: {
-        "Authorization": getAuthToken(),
+        Authorization: `Token ${authToken}`,
       },
     });
+
     if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
+      if (response.status === 401) {
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        userStore.$reset();
+        alert('You have been logged out');
+      }
     }
+
     const data = await response.json();
-    console.log(data)
     userStore.username = data.username;
     userStore.groups = data.groups;
     if (data.team) {
-        userStore.team = data.team.name;
+      userStore.team = data.team.name;
     }
   } catch (error) {
     console.error("Failed to fetch user data:", error);
@@ -60,7 +71,7 @@ export const checkAuth = () => {
 
   if (authToken) {
     let date = new Date().getTime();
-    date += 1800000;
+    date += 3600000*24;
     localStorage.setItem(
       AUTH_TOKEN_KEY,
       JSON.stringify({

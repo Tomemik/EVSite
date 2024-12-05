@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/dev/ref/settings/
 """
 import os
+from datetime import timedelta
 from pathlib import Path
 import environ
 
@@ -116,11 +117,12 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.AllowAny",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 100,
+    "PAGE_SIZE": 2500,
 }
 
 REST_KNOX = {
     "USER_SERIALIZER": "knox.serializers.UserSerializer",
+    'TOKEN_TTL': timedelta(hours=24),
 }
 
 

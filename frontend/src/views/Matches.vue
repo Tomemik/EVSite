@@ -21,6 +21,14 @@
             class="d-inline-flex align-start text-no-wrap"
             label="show played"
             style="width: 40%;"
+            v-tooltip="'Show all un-calculated matches'"
+          ></v-checkbox>
+          <v-checkbox v-if="showPlayed"
+            v-model="showCalced"
+            class="d-inline-flex align-start text-no-wrap"
+            label="show calculated"
+            style="width: 40%;"
+            v-tooltip="'Also show already calculated matches'"
           ></v-checkbox>
         </div>
       </v-col>
@@ -40,8 +48,11 @@
       v-model:now="today"
       type="week"
       :events="formattedMatches"
-      :weekdays="[1,2,3,4,5,6,0]"
-      color="primary">
+      :weekdays="[0,1,2,3,4,5,6]"
+      :first-day-of-week="1"
+      color="primary"
+      >
+
 
 
 
@@ -122,7 +133,7 @@ const csrfToken = $cookies.get('csrftoken');
 const userStore = useUserStore()
 const settingsStore = useSettingsStore()
 
-const today = ref<Date>(new Date());
+const today = ref<Date>(new Date().toISOString());
 const showDetailsDialog = ref(false);
 const showEditDialog = ref(false);
 const showResultsDialog = ref(false)
@@ -134,6 +145,7 @@ const allTeamsDetails = ref([])
 const teamNames = ref([])
 const dateFilter = ref<[Date | null, Date | null] | null>(null);
 const showPlayed = ref<boolean>(false)
+const showCalced = ref<boolean>(false)
 const fetchedResults = ref()
 const successMsg = ref('')
 const showSuccessDialog = ref(false)
@@ -181,6 +193,8 @@ const fetchMatches = async () => {
       }
     }
     params.append('played', String(showPlayed.value))
+    params.append('calced', String(showCalced.value))
+    console.log(showCalced.value)
 
 
     const response = await fetch(`/api/league/matches/filtered/?${params.toString()}`);
@@ -197,9 +211,18 @@ const fetchMatches = async () => {
       }, {});
 
       const matchDate = new Date(match.datetime);
-      const time = `${matchDate.getUTCHours().toString().padStart(2, '0')}:${matchDate.getUTCMinutes().toString().padStart(2, '0')} UTC`;
+
+      const utcTime = `${matchDate.getUTCHours().toString().padStart(2, '0')}:${matchDate.getUTCMinutes().toString().padStart(2, '0')} UTC`;
+
+      const localTimeFormatter = new Intl.DateTimeFormat(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'short',
+      });
+      const localTime = localTimeFormatter.format(matchDate);
+
       //@ts-ignore
-      const title = `${Object.values(sides).map(teams => teams.join(' + ')).join(' vs ')} ${time}`;
+      const title = `${Object.values(sides).map((teams) => teams.join(' + ')).join(' vs ')} | ${localTime} / ${utcTime}`;
 
       return {
         id: match.id,
@@ -359,8 +382,15 @@ const fetchAllTeams = async () => {
     allTeamsDetails.value = await response.json();
     //@ts-ignore
     teamNames.value = allTeamsDetails.value.map(item => item.name)
-    console.log(teamNames.value)
-    console.log(allTeamsDetails.value);
+    allTeamsDetails.value.forEach(team => {
+      if (team.tanks && Array.isArray(team.tanks)) {
+        team.tanks.sort((a, b) => {
+          const battleRatingA = a.tank?.battle_rating || 0;
+          const battleRatingB = b.tank?.battle_rating || 0;
+          return battleRatingA - battleRatingB;
+        });
+      }
+    });
 
   } catch (error) {
     console.error('Error updating match:', error);

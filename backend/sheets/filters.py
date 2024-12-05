@@ -31,6 +31,10 @@ class TeamLogFilter(filters.FilterSet):
             ('purchase_tank', 'Purchase Tank'),
             ('sell_tank', 'Sell Tank'),
             ('upgrade_or_downgrade_tank', 'Upgrade or Downgrade Tank'),
+            ('import_purchase', 'Import Purchase'),
+            ('money_transfer_in', 'Money Transfer In'),
+            ('money_transfer_out', 'Money Transfer Out'),
+            ('open_tank_box', 'Box Opened'),
         ],
     )
     from_date = filters.DateTimeFilter(field_name="timestamp", lookup_expr="gte")
@@ -42,14 +46,26 @@ class MatchFilter(filters.FilterSet):
     to_date = filters.DateTimeFilter(field_name="datetime", lookup_expr="lte")
     team = SafeMultipleChoiceFilter(field_name="teams__name")
     played = filters.BooleanFilter(method='filter_played')
+    calced = filters.BooleanFilter(method='filter_calced')
 
     class Meta:
         model = Match
         fields = ['team', 'was_played']
 
     def filter_played(self, queryset, name, value):
+        calced_filter = self.data.get('calced', '').lower() == 'true'
+
+        if value:
+            if calced_filter:
+                return queryset
+            else:
+                return queryset.filter(matchresult__is_calced=False)
+        else:
+            return queryset.filter(was_played=False)
+
+    def filter_calced(self, queryset, name, value):
         if value:
             return queryset
         else:
-            return queryset.filter(was_played=False)
+            return queryset
 

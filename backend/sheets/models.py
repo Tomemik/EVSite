@@ -5,6 +5,7 @@ from datetime import timedelta
 from django.db import models
 from django.db.models import F, Q
 from django.utils import timezone
+from django.utils.timezone import now
 from rest_framework.exceptions import ValidationError
 import heapq
 from functools import wraps
@@ -190,6 +191,52 @@ class Team(models.Model):
         self.save()
         return True
 
+    def money_transfer(self, from_team, to_team, amount):
+        if amount <= 0:
+            raise ValueError("Amount to transfer must be greater than zero.")
+
+        if amount > 25000:
+            taxxed_amount = amount*0.8
+        elif amount > 10000:
+            taxxed_amount = amount*0.9
+        elif amount <= 10000:
+            taxxed_amount = amount*0.95
+
+        method_name = 'money_transfer_out'
+        opposite_method_name = 'money_transfer_in'
+
+        start_of_week = now() - timedelta(days=now().weekday())
+        recent_out_transfer = TeamLog.objects.filter(
+            team=from_team,
+            method_name=method_name,
+            timestamp__gte=start_of_week
+        ).exists()
+        if recent_out_transfer:
+            raise ValueError(f"{from_team.name} has already made a transfer out this week.")
+
+        from_team.balance -= amount
+        to_team.balance += taxxed_amount
+
+        from_team.save()
+        to_team.save()
+
+        TeamLog.objects.create(
+            team=from_team,
+            field_name='balance',
+            previous_value={'balance': from_team.balance + amount},
+            new_value={'balance': from_team.balance},
+            description=f"Changes made by method: {method_name}\nMoney Transferred to {to_team.name}\nBalance Changed by: {-amount}",
+            method_name=method_name,
+        )
+
+        TeamLog.objects.create(
+            team=to_team,
+            field_name='balance',
+            previous_value={'balance': to_team.balance - taxxed_amount},
+            new_value={'balance': to_team.balance},
+            description=f"Changes made by method: {opposite_method_name}\nMoney received from {from_team.name}\nBalance Changed by: {taxxed_amount}",
+            method_name=opposite_method_name,
+        )
 
     def matches_for_week(self, date):
         start_of_week = date - timedelta(days=date.weekday())
@@ -521,10 +568,31 @@ class Tank(models.Model):
 
 
 class TankBox(models.Model):
+    id = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=50)
     price = models.IntegerField(default=0)
-    tanks = models.ManyToManyField(Tank)
+    tanks = models.ManyToManyField(Tank, blank=True)
+    is_national = models.BooleanField(default=True)
 
+    def save(self, *args, **kwargs):
+        self.calculate_cost()
+        super().save(*args, **kwargs)
+
+    def calculate_cost(self):
+        tank_prices = self.tanks.all().values_list('price', flat=True)
+
+        if tank_prices:
+            mean_price = sum(tank_prices) / len(tank_prices)
+        else:
+            mean_price = 0
+
+        if self.is_national:
+            self.price = int(mean_price * 1.30)
+        else:
+            self.price = int(mean_price)
+
+    def __str__(self):
+        return self.name
 
 class TeamBox(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE)

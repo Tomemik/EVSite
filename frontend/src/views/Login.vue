@@ -37,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { inject, ref } from 'vue';
+import {inject, onMounted, ref} from 'vue';
 import { useUserStore } from '../config/store.ts';
 import { fetchUserData } from '../config/api/user.ts';
 import { useRouter } from 'vue-router';
@@ -82,12 +82,37 @@ const login = async () => {
     );
     await fetchUserData();
 
-    router.push({ path: '/home' });
+    router.go(0);
+
   } catch (error) {
     //@ts-ignore
     errorMessage.value = error.message;
   }
 };
+
+function checkAuthTokenTimeout() {
+  const authTokenData = localStorage.getItem("authToken");
+
+  if (authTokenData) {
+    const { expDate } = JSON.parse(authTokenData);
+    const currentTime = new Date().getTime();
+
+    if (currentTime > expDate) {
+      localStorage.removeItem("authToken");
+      userStore.$reset();
+    }
+    return
+  }
+  userStore.$reset();}
+
+onMounted(() => {
+  checkAuthTokenTimeout()
+  console.log(userStore.username)
+  if (userStore.username) {
+    router.push('/home')
+  }
+})
+
 </script>
 
 <style scoped>

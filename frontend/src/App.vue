@@ -9,6 +9,35 @@
 
 <script setup lang="ts">
 import TopBar from "./components/TopBar.vue";
+import {onMounted} from "vue";
+import {useUserStore} from "@/config/store.ts";
+import {fetchUserData} from "@/config/api/user.ts";
+
+const userStore = useUserStore()
+
+function checkAuthTokenTimeout() {
+  const authTokenData = localStorage.getItem("authToken");
+
+  if (authTokenData) {
+    const { expDate } = JSON.parse(authTokenData);
+    const currentTime = new Date().getTime();
+
+
+    if (currentTime >= expDate) {
+      localStorage.removeItem("authToken");
+      userStore.$reset();
+    }
+    return
+  }
+  userStore.$reset();
+}
+
+
+onMounted(() => {
+  checkAuthTokenTimeout()
+  fetchUserData()
+})
+
 </script>
 
 <style scoped>

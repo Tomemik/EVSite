@@ -8,6 +8,9 @@
     ></v-text-field>
     <p v-if="team.balance">Current Balance: {{ team!.balance.toLocaleString() }} $</p>
 
+    <v-btn v-if="(userStore.groups.some(i => i.name === 'commander') &&
+             userStore.team === teamName) || userStore.groups.some(i => i.name === 'admin')" style="margin-bottom: 10px; margin-top: 10px" @click="showMultiBuyDialog = true">Purchase Multiple Tanks</v-btn>
+
     <v-row v-for="manufacturer in filteredManufacturers" :key="manufacturer.id" class="mb-8">
       <v-col cols="12">
         <v-card>
@@ -42,6 +45,38 @@
         </v-card>
       </v-col>
     </v-row>
+
+    <v-dialog v-model="showMultiBuyDialog" max-width="800px">
+      <v-card>
+        <v-card-title>
+          <span class="headline">Buy Tanks</span>
+        </v-card-title>
+        <v-card-text>
+          <v-form ref="sellTankForm">
+            <v-data-table
+              :headers="buyTankHeaders"
+              :items="allTanks"
+              item-key="name"
+              dense
+            >
+              <template v-slot:[`item.quantityToBuy`]="{ item }">
+                <v-text-field
+                  v-model.number="buyQuantities[item.name]"
+                  type="number"
+                  min="0"
+                  :rules="[value => value >= 0 && value <= team.balance * item.price * value || 'Invalid quantity']"
+                  style="display: flex; align-items: center;"
+                ></v-text-field>
+              </template>
+            </v-data-table>
+          </v-form>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn color="primary" @click="multiPurchase">Buy</v-btn>
+          <v-btn @click="showMultiBuyDialog = false">Cancel</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-dialog v-model="successDialog" max-width="400">
       <v-card>
@@ -105,6 +140,16 @@ const headers = ref([
   { title: 'Type', value: 'type', sortable: true },
 ]);
 
+const buyTankHeaders = ref([
+  { title: 'Name', value: 'name', sortable: true },
+  { title: 'Battle Rating', value: 'battle_rating', sortable: true },
+  { title: 'Price', value: 'price', sortable: true },
+  { title: 'Quantity', value: 'quantityToBuy'}
+])
+const showMultiBuyDialog = ref<boolean>(false)
+const buyQuantities = ref({})
+const allTanks = ref<Tank[]>([])
+
 const selectedItems = ref<Record<number, number[]>>({});
 const route = useRoute();
 const teamName = route.params.TName;
@@ -142,6 +187,8 @@ const fetchManufacturers = async () => {
     }
     const data = await response.json();
     manufacturers.value = data;
+    allTanks.value = manufacturers.value.map(manufacturer => manufacturer.tanks).flat();
+    console.log(allTanks.value);
 
     manufacturers.value.forEach(m => {
       selectedItems.value[m.id] = [];
@@ -187,6 +234,44 @@ const purchaseSelectedTanks = async (manufacturerId: number) => {
     successDialog.value = true;
   } catch (error) {
     console.error('There was a problem with the purchase operation:', error);
+  }
+};
+
+const multiPurchase = async () => {
+  const tanksToBuy = Object.keys(buyQuantities.value)
+    .filter(name => buyQuantities.value[name] > 0)
+    .flatMap(name => {
+      return new Array(buyQuantities.value[name]).fill(name);
+  });
+
+  if (tanksToBuy.length === 0) return;
+
+  try {
+
+    const response = await fetch(`/api/league/transactions/buy_tanks/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'Content-Type': 'application/json',
+        'Authorization': getAuthToken(),
+      },
+      body: JSON.stringify({ team: teamName, tanks: tanksToBuy }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+
+    const responseData = await response.json();
+    purchasedTanks.value = tanksToBuy;
+    newBalance.value = responseData.new_balance;
+    team.value.balance = newBalance.value
+
+    buyQuantities.value = {}
+
+    successDialog.value = true;
+  } catch (error) {
+    alert("You cant afford this")
   }
 };
 

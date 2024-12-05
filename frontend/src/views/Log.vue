@@ -19,53 +19,69 @@
       </v-col>
     </v-row>
 
-    <div class="scrollable-container">
-      <v-row>
-        <v-col cols="12">
-          <v-sheet>
-            <v-row v-for="(Team, TeamIndex) in teams" :key="TeamIndex" class="align-center">
-              <v-col cols="2" class="grid-cell sticky-col">
-                <v-sheet
-                  class="pa-0 elevation-1 grid-cell-content"
-                  :style="{ backgroundColor: Team.color }"
-                  height="100%"
-                >
-                  <div class="Team-name">{{ Team.name }}</div>
-                </v-sheet>
-              </v-col>
+    <v-row class="logs-table">
+      <!-- Sticky Columns -->
+      <v-col cols="2" class="sticky-container">
+        <v-sheet>
+          <v-row
+            v-for="(Team, TeamIndex) in teams"
+            :key="TeamIndex"
+            class="align-center sticky-row"
+            style="padding: 0; margin: 0; height: 40px"
+          >
+            <v-col cols="6" class="grid-cell sticky-col">
+              <v-sheet
+                class="pa-0 elevation-1 grid-cell-content"
+                :style="{ backgroundColor: Team.color }"
+                height="100%"
+              >
+                <div class="Team-name">{{ Team.name }}</div>
+              </v-sheet>
+            </v-col>
 
-              <v-col cols="1" class="grid-cell sticky-col">
-                <v-sheet
-                  class="pa-0 elevation-1 grid-cell-content"
-                  :style="{ backgroundColor: Team.color }"
-                  height="100%"
-                >
-                  <div class="Team-money">{{ Team.balance }}</div>
-                </v-sheet>
-              </v-col>
+            <v-col cols="6" class="grid-cell sticky-col">
+              <v-sheet
+                class="pa-0 elevation-1 grid-cell-content"
+                :style="{ backgroundColor: Team.color }"
+                height="100%"
+              >
+                <div class="Team-money">{{ Team.balance }}</div>
+              </v-sheet>
+            </v-col>
+          </v-row>
+        </v-sheet>
+      </v-col>
 
-              <v-col v-if="logs" cols="9" class="grid-cell">
-                <v-row no-gutters class="logs-container">
-                  <v-col
-                    v-for="(log, logIndex) in filteredLogsByTeam(Team.name)"
-                    :key="logIndex"
-                    cols="auto"
-                    class="pa-0 log-interactive grid-cell-content"
-                    :style="{ backgroundColor: log.color }"
-                    @click="openLogDetails(log)"
-                  >
-                    <div class="log-entry">
-                      <div class="log-amount">{{ log.amount }}</div>
-                      <div class="log-desc">{{ log.description }}</div>
-                    </div>
-                  </v-col>
-                </v-row>
-              </v-col>
-            </v-row>
-          </v-sheet>
-        </v-col>
-      </v-row>
-    </div>
+      <!-- Scrollable Logs -->
+      <v-col cols="10" class="scrollable-container">
+        <v-sheet>
+          <v-row
+            v-for="(Team, TeamIndex) in teams"
+            :key="TeamIndex"
+            class="align-center"
+            style="padding: 0; margin: 0; height: 40px"
+          >
+            <v-col v-if="logs" cols="12" class="grid-cell">
+              <v-row no-gutters class="logs-container">
+                <v-col
+                  v-for="(log, logIndex) in filteredLogsByTeam(Team.name)"
+                  :key="logIndex"
+                  cols="auto"
+                  class="pa-0 log-interactive grid-cell-content"
+                  :style="{ backgroundColor: log.color }"
+                  @click="openLogDetails(log)"
+                >
+                  <div class="log-entry">
+                    <div class="log-amount">{{ log.amount }}</div>
+                    <div class="log-desc">{{ log.description }}</div>
+                  </div>
+                </v-col>
+              </v-row>
+            </v-col>
+          </v-row>
+        </v-sheet>
+      </v-col>
+    </v-row>
 
     <v-dialog v-model="isDialogOpen" max-width="500px">
       <v-card>
@@ -111,6 +127,10 @@ const methodOptions = [
   { title: 'Tank Bought', value: 'purchase_tank' },
   { title: 'Tank Sold', value: 'sell_tank' },
   { title: 'Tank Upgraded', value: 'upgrade_or_downgrade_tank' },
+  { title: 'Money Transfers In', value: 'money_transfer_in' },
+  { title: 'Money Transfers Out', value: 'money_transfer_out' },
+  { title: 'Imports Purchase', value: 'import_purchase' },
+  { title: 'Box Opened', value: 'open_tank_box' },
 ];
 
 function filteredLogsByTeam(TeamName: string) {
@@ -168,6 +188,10 @@ const fetchLogs = async () => {
       'purchase_tank': '#dd7e6b',
       'sell_tank': '#cc4125',
       'upgrade_or_downgrade_tank': '#a64d79',
+      'money_transfer_in': '#38761d',
+      'money_transfer_out': '#38761d',
+      'imports_purchase': '#cccccc',
+      'open_tank_box': '#46bdc6',
     };
 
     const descMapping: { [key: string]: string } = {
@@ -175,6 +199,10 @@ const fetchLogs = async () => {
       'purchase_tank': 'Tank Bought',
       'sell_tank': 'Tank Sold',
       'upgrade_or_downgrade_tank': 'Tank Upgraded',
+      'money_transfer_in': 'Transfer In',
+      'money_transfer_out': 'Transfer Out',
+      'imports_purchase': 'Imports Purchase',
+      'open_tank_box': 'Box Opened',
     };
 
 
@@ -227,78 +255,21 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.grid-cell {
-  padding: 0;
+.logs-table {
+  display: flex;
+  flex-wrap: nowrap;
+  width: 100%;
+  overflow-x: hidden;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.sticky-container {
+  position: sticky;
+  left: 0;
+  z-index: 10;
   margin: 0;
-}
-
-.grid-cell-content {
-  border: 1px solid black;
-}
-
-.Team-name {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  height: 30px;
-  font-weight: bold;
-  font-size: 1rem;
-  text-align: center;
-}
-
-.Team-money {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  height: 30px;
-  font-size: 1rem;
-  font-weight: bold;
-  text-align: center;
-}
-
-.log-entry {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  text-align: center;
-  height: 30px;
-  width: 170px;
-  padding: 1px;
-  margin-left: 2px;
-  margin-right: 2px;
-}
-
-.log-amount {
-  display: flex;
-  justify-content: left;
-  align-items: center;
-  font-weight: bold;
-  font-size: 1rem;
-  flex: 1;
-}
-
-.log-desc {
-  display: flex;
-  justify-content: right;
-  align-items: center;
-  font-weight: normal;
-  font-size: 1rem;
-  margin-left: 2px;
-  white-space: nowrap;
-  flex: 1;
-}
-
-
-.log-interactive {
-  cursor: pointer;
-  transition: background-color 0.2s ease-in-out;
-}
-
-.log-interactive:hover {
-  background-color: rgba(0, 0, 0, 0.1);
+  padding: 0;
 }
 
 .scrollable-container {
@@ -306,40 +277,91 @@ onMounted(() => {
   flex-wrap: nowrap;
   overflow-x: auto;
   width: 100%;
-  padding: 15px;
+  padding-top: 15px;
+  padding-bottom: 15px;
+  margin: 0;
+  padding: 0;
 }
 
+.grid-cell {
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  height: 100%;
+  color: black;
+}
 
+.grid-cell-content {
+  border: 1px solid black;
+  box-sizing: border-box;
+  color: black;
+}
 
-.logs-container {
-  padding-left: 8px;
+.Team-name, .Team-money {
   display: flex;
-  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  height: 30px;
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.Team-money {
+  font-weight: bold;
 }
 
 .sticky-col {
-  position: -webkit-sticky;
   position: sticky;
-  z-index: 1;
-  background-color: white;
+  z-index: 10;
 }
 
 .sticky-col:nth-child(1) {
   left: 0;
   z-index: 2;
+  width: 80px;
 }
 
 .sticky-col:nth-child(2) {
-  left: calc(2 * (100% / 12));
+  left: 80px;
   z-index: 2;
+  width: 80px;
 }
 
-.grid-cell-content {
-  color: black;
+.logs-container {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
 }
 
 .log-entry {
-  color: black;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  width: 170px;
+  height: 100%;
+  padding: 1px;
+  margin: 0 2px;
+  box-sizing: border-box;
+}
+
+.log-amount {
+  flex: 1;
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.log-desc {
+  flex: 1;
+  font-size: 1rem;
+  margin-left: 2px;
+  white-space: nowrap;
 }
 
 </style>

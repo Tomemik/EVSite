@@ -138,7 +138,7 @@ const currentManufacturerId = ref<number | null>(null);
 const tanks = ref<Tank[]>([]);
 const selectedTank = ref<Tank | null>(null);
 
-const LOCAL_STORAGE_KEY = 'manufacturers_data';
+const LOCAL_STORAGE_KEY = 'manufacturers_data'
 const TIMEOUT_DURATION = 15 * 60 * 1000;
 
 const tankDetails = ref({
@@ -276,6 +276,8 @@ onMounted(() => {
       manufacturers.value.forEach((m) => {
         selectedItems.value[m.id] = [];
       });
+    } else {
+    fetchManufacturers();
     }
   } else {
     fetchManufacturers();

@@ -141,6 +141,27 @@ class SellTankView(APIView):
         return Response(data={'new_balance': team.balance, 'sold_tanks': [tank for tank in tanks]}, status=status.HTTP_200_OK)
 
 
+class TransferMoneyView(APIView):
+    def post(self, request):
+        user = request.user
+        team_name = request.data['team']
+        print(user)
+        print(team_name)
+        if not (
+            user.has_perm('user.admin_permissions') or
+            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+        ):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        to_team_name = request.data['to_team']
+        amount = request.data['amount']
+
+        from_team = Team.objects.get(name=team_name)
+        to_team = Team.objects.get(name=to_team_name)
+        from_team.money_transfer(from_team, to_team, amount)
+        return Response(data={'new_balance': from_team.balance}, status=status.HTTP_200_OK)
+
+
 class MergeSplitKitView(APIView):
     def post(self, request):
         user = request.user
@@ -186,7 +207,7 @@ class UpgradeTankView(APIView):
         team = request.data.get('team', None)
         if not (
             user.has_perm('user.admin_permissions') or
-            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team)
         ):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
@@ -422,3 +443,12 @@ class TeamLogFilteredView(ListAPIView):
     filter_backends = [DjangoFilterBackend]
     filterset_class = TeamLogFilter
 
+    def get_queryset(self):
+        teams = TeamLog.objects.values_list('team', flat=True).distinct()
+
+        latest_logs = TeamLog.objects.none()
+        for team in teams:
+            team_logs = TeamLog.objects.filter(team=team).order_by('-timestamp')[:100]
+            latest_logs = latest_logs | team_logs
+
+        return latest_logs
