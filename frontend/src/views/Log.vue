@@ -159,8 +159,8 @@ const fetchTeams = async () => {
     if (!response.ok) {
       throw new Error('Network response was not ok');
     }
-    teams.value = await response.json();
-    teams.value = teams.value.sort((a, b) => a.name.localeCompare(b.name));
+    const data = await response.json();
+    teams.value = data.sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
     console.error('Error fetching teams:', error);
   }
@@ -213,11 +213,9 @@ const fetchLogs = async () => {
 
     logs.value = data.results.map((log: any) => {
       const amountMatch = log.description.match(/Balance Changed by:\s([+-]?\d+(\.\d+)?)/);
-      const amount = amountMatch ? `${parseFloat(amountMatch[1]).toFixed(0)}` : 'N/A';
+      const amount = amountMatch ? `${parseFloat(amountMatch[1]).toFixed(0)}` : '0';
       let desc = descMapping[log.method_name];
-      console.log(desc)
 
-      console.log(log.description)
         if (desc === 'Tank Bought') {
           const addedMatch = log.description.match(/Added Tanks:\s*(.*)/);
           const addedTanks = addedMatch ? addedMatch[1].replace(/\*\*/g, '').trim() : 'N/A';
@@ -246,7 +244,6 @@ const fetchLogs = async () => {
       } as Log;
     });
 
-    console.log(logs.value);
   } catch (error) {
     console.error('Error fetching logs:', error);
   }
