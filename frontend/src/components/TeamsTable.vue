@@ -56,7 +56,7 @@ export default {
           throw new Error('Network response was not ok');
         }
         const data = await response.json();
-        this.teams = data;
+        this.teams = data.sort((a, b) => a.name.localeCompare(b.name));
       } catch (error) {
         console.error('Error fetching teams:', error);
       }

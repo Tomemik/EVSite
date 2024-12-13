@@ -14,7 +14,10 @@ import copy
 from collections import Counter
 
 
-def log_team_changes(method):
+def log_team_changes(method=None, custom_method_name=None):
+    if method is None:
+        return lambda method: log_team_changes(method, custom_method_name)
+
     @wraps(method)
     def wrapper(self, *args, **kwargs):
         initial_state = model_to_dict(self)
@@ -65,13 +68,15 @@ def log_team_changes(method):
 
         if changes:
             readable_changes = parse_changes(changes)
+            method_name = custom_method_name if custom_method_name else method.__name__
+            print(method_name)
             TeamLog.objects.create(
                 team=self,
                 field_name='multiple_fields',
                 previous_value=json.dumps(initial_state),
                 new_value=json.dumps(final_state),
-                description=f"Changes made by method: {method.__name__}\n{readable_changes}",
-                method_name=method.__name__
+                description=f"Changes made by method: {method_name}\n{readable_changes}",
+                method_name=method_name
             )
 
         return result
@@ -315,7 +320,11 @@ class Team(models.Model):
         if not upgrade_path:
             raise ValidationError(f"No valid upgrade path from {from_tank.name} to {to_tank.name}.")
 
-        total_cost = upgrade_path['total_cost']
+        if self.manufacturers.filter(id__in=to_tank.manufacturers.all()).exists():
+            cost = upgrade_path['manu_cost']
+        else:
+            cost = upgrade_path['total_cost']
+
         required_kits = upgrade_path['required_kits'] if not self.manufacturers.filter(id__in=to_tank.manufacturers.all()).exists() else (
         {
             'T1': 0,
@@ -326,7 +335,7 @@ class Team(models.Model):
         total_extra_discount = sum(
             self.get_upgrade_kit_discount(tier) for tier in extra_upgrade_kit_tiers if tier in self.UPGRADE_KITS
         )
-        total_cost = max(total_cost - total_extra_discount, 0)
+        total_cost = (cost - total_extra_discount) if (cost - total_extra_discount) > 0 else 0
 
         for kit in extra_upgrade_kit_tiers:
             if kit in required_kits:
@@ -351,35 +360,98 @@ class Team(models.Model):
 
         return f"Tank {from_tank.name} upgraded to {to_tank.name}. Total cost: {total_cost}. Remaining balance: {self.balance}"
 
-    @log_team_changes
-    def upgrade_tank_manu(self, from_tank, to_tank, extra_upgrade_kit_tiers=[]):
-        all_needed_kits = extra_upgrade_kit_tiers
-        missing_kits = [kit for kit in all_needed_kits if kit not in self.upgrade_kits or self.upgrade_kits[kit]['quantity'] <= 0]
+    @log_team_changes(custom_method_name="upgrade_or_downgrade_tank")
+    def do_direct_upgrade(self, from_tank, to_tank, extra_upgrade_kit_tiers=[]):
+        team_tank_entry = TeamTank.objects.filter(team=self, tank=from_tank, is_upgradable=True)
+        if not team_tank_entry:
+            raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
+
+        possible_upgrades = self.get_direct_upgrades(from_tank)
+
+        upgrade_path = next((path for path in possible_upgrades if path['to_tank'] == to_tank.name), None)
+
+        if not upgrade_path:
+            raise ValidationError(f"No valid upgrade path from {from_tank.name} to {to_tank.name}.")
+
+        if self.manufacturers.filter(id__in=to_tank.manufacturers.all()).exists():
+            cost = upgrade_path['manu_cost']
+        else:
+            cost = upgrade_path['total_cost']
+
+        required_kits = upgrade_path['required_kits'] if not self.manufacturers.filter(id__in=to_tank.manufacturers.all()).exists() else (
+        {
+            'T1': 0,
+            'T2': 0,
+            'T3': 0
+        })
+
+        total_extra_discount = sum(
+            self.get_upgrade_kit_discount(tier) for tier in extra_upgrade_kit_tiers if tier in self.UPGRADE_KITS
+        )
+        total_cost = (cost - total_extra_discount) if (cost - total_extra_discount) > 0 else 0
+
+        for kit in extra_upgrade_kit_tiers:
+            if kit in required_kits:
+                required_kits[kit] += 1
+
+        missing_kits = [tier for tier, count in required_kits.items() if
+                        self.upgrade_kits.get(tier, {}).get('quantity', 0) < count]
         if missing_kits:
             raise ValidationError(f"Missing upgrade kits: {', '.join(missing_kits)}")
 
-        total_extra_discount = sum(
-            self.get_upgrade_kit_discount(tier) for tier in extra_upgrade_kit_tiers if tier in self.UPGRADE_KITS)
-        cost = to_tank.price - from_tank.price if to_tank.price >= from_tank.price else (to_tank.price - from_tank.price) / 2
-        cost -= total_extra_discount
-        cost = abs(cost)
+        if total_cost > self.balance:
+            raise ValidationError("Insufficient balance for this upgrade.")
 
+        self.balance -= total_cost
 
-        if cost > self.balance:
-            raise ValidationError("Insufficient balance for this upgrade or downgrade.")
+        for tier, count in required_kits.items():
+            self.upgrade_kits[tier]['quantity'] -= count
 
-        for kit in extra_upgrade_kit_tiers:
-            if kit in self.upgrade_kits:
-                self.upgrade_kits[kit]['quantity'] -= 1
-
-        self.balance -= cost
-        self.tanks.through.objects.filter(team=self, tank=from_tank).delete()
+        self.tanks.through.objects.filter(team=self, tank=from_tank).first().delete()
         self.tanks.through.objects.create(team=self, tank=to_tank)
         self.save()
 
-        return f"Tank {from_tank.name} upgraded/downgraded to {to_tank.name}. Total cost: {cost}. Remaining balance: {self.balance}"
+        return f"Tank {from_tank.name} upgraded to {to_tank.name}. Total cost: {total_cost}. Remaining balance: {self.balance}"
 
-    import heapq
+    def get_direct_upgrades(self, from_tank):
+        team_tank_entry = TeamTank.objects.filter(team=self, tank=from_tank, is_upgradable=True)
+        if not team_tank_entry:
+            raise ValidationError(f"The team does not own the tank or it is not upgradable: {from_tank.name}.")
+
+        direct_upgrade_paths = UpgradePath.objects.filter(from_tank=from_tank)
+        direct_upgrades = []
+
+        for upgrade_path in direct_upgrade_paths:
+            to_tank = upgrade_path.to_tank
+            base_cost = upgrade_path.cost
+            required_kit_tier = upgrade_path.required_kit_tier
+            kit_discount = self.get_upgrade_kit_discount(required_kit_tier) if required_kit_tier else 0
+
+            effective_cost = max(base_cost - kit_discount, 0)
+
+            required_kits = {
+                'T1': 0,
+                'T2': 0,
+                'T3': 0
+            }
+            if required_kit_tier:
+                required_kits[required_kit_tier] += 1
+
+            available_in_manufacturer = self.manufacturers.filter(id__in=to_tank.manufacturers.all()).exists()
+
+            direct_upgrades.append({
+                'from_tank': from_tank.name,
+                'to_tank': to_tank.name,
+                'manu_cost': base_cost,
+                'kit_discount': kit_discount,
+                'required_kit_tier': required_kit_tier,
+                'total_cost': effective_cost,
+                'available_in_manufacturer': available_in_manufacturer,
+                'required_kits': required_kits,
+                'to_tank_br': to_tank.battle_rating,
+            })
+
+        return direct_upgrades
 
     def get_possible_upgrades(self, from_tank, minimize_kits=True):
         team_tank_entry = TeamTank.objects.filter(team=self, tank=from_tank, is_upgradable=True)
@@ -444,7 +516,8 @@ class Team(models.Model):
                                 'total_cost': total_cost,
                                 'available_in_manufacturer': available_in_manufacturer,
                                 'manu_cost': manu_cost,
-                                'required_kits': new_required_kits
+                                'required_kits': new_required_kits,
+                                'to_tank_br': to_tank.battle_rating,
                             }
 
                             heapq.heappush(priority_queue, (kits, effective_cost, to_tank.id, new_required_kits))
@@ -473,7 +546,8 @@ class Team(models.Model):
                                 'total_cost': total_cost,
                                 'available_in_manufacturer': available_in_manufacturer,
                                 'manu_cost': manu_cost,
-                                'required_kits': new_required_kits
+                                'required_kits': new_required_kits,
+                                'to_tank_br': to_tank.battle_rating,
                             }
 
                             heapq.heappush(priority_queue, (kits, effective_cost, to_tank.id, new_required_kits))
@@ -754,7 +828,7 @@ class MatchResult(models.Model):
             else:
                 return trad_bo3_rewards[min(int(round(average_rank) - 1), 4)]["winner"], \
                     trad_bo3_rewards[min(int(round(average_rank) - 1), 4)]["loser"]
-        elif mode == "advanced":
+        elif mode == "advanced || evolved":
             if game_mode == "flag":
                 return flag_rewards[min(int(round(average_rank)-1), 4)]["winner"], \
                     flag_rewards[min(int(round(average_rank)-1), 4)]["loser"]

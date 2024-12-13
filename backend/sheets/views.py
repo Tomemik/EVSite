@@ -195,10 +195,52 @@ class AllUpgradesView(APIView):
         tank = Tank.objects.get(name=tank)
 
         all_upgrades = team.get_possible_upgrades(tank)
-        for i in all_upgrades:
-            print(i)
 
         return Response(all_upgrades, status=status.HTTP_200_OK)
+
+
+class AllDirectUpgradesView(APIView):
+    def get(self, request):
+        team_name = request.headers['team']
+        tank = request.headers['tank']
+        team = Team.objects.get(name=team_name)
+        tank = Tank.objects.get(name=tank)
+
+        all_upgrades = team.get_direct_upgrades(tank)
+
+        return Response(all_upgrades, status=status.HTTP_200_OK)
+
+
+class DirectUpgradeTankView(APIView):
+    def post(self, request):
+        user = request.user
+        team = request.data.get('team', None)
+        if not (
+            user.has_perm('user.admin_permissions') or
+            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team)
+        ):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        team = request.data.get('team', None)
+        from_tank = request.data.get('from_tank', None)
+        to_tank = request.data.get('to_tank', None)
+        kits = request.data.get('kits', [])
+
+        team = Team.objects.get(name=team)
+        from_tank = Tank.objects.get(name=from_tank)
+        to_tank = Tank.objects.get(name=to_tank)
+        extra_kits = []
+        for key, val in kits.items():
+            if key == 'T1':
+                extra_kits += ['T1'] * val
+            if key == 'T2':
+                extra_kits += ['T2'] * val
+            if key == 'T3':
+                extra_kits += ['T3'] * val
+
+        all_upgrades = team.do_direct_upgrade(from_tank, to_tank, extra_kits)
+
+        return Response(data={'new_balance': team.balance, 'new_kits': team.upgrade_kits}, status=status.HTTP_200_OK)
 
 
 class UpgradeTankView(APIView):

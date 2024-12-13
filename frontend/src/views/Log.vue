@@ -135,7 +135,9 @@ const methodOptions = [
 
 function filteredLogsByTeam(TeamName: string) {
   //@ts-ignore
-  return logs.value.filter(log => log.team === TeamName);
+  return logs.value
+    .filter(log => log.team === TeamName)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
 const isDialogOpen = ref(false);
@@ -158,7 +160,7 @@ const fetchTeams = async () => {
       throw new Error('Network response was not ok');
     }
     teams.value = await response.json();
-    console.log(teams.value)
+    teams.value = teams.value.sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
     console.error('Error fetching teams:', error);
   }
@@ -188,6 +190,7 @@ const fetchLogs = async () => {
       'purchase_tank': '#dd7e6b',
       'sell_tank': '#cc4125',
       'upgrade_or_downgrade_tank': '#a64d79',
+      'do_direct_upgrade': '#a64d79',
       'money_transfer_in': '#38761d',
       'money_transfer_out': '#38761d',
       'imports_purchase': '#cccccc',
@@ -199,6 +202,7 @@ const fetchLogs = async () => {
       'purchase_tank': 'Tank Bought',
       'sell_tank': 'Tank Sold',
       'upgrade_or_downgrade_tank': 'Tank Upgraded',
+      'do_direct_upgrade': 'Tank Upgraded',
       'money_transfer_in': 'Transfer In',
       'money_transfer_out': 'Transfer Out',
       'imports_purchase': 'Imports Purchase',

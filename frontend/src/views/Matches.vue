@@ -211,6 +211,8 @@ const fetchMatches = async () => {
       }, {});
 
       const matchDate = new Date(match.datetime);
+      const utcDate = new Date(Date.UTC(matchDate.getUTCFullYear(), matchDate.getUTCMonth(), matchDate.getUTCDate()));
+      const localDate = new Date(matchDate.getFullYear(), matchDate.getMonth(), matchDate.getDate());
 
       const utcTime = `${matchDate.getUTCHours().toString().padStart(2, '0')}:${matchDate.getUTCMinutes().toString().padStart(2, '0')} UTC`;
 
@@ -222,7 +224,11 @@ const fetchMatches = async () => {
       const localTime = localTimeFormatter.format(matchDate);
 
       //@ts-ignore
-      const title = `${Object.values(sides).map((teams) => teams.join(' + ')).join(' vs ')} | ${localTime} / ${utcTime}`;
+      let title = `${Object.values(sides).map((teams) => teams.join(' + ')).join(' vs ')} | ${localTime} / ${utcTime}`;
+
+      if (utcDate.getDate() !== localDate.getDate()) {
+        title += ' *';  // Add '*' if UTC and local dates differ
+      }
 
       return {
         id: match.id,
@@ -231,6 +237,7 @@ const fetchMatches = async () => {
         end: new Date(matchDate.getTime() + (60 * 60 * 1000)),
       };
     });
+    formattedMatches.value.sort((a, b) => a.start - b.start);
   } catch (error) {
     console.error(error);
   }

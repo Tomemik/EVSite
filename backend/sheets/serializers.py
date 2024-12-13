@@ -244,7 +244,11 @@ class MatchSerializer(serializers.ModelSerializer):
                 tank, created = Tank.objects.get_or_create(**tank_data)
 
                 team = team_match_data['team']
-                team_tank = TeamTank.objects.filter(tank=tank, team__name=team, **team_tank_data).exclude(id__in=team_match.tanks.values_list('id', flat=True)).first()
+                if instance.mode == 'traditional':
+                    team_tank = TeamTank.objects.filter(tank=tank, is_trad=True, team__name=team, **team_tank_data).exclude(id__in=team_match.tanks.values_list('id', flat=True)).first()
+                else:
+                    team_tank = TeamTank.objects.filter(tank=tank, is_trad=False, team__name=team, **team_tank_data).exclude(id__in=team_match.tanks.values_list('id', flat=True)).first()
+
 
                 if not team_match.tanks.filter(id=team_tank.id).exists():
                     team_match.tanks.add(team_tank)

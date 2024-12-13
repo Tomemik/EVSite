@@ -207,7 +207,7 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showTankDetailsDialog" max-width="600px">
+    <v-dialog v-model="showTankDetailsDialog" @afterLeave="this.selectedUpgrade = null" max-width="600px">
       <v-card>
         <v-card-title>
           <span class="headline">{{ selectedTank?.item.name }}</span>
@@ -216,6 +216,10 @@
           <div>
             <strong>Battle Rating:</strong> {{ selectedTank?.item.tier }}<br />
             <strong>Quantity:</strong> {{ selectedTank?.item.quantity }}
+            <div style="display: flex; align-items: center; justify-items: center; height: 56px">
+              <v-checkbox v-model="getAllUpgrades" style="height: 56px"></v-checkbox>
+              <label>Show All Upgrades</label>
+            </div>
           </div>
           <v-select
             v-model="selectedUpgrade"
@@ -271,7 +275,8 @@
           </div>
         </v-card-text>
         <v-card-actions>
-          <v-btn v-if="isCommander" color="primary" @click="upgradeTank">Upgrade</v-btn>
+          <v-btn v-if="isCommander && getAllUpgrades" color="primary" @click="upgradeTank">Upgrade</v-btn>
+          <v-btn v-if="isCommander && !getAllUpgrades" color="primary" @click="upgradeTankDirect">Upgrade</v-btn>
           <v-btn v-if="isCommander" color="error" @click="sellTank">Sell</v-btn>
           <v-btn @click="showTankDetailsDialog = false">Close</v-btn>
         </v-card-actions>
@@ -349,8 +354,8 @@
         <v-card-title class="text-h6">Tanks Upgraded Successfully</v-card-title>
         <v-card-text>
           <p>
-            {{ selectedTank.item.name }} ->
-            {{ upgradeOptions.find(u => u.to_tank === this.selectedUpgrade).to_tank }}
+              {{ upgradeDetailsForSuccessDialog.fromTank }} ->
+              {{ upgradeDetailsForSuccessDialog.toTank }}
           </p>
           <p>New Balance: {{ newBalance.toLocaleString() }}$</p>
           <p>Updated Kits:</p>
@@ -450,6 +455,8 @@ export default {
       selectedToTeam: null,
       preTaxAmount: 0,
       postTaxAmount: 0,
+      getAllUpgrades: false,
+      upgradeDetailsForSuccessDialog: null,
     };
   },
   computed: {
@@ -495,7 +502,7 @@ export default {
         return acc;
       }, []);
 
-      return reg_tanks
+      return reg_tanks.sort((a, b) => a.tier - b.tier);
     },
     tradTanks(){
       const tankCounts = this.team.tanks.reduce((acc, tank) => {
@@ -521,7 +528,7 @@ export default {
         return acc;
       }, []);
 
-      return trad_tanks
+      return trad_tanks.sort((a, b) => a.tier - b.tier);
     },
     combinedItems() {
       const tankBoxes = this.team.tank_boxes.map(box => ({
@@ -584,22 +591,22 @@ export default {
       return maxKits;
     },
     totalCost() {
-      const tier1Cost = this.kitQuantities.T1 * this.kitValues.T1;
-      const tier2Cost = this.kitQuantities.T2 * this.kitValues.T2;
-      const tier3Cost = this.kitQuantities.T3 * this.kitValues.T3;
-      let new_cost
+      const tier1Cost = (this.kitQuantities.T1 || 0) * (this.kitValues.T1 || 0);
+      const tier2Cost = (this.kitQuantities.T2 || 0) * (this.kitValues.T2 || 0);
+      const tier3Cost = (this.kitQuantities.T3 || 0) * (this.kitValues.T3 || 0);
 
       const totalKitsCost = tier1Cost + tier2Cost + tier3Cost;
+
+      let new_cost = 0;
+
       if (this.selectedUpgradeDetails) {
-        if (this.selectedUpgradeDetails.available_in_manufacturer){
-          new_cost = Math.max(this.selectedUpgradeDetails.manu_cost - totalKitsCost, 0)
+        if (this.selectedUpgradeDetails.available_in_manufacturer) {
+          new_cost = Math.max((this.selectedUpgradeDetails.manu_cost || 0) - totalKitsCost, 0);
         } else {
-          new_cost = Math.max(this.selectedUpgradeDetails.total_cost - totalKitsCost, 0)
+          new_cost = Math.max((this.selectedUpgradeDetails.total_cost || 0) - totalKitsCost, 0);
         }
-      } else {
-        new_cost = 0
       }
-      return new_cost
+      return new_cost;
     },
     isCommander() {
       return (this.userStore.groups.some(i => i.name === 'commander') &&
@@ -618,6 +625,15 @@ export default {
     conversionInput(newVal) {
       this.conversionOutput = Math.floor(newVal / 2);
     },
+    getAllUpgrades(newVal) {
+      this.selectedUpgrade = null
+      if (newVal){
+        this.fetchPossibleUpgrades(this.selectedTank.item.name)
+      }
+      else {
+        this.fetchPossibleDirectUpgrades(this.selectedTank.item.name)
+      }
+    }
   },
   methods: {
     async fetchTeams() {
@@ -639,7 +655,7 @@ export default {
     },
     handleRowClick(event, row) {
       this.selectedTank = row;
-      this.fetchPossibleUpgrades(row.item.name);
+      this.fetchPossibleDirectUpgrades(row.item.name);
       this.showTankDetailsDialog = true;
       this.kitQuantities.T1 = 0;
       this.kitQuantities.T2 = 0;
@@ -669,7 +685,38 @@ export default {
           required_kits: upgrade.required_kits,
           available_in_manufacturer: upgrade.available_in_manufacturer,
           manu_cost: upgrade.manu_cost,
-        }));
+          to_tank_br: upgrade.to_tank_br,
+        })).sort((a, b) => a.to_tank_br - b.to_tank_br);
+      } catch (error) {
+        console.error("Error fetching possible upgrades:", error);
+      }
+    },
+    async fetchPossibleDirectUpgrades(tankName) {
+      try {
+        const response = await fetch(`/api/league/transactions/view_upgrades/direct/`, {
+          method: 'GET',
+          headers: {
+            'X-CSRFToken': this.csrfToken,
+            'team': this.team.name,
+            'tank': tankName
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Error fetching upgrades');
+        }
+
+        const upgrades = await response.json();
+        this.upgradeOptions = upgrades.map(upgrade => ({
+          title: upgrade.to_tank,
+          upgrade_path_id: upgrade.upgrade_path_id,
+          to_tank: upgrade.to_tank,
+          total_cost: upgrade.total_cost,
+          required_kits: upgrade.required_kits,
+          available_in_manufacturer: upgrade.available_in_manufacturer,
+          manu_cost: upgrade.manu_cost,
+          to_tank_br: upgrade.to_tank_br,
+        })).sort((a, b) => a.to_tank_br - b.to_tank_br);
       } catch (error) {
         console.error("Error fetching possible upgrades:", error);
       }
@@ -705,7 +752,7 @@ export default {
         this.showTankDetailsDialog = false;
         this.showSuccessDialog = true;
       } catch (error) {
-        console.error('Error during the sell operation:', error);
+        alert('Error during the sell operation:', error);
       }
     },
     async upgradeTank() {
@@ -739,11 +786,61 @@ export default {
         this.newBalance = responseData.new_balance;
 
         await this.fetchTeamDetails();
+        this.upgradeDetailsForSuccessDialog = {
+          fromTank: this.selectedTank?.item.name,
+          toTank: this.upgradeOptions.find(u => u.upgrade_path_id === this.selectedUpgrade)?.to_tank,
+          newBalance: this.newBalance,
+          newKits: this.newKits,
+        };
         this.showTankDetailsDialog = false;
         this.showUpgradeSuccessDialog = true;
 
       } catch (error) {
-        console.error('Error upgrading tank:', error);
+        alert('Error upgrading tank:', error);
+      }
+    },
+    async upgradeTankDirect() {
+      if (!this.selectedUpgrade) {
+        return;
+      }
+
+      try {
+        const upgradeDetails = this.upgradeOptions.find(u => u.to_tank === this.selectedUpgrade);
+        const response = await fetch('/api/league/transactions/upgrade_tank/direct/', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': this.csrfToken,
+            'Content-Type': 'application/json',
+            'authorization': getAuthToken()
+          },
+          body: JSON.stringify({
+            team: this.team.name,
+            from_tank: this.selectedTank.item.name,
+            to_tank: upgradeDetails.to_tank,
+            kits: this.kitQuantities
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error("Error upgrading tank");
+        }
+
+        const responseData = await response.json();
+        this.newKits = responseData.new_kits;
+        this.newBalance = responseData.new_balance;
+
+        await this.fetchTeamDetails();
+        this.upgradeDetailsForSuccessDialog = {
+          fromTank: this.selectedTank?.item.name,
+          toTank: this.upgradeOptions.find(u => u.upgrade_path_id === this.selectedUpgrade)?.to_tank,
+          newBalance: this.newBalance,
+          newKits: this.newKits,
+        };
+        this.showTankDetailsDialog = false;
+        this.showUpgradeSuccessDialog = true;
+
+      } catch (error) {
+        alert('Error upgrading tank:', error);
       }
     },
     async fetchTeamDetails() {
@@ -798,7 +895,7 @@ export default {
         this.showTankDetailsDialog = false;
         this.showSuccessDialog = true;
       } catch (error) {
-        console.error('Error during the sell operation:', error);
+        alert('Error during the sell operation:', error);
       }
     },
     getMaxKits(tier) {
@@ -855,7 +952,7 @@ export default {
         this.conversionInput = 0;
         this.conversionOutput = 0;
       } catch (error) {
-        console.error('Error during the merge operation:', error);
+        alert('Error during the merge operation:', error);
       }
     },
     calculatePostTax() {
