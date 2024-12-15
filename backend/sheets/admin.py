@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.db import transaction
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, default_upgrade_kits, \
-    MatchResult, Substitute, TankLost, TeamResult, TeamLog, TankBox, TeamBox
+    MatchResult, Substitute, TankLost, TeamResult, TeamLog, TankBox, TeamBox, ImportTank, ImportCriteria
 
 
 class ManufacturerAdmin(admin.ModelAdmin):
@@ -115,6 +115,26 @@ class TeamLogAdmin(admin.ModelAdmin):
     model = TeamLog
 
 
+class ImportTankAdmin(admin.ModelAdmin):
+    list_display = ('tank', 'discount', 'available_until', 'is_purchased')
+    list_filter = ('is_purchased', 'available_until')
+
+
+class ImportCriteriaAdmin(admin.ModelAdmin):
+    list_display = ('min_rank', 'max_rank', 'tank_type', 'is_active')
+    list_filter = ('is_active', 'tank_type')
+    actions = ['set_active']
+
+    def set_active(self, request, queryset):
+        """Deactivate other criteria and activate the selected one."""
+        ImportCriteria.objects.update(is_active=False)  # Deactivate all
+        queryset.update(is_active=True)  # Activate selected
+        self.message_user(request, "Selected criteria set to active.")
+
+    set_active.short_description = "Set selected criteria as active"
+
+
+
 admin.site.register(MatchResult, MatchResultAdmin)
 admin.site.register(Manufacturer, ManufacturerAdmin)
 admin.site.register(Team, TeamAdmin)
@@ -126,3 +146,6 @@ admin.site.register(TeamMatch, TeamMatchAdmin)
 admin.site.register(TeamLog, TeamLogAdmin)
 admin.site.register(TankBox, BoxAdmin)
 admin.site.register(TeamBox, TeamBoxAdmin)
+admin.site.register(ImportTank, ImportTankAdmin)
+admin.site.register(ImportCriteria, ImportCriteriaAdmin)
+

@@ -2,9 +2,8 @@ import json
 import re
 from datetime import timedelta
 
-from django.db import models
+from django.db import models, transaction
 from django.db.models import F, Q
-from django.utils import timezone
 from django.utils.timezone import now
 from rest_framework.exceptions import ValidationError
 import heapq
@@ -828,7 +827,7 @@ class MatchResult(models.Model):
             else:
                 return trad_bo3_rewards[min(int(round(average_rank) - 1), 4)]["winner"], \
                     trad_bo3_rewards[min(int(round(average_rank) - 1), 4)]["loser"]
-        elif mode == "advanced || evolved":
+        elif mode == "advanced" or mode == "evolved":
             if game_mode == "flag":
                 return flag_rewards[min(int(round(average_rank)-1), 4)]["winner"], \
                     flag_rewards[min(int(round(average_rank)-1), 4)]["loser"]
@@ -866,16 +865,6 @@ class MatchResult(models.Model):
             'team_2': 0,
         }
 
-        for substitute in self.substitutes.all():
-            side = substitute.side
-            activity = substitute.activity
-            reward_percentage = 0.05 * activity
-            base_reward = winner_base_reward if side == self.winning_side else loser_base_reward
-
-            substitute_reward = base_reward * reward_percentage
-            substitutes_rewards[side] += substitute_reward
-            team_rewards[substitute.team.id] += substitute_reward
-
         if self.winning_side == 'team_1':
             winner_base_reward -= substitutes_rewards['team_1']
             loser_base_reward -= substitutes_rewards['team_2']
@@ -888,9 +877,17 @@ class MatchResult(models.Model):
 
         if self.match.mode in ["traditional", "flag"]:
             for team in winning_teams:
-                team_rewards[team] = winner_base_reward
+                team_rewards[team] += winner_base_reward
+                for sub in self.substitutes.all():
+                    if sub.team_played_for.id == team:
+                        team_rewards[sub.team.id] += team_rewards[team] * (sub.activity * 0.05)
+                        team_rewards[team] -= team_rewards[team] * (sub.activity * 0.05)
             for team in losing_teams:
-                team_rewards[team] = loser_base_reward
+                team_rewards[team] += loser_base_reward
+                for sub in self.substitutes.all():
+                    if sub.team_played_for.id == team:
+                        team_rewards[sub.team.id] += team_rewards[team] * (sub.activity * 0.05)
+                        team_rewards[team] -= team_rewards[team] * (sub.activity * 0.05)
         else:
             total_loss_penalty_team_1 = 0
             total_gain_reward_team_1 = 0
@@ -926,8 +923,16 @@ class MatchResult(models.Model):
 
             for team in winning_teams:
                 team_rewards[team] += winner_total_reward / len(winning_teams)
+                for sub in self.substitutes.all():
+                    if sub.team_played_for == team:
+                        team_rewards[sub.team.id] += team_rewards[team] * (sub.activity * 0.05)
+                        team_rewards[team] -= team_rewards[team] * (sub.activity * 0.05)
             for team in losing_teams:
                 team_rewards[team] += loser_total_reward / len(losing_teams)
+                for sub in self.substitutes.all():
+                    if sub.team_played_for.id == team:
+                        team_rewards[sub.team.id] += team_rewards[team] * (sub.activity * 0.05)
+                        team_rewards[team] -= team_rewards[team] * (sub.activity * 0.05)
 
         for team_result in self.team_results.all():
             team_id = team_result.team.id
@@ -957,7 +962,6 @@ class MatchResult(models.Model):
             kits = {}
             if self.match.mode in ["traditional", "domination"] and team_id in TeamMatch.objects.filter(match=self.match).values_list('team_id', flat=True):
                 kits = copy.deepcopy(team.upgrade_kits)
-                print(team)
                 team.upgrade_kits['T1']['quantity'] += 1
             team.save()
 
@@ -1017,3 +1021,94 @@ class TeamLog(models.Model):
 
     def __str__(self):
         return f"Change in {self.field_name} for {self.team.name}"
+
+
+def default_expiry_date():
+    return now() + timedelta(days=7)
+
+
+class ImportTank(models.Model):
+    tank = models.OneToOneField(Tank, on_delete=models.CASCADE, related_name='import_tank')
+    discount = models.IntegerField()
+    available_from = models.DateTimeField(default=now)
+    available_until = models.DateTimeField(default=default_expiry_date)
+    is_purchased = models.BooleanField(default=False)
+    criteria = models.ForeignKey(
+        'ImportCriteria',
+        on_delete=models.SET_NULL,
+        related_name='import_tanks',
+        null=True,
+        blank=True
+    )
+
+    def __str__(self):
+        status = "Expired" if self.available_until <= now() else "Active"
+        return f"Import {self.tank.name} ({status})"
+
+    @transaction.atomic
+    def purchase_from_imports(self, team):
+        import_tank = ImportTank.objects.select_for_update().get(pk=self.pk)
+        team = Team.objects.select_for_update().get(pk=team.pk)
+
+        if import_tank.is_purchased:
+            raise ValidationError("This tank has already been purchased.")
+
+        tank_price = max(import_tank.tank.price - import_tank.tank.price * (import_tank.discount / 100), 0)
+
+        if team.manufacturers.filter(id__in=import_tank.tank.manufacturers.all()).exists():
+            if import_tank.tank.battle_rating <= 3.7:
+                tank_price = 0.8 * tank_price
+            else:
+                tank_price = 0.9 * tank_price
+        else:
+            if import_tank.tank.battle_rating <= 3.7:
+                tank_price = 1.25 * tank_price
+            else:
+                tank_price = 1.35 * tank_price
+
+        if tank_price > team.balance:
+            raise ValidationError("Insufficient balance to purchase this tank.")
+
+        team.balance -= tank_price
+        import_tank.is_purchased = True
+        import_tank.save()
+        team.save()
+
+        TeamTank.objects.create(team=team, tank=import_tank.tank)
+
+        return f"Tank {import_tank.tank.name} purchased from imports successfully. Remaining balance: {team.balance}"
+
+
+class ImportCriteria(models.Model):
+    min_rank = models.IntegerField(null=True, blank=True, help_text="Minimum rank of tanks to include.")
+    max_rank = models.IntegerField(null=True, blank=True, help_text="Maximum rank of tanks to include.")
+    tank_type = models.CharField(max_length=50, null=True, blank=True, help_text="Filter by tank type (e.g., MT, HT).")
+    is_active = models.BooleanField(default=True, help_text="Activate this criteria for offer generation.")
+    required_tanks = models.ManyToManyField(
+        'Tank', blank=True, related_name="criteria",
+        help_text="List of specific tanks to always include in offers."
+    )
+    required_tank_count = models.IntegerField(
+        null=True, blank=True, default=0,
+        help_text="Minimum number of tanks from the required list to include."
+    )
+    discount = models.IntegerField(
+        default=0, help_text="Discount to apply to tanks matching the criteria (0-100%)."
+    )
+    required_tank_discount = models.IntegerField(
+        default=0, help_text="Additional discount for required tanks (0-100%)."
+    )
+
+    def __str__(self):
+        return f"Criteria ({'Active' if self.is_active else 'Inactive'})"
+
+    def get_filters(self):
+        """Generate a dictionary of filters based on the criteria fields."""
+        filters = {}
+        if self.min_rank is not None:
+            filters['rank__gte'] = self.min_rank
+        if self.max_rank is not None:
+            filters['rank__lte'] = self.max_rank
+        if self.tank_type:
+            filters['type'] = self.tank_type
+        return filters

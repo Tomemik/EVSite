@@ -2,7 +2,7 @@ from django.db.models import Avg, Q, Max
 from django.utils import timezone
 from rest_framework import serializers
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, Substitute, MatchResult, \
-    TankLost, TeamResult, TankBox, TeamBox, TeamLog
+    TankLost, TeamResult, TankBox, TeamBox, TeamLog, ImportTank, ImportCriteria
 
 
 class TankSerializerSlim(serializers.ModelSerializer):
@@ -212,7 +212,14 @@ class MatchSerializer(serializers.ModelSerializer):
                 tank, created = Tank.objects.get_or_create(**tank_data)
 
                 team = team_match_data['team']
-                team_tank = TeamTank.objects.filter(tank=tank, team__name=team, **team_tank_data).exclude(id__in=team_match.tanks.values_list('id', flat=True)).first()
+                if match.mode == 'traditional':
+                    team_tank = TeamTank.objects.filter(tank=tank, is_trad=True, team__name=team,
+                                                        **team_tank_data).exclude(
+                        id__in=team_match.tanks.values_list('id', flat=True)).first()
+                else:
+                    team_tank = TeamTank.objects.filter(tank=tank, is_trad=False, team__name=team,
+                                                        **team_tank_data).exclude(
+                        id__in=team_match.tanks.values_list('id', flat=True)).first()
 
                 if not team_match.tanks.filter(id=team_tank.id).exists():
                     team_match.tanks.add(team_tank)
@@ -386,3 +393,28 @@ class TeamLogSerializer(serializers.ModelSerializer):
         model = TeamLog
         fields = ['id', 'team', 'team_name', 'method_name', 'description', 'timestamp']
         depth = 0
+
+
+class ImportTankSerializer(serializers.ModelSerializer):
+    tank_name = serializers.CharField(source='tank.name')
+    base_discounted_price = serializers.SerializerMethodField()
+    criteria_id = serializers.IntegerField(source='criteria.id', read_only=True)
+
+    class Meta:
+        model = ImportTank
+        fields = ['id', 'tank_name', 'discount', 'available_from', 'available_until', 'is_purchased', 'base_discounted_price', 'criteria_id']
+
+    def get_base_discounted_price(self, obj):
+        if not obj.tank or obj.tank.price is None:
+            return None
+        return max(obj.tank.price - (obj.tank.price * (obj.discount / 100)), 0)
+
+
+class ImportCriteriaSerializer(serializers.ModelSerializer):
+    required_tanks = TankSerializerSlim(many=True, read_only=True)
+    class Meta:
+        model = ImportCriteria
+        fields = [
+            'id', 'min_rank', 'max_rank', 'tank_type', 'is_active',
+            'required_tanks', 'required_tank_count', 'discount', 'required_tank_discount',
+        ]

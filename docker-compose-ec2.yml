@@ -16,7 +16,7 @@ services:
   backend:
     image: 762233752592.dkr.ecr.eu-north-1.amazonaws.com/evsite:backend
     restart: on-failure:5
-    command: bash -c "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn evsite.wsgi:application --bind 0.0.0.0:8000"
+    command: bash -c "service cron start && python manage.py migrate && python manage.py collectstatic --noinput && gunicorn evsite.wsgi:application --bind 0.0.0.0:8000"
     env_file: .env
     volumes:
       - backend_staticfiles:/staticfiles

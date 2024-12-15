@@ -8,10 +8,11 @@ from rest_framework.generics import ListAPIView
 from django.contrib.auth.mixins import PermissionRequiredMixin
 
 from .filters import TeamLogFilter, MatchFilter
-from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch, TeamLog
+from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch, TeamLog, ImportTank, \
+    ImportCriteria
 from .serializers import TeamSerializer, ManufacturerSerializer, TankSerializer, MatchSerializer, SlimMatchSerializer, \
     MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer, \
-    TeamLogSerializer, SlimTeamSerializerWithTanks
+    TeamLogSerializer, SlimTeamSerializerWithTanks, ImportTankSerializer, ImportCriteriaSerializer
 
 
 class AllTeamsView(APIView):
@@ -494,3 +495,48 @@ class TeamLogFilteredView(ListAPIView):
             latest_logs = latest_logs | team_logs
 
         return latest_logs
+
+
+class ActiveImportCriteriaView(APIView):
+    def get(self, request, *args, **kwargs):
+        active_criteria = ImportCriteria.objects.filter(is_active=True).first()
+
+        serializer = ImportCriteriaSerializer(active_criteria)
+        return Response(serializer.data)
+
+
+class GroupedImportTankView(APIView):
+    def get(self, request, *args, **kwargs):
+        imports = ImportTank.objects.all().order_by('available_from')
+
+        grouped_imports = {}
+        for import_tank in imports:
+            date_key = import_tank.available_from.date()
+            if date_key not in grouped_imports:
+                grouped_imports[date_key] = []
+            grouped_imports[date_key].append(import_tank)
+
+        response_data = {
+            str(date): ImportTankSerializer(imports, many=True).data
+            for date, imports in grouped_imports.items()
+        }
+
+        return Response(response_data)
+
+
+class PurchaseImportTankView(APIView):
+    def post(self, request):
+        user = request.user
+        team_name = request.data['team']
+        if not (
+            user.has_perm('user.admin_permissions') or
+            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+        ):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        tanks = request.data.get('tanks', [])
+        team = Team.objects.get(name=team_name)
+        for tank in tanks:
+            tank = Tank.objects.get(name=tank)
+            team.purchase_tank(tank)
+        return Response(data={'new_balance': team.balance, 'new_tanks': [tank for tank in tanks]}, status=status.HTTP_200_OK)

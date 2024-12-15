@@ -1,0 +1,1 @@
+0 0 * * 3 root export $(cat /code/.env | xargs) && export DJANGO_SETTINGS_MODULE=evsite.settings && /usr/local/bin/python /code/manage.py create_imports >> /var/log/cron.log
