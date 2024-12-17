@@ -29,4 +29,5 @@ urlpatterns = [
     path("transactions/money_log/", views.TeamLogFilteredView.as_view(), name='money-log'),
     path("transactions/merge_split_kit/", views.MergeSplitKitView.as_view(), name='merge-split-kit'),
     path("transactions/transfer/", views.TransferMoneyView.as_view(), name='transfer'),
+    path("transactions/buy_imports/", views.PurchaseImportTankView.as_view(), name='buy-imports'),
 ]

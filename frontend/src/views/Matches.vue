@@ -194,13 +194,11 @@ const fetchMatches = async () => {
     }
     params.append('played', String(showPlayed.value))
     params.append('calced', String(showCalced.value))
-    console.log(showCalced.value)
 
 
     const response = await fetch(`/api/league/matches/filtered/?${params.toString()}`);
     if (!response.ok) throw new Error('Failed to fetch matches');
     const data = await response.json();
-    console.log(data)
     matches.value = data.results;
 
     formattedMatches.value = data.results.map((match) => {

@@ -25,7 +25,7 @@ class TeamAdmin(admin.ModelAdmin):
 
 
 class BoxAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'get_tanks', 'price', 'is_national')
+    list_display = ('name', 'get_tanks', 'price', 'is_national')
 
     def get_tanks(self, obj):
         return ", ".join([tank.name for tank in obj.tanks.all()])
@@ -41,7 +41,7 @@ class BoxAdmin(admin.ModelAdmin):
 
 
 class TeamBoxAdmin(admin.ModelAdmin):
-    list_display = ('team', 'box', 'amount')
+    list_display = ('team', 'box')
 
     def box(self, obj):
         return obj.box.name
@@ -116,12 +116,12 @@ class TeamLogAdmin(admin.ModelAdmin):
 
 
 class ImportTankAdmin(admin.ModelAdmin):
-    list_display = ('tank', 'discount', 'available_until', 'is_purchased')
-    list_filter = ('is_purchased', 'available_until')
+    list_display = ('tank', 'discount', 'available_from', 'available_until', 'is_purchased', 'criteria')
+    list_filter = ('is_purchased','available_from', 'available_until')
 
 
 class ImportCriteriaAdmin(admin.ModelAdmin):
-    list_display = ('min_rank', 'max_rank', 'tank_type', 'is_active')
+    list_display = ('name', 'min_rank', 'max_rank', 'tank_type', 'is_active')
     list_filter = ('is_active', 'tank_type')
     actions = ['set_active']
 

@@ -415,6 +415,7 @@ class ImportCriteriaSerializer(serializers.ModelSerializer):
     class Meta:
         model = ImportCriteria
         fields = [
-            'id', 'min_rank', 'max_rank', 'tank_type', 'is_active',
+            'id', 'name', 'min_rank', 'max_rank', 'tank_type', 'is_active',
             'required_tanks', 'required_tank_count', 'discount', 'required_tank_discount',
         ]
+        depth = 1

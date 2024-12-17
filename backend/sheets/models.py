@@ -1,6 +1,7 @@
 import json
 import re
 from datetime import timedelta
+from random import random
 
 from django.db import models, transaction
 from django.db.models import F, Q
@@ -353,7 +354,7 @@ class Team(models.Model):
         for tier, count in required_kits.items():
             self.upgrade_kits[tier]['quantity'] -= count
 
-        self.tanks.through.objects.filter(team=self, tank=from_tank).first().delete()
+        self.tanks.through.objects.filter(team=self, tank=from_tank, is_upgradable=True).first().delete()
         self.tanks.through.objects.create(team=self, tank=to_tank)
         self.save()
 
@@ -406,7 +407,7 @@ class Team(models.Model):
         for tier, count in required_kits.items():
             self.upgrade_kits[tier]['quantity'] -= count
 
-        self.tanks.through.objects.filter(team=self, tank=from_tank).first().delete()
+        self.tanks.through.objects.filter(team=self, tank=from_tank, is_upgradable=True).first().delete()
         self.tanks.through.objects.create(team=self, tank=to_tank)
         self.save()
 
@@ -641,11 +642,13 @@ class Tank(models.Model):
 
 
 class TankBox(models.Model):
-    id = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=50)
     price = models.IntegerField(default=0)
     tanks = models.ManyToManyField(Tank, blank=True)
     is_national = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
 
     def save(self, *args, **kwargs):
         self.calculate_cost()
@@ -664,13 +667,25 @@ class TankBox(models.Model):
         else:
             self.price = int(mean_price)
 
-    def __str__(self):
-        return self.name
 
 class TeamBox(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
     box = models.ForeignKey(TankBox, on_delete=models.CASCADE)
-    amount = models.IntegerField(default=0)
+
+    @transaction.atomic
+    def open_box(self):
+        tank_box = self.box
+
+        available_tanks = list(tank_box.tanks.all())
+        if not available_tanks:
+            raise ValueError(f"TankBox '{tank_box.name}' has no tanks to open.")
+
+        selected_tank = random.choice(available_tanks)
+
+        self.team.tanks.add(selected_tank)
+        self.delete()
+
+        return selected_tank
 
 
 class UpgradePath(models.Model):
@@ -1028,7 +1043,7 @@ def default_expiry_date():
 
 
 class ImportTank(models.Model):
-    tank = models.OneToOneField(Tank, on_delete=models.CASCADE, related_name='import_tank')
+    tank = models.ForeignKey(Tank, on_delete=models.CASCADE, related_name='import_tanks')
     discount = models.IntegerField()
     available_from = models.DateTimeField(default=now)
     available_until = models.DateTimeField(default=default_expiry_date)
@@ -1052,6 +1067,9 @@ class ImportTank(models.Model):
 
         if import_tank.is_purchased:
             raise ValidationError("This tank has already been purchased.")
+
+        if now() < import_tank.available_from or now() > import_tank.available_until:
+            raise ValidationError("This import is not open.")
 
         tank_price = max(import_tank.tank.price - import_tank.tank.price * (import_tank.discount / 100), 0)
 
@@ -1080,8 +1098,9 @@ class ImportTank(models.Model):
 
 
 class ImportCriteria(models.Model):
-    min_rank = models.IntegerField(null=True, blank=True, help_text="Minimum rank of tanks to include.")
-    max_rank = models.IntegerField(null=True, blank=True, help_text="Maximum rank of tanks to include.")
+    name = models.CharField(default='', max_length=255, null=True, blank=True)
+    min_rank = models.IntegerField(default=0, null=True, blank=True, help_text="Minimum rank of tanks to include.")
+    max_rank = models.IntegerField(default=6, null=True, blank=True, help_text="Maximum rank of tanks to include.")
     tank_type = models.CharField(max_length=50, null=True, blank=True, help_text="Filter by tank type (e.g., MT, HT).")
     is_active = models.BooleanField(default=True, help_text="Activate this criteria for offer generation.")
     required_tanks = models.ManyToManyField(
@@ -1100,7 +1119,7 @@ class ImportCriteria(models.Model):
     )
 
     def __str__(self):
-        return f"Criteria ({'Active' if self.is_active else 'Inactive'})"
+        return self.name
 
     def get_filters(self):
         """Generate a dictionary of filters based on the criteria fields."""

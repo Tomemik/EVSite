@@ -506,19 +506,24 @@ class ActiveImportCriteriaView(APIView):
 
 
 class GroupedImportTankView(APIView):
-    def get(self, request, *args, **kwargs):
+    def get(self, request):
         imports = ImportTank.objects.all().order_by('available_from')
 
         grouped_imports = {}
         for import_tank in imports:
             date_key = import_tank.available_from.date()
             if date_key not in grouped_imports:
-                grouped_imports[date_key] = []
-            grouped_imports[date_key].append(import_tank)
-
+                grouped_imports[date_key] = {
+                    'criteria': import_tank.criteria,
+                    'tanks': []
+                }
+            grouped_imports[date_key]['tanks'].append(import_tank)
         response_data = {
-            str(date): ImportTankSerializer(imports, many=True).data
-            for date, imports in grouped_imports.items()
+            str(date): {
+                'criteria': ImportCriteriaSerializer(grouped_imports[date]['criteria']).data,
+                'tanks': ImportTankSerializer(grouped_imports[date]['tanks'], many=True).data
+            }
+            for date in grouped_imports
         }
 
         return Response(response_data)
@@ -527,16 +532,18 @@ class GroupedImportTankView(APIView):
 class PurchaseImportTankView(APIView):
     def post(self, request):
         user = request.user
-        team_name = request.data['team']
+        team_name = user.team.name
         if not (
             user.has_perm('user.admin_permissions') or
-            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+            (user.has_perm('user.commander_permissions'))
         ):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
-        tanks = request.data.get('tanks', [])
+        import_id = request.data.get('import_id', None)
         team = Team.objects.get(name=team_name)
-        for tank in tanks:
-            tank = Tank.objects.get(name=tank)
-            team.purchase_tank(tank)
-        return Response(data={'new_balance': team.balance, 'new_tanks': [tank for tank in tanks]}, status=status.HTTP_200_OK)
+
+        if import_id is not None:
+            tank = ImportTank.objects.get(pk=import_id)
+            tank.purchase_from_imports(team)
+            return Response(data={'new_balance': team.balance, 'new_tanks': [tank.tank.name]}, status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_400_BAD_REQUEST)

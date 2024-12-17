@@ -168,7 +168,8 @@ const updateAvailableTeams = () => {
     .map(team => ({
       title: team.name,
       id: team.id,
-    }));
+    }))
+    .sort((a, b) => a.title.localeCompare(b.title));
 };
 
 watch(() => editForm.value.teammatch_set, () => {
