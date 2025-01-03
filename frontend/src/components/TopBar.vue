@@ -94,6 +94,7 @@ const barItemsLoggedIn = ref([
 const drawerItems = ref([
   { title: 'Teams', path: '/teams' },
   { title: 'Imports', path: '/imports'},
+  { title: 'Boxes', path: '/boxes' },
   { title: 'Tanks', path: '/tanks' },
   { title: 'Manufacturers', path: '/manufacturers' },
   { title: 'Matches', path: '/matches' },

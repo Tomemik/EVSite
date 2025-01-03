@@ -20,6 +20,8 @@ Rock Island + Cadillac + US Army Ordnance Dept.,M6A2E1
 Rock Island + Cadillac + US Army Ordnance Dept.,M46
 Rock Island + Cadillac + US Army Ordnance Dept.,M47
 Rock Island + Cadillac + US Army Ordnance Dept.,M48
+Rock Island + Cadillac + US Army Ordnance Dept.,T54E1
+Rock Island + Cadillac + US Army Ordnance Dept.,T54E2
 General Motors + Marmon-Herrington + PACCAR,M3 Stuart
 General Motors + Marmon-Herrington + PACCAR,M3A1 Stuart
 General Motors + Marmon-Herrington + PACCAR,M22
@@ -207,8 +209,8 @@ Vauxhall & Engl. Electric,TOG II
 Vauxhall & Engl. Electric,Black Prince
 Vickers - Armstrong + Messrs Vulcan,Tetrarch
 Vickers - Armstrong + Messrs Vulcan,Vickers Independent
-Vickers - Armstrong + Messrs Vulcan,Stuart I
-Vickers - Armstrong + Messrs Vulcan,Stuart III
+Vickers - Armstrong + Messrs Vulcan,M3 Stuart
+Vickers - Armstrong + Messrs Vulcan,M3A1 Stuart
 Vickers - Armstrong + Messrs Vulcan,Valentine Mk. I
 Vickers - Armstrong + Messrs Vulcan,Matilda III
 Vickers - Armstrong + Messrs Vulcan,Valentine Mk. XI
@@ -225,6 +227,8 @@ Vickers - Armstrong + Messrs Vulcan,FV4005
 Vickers - Armstrong + Messrs Vulcan,Centurion Mk.2
 Vickers - Armstrong + Messrs Vulcan,FV4202
 Vickers - Armstrong + Messrs Vulcan,Centurion Mk.3
+Vickers - Armstrong + Messrs Vulcan,Cearnavon
+Vickers - Armstrong + Messrs Vulcan,Centurion AX
 NSWGR,A.C.I
 NSWGR,M4A2
 NSWGR,A.C.IV
@@ -403,8 +407,8 @@ Skladove za bulgarski oruzhiya,T-54 (1947)
 Skladove za bulgarski oruzhiya,T-54 (1949)
 WKGA,Tetrarch
 WKGA,A13 Mk. II
-WKGA,Stuart I
-WKGA,Stuart III
+WKGA,M3 Stuart
+WKGA,M3A1 Stuart
 WKGA,Valentine Mk. I
 WKGA,Crusader Mk. II
 WKGA,Matilda III

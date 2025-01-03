@@ -1,7 +1,7 @@
 import json
 import re
 from datetime import timedelta
-from random import random
+import random
 
 from django.db import models, transaction
 from django.db.models import F, Q
@@ -69,7 +69,6 @@ def log_team_changes(method=None, custom_method_name=None):
         if changes:
             readable_changes = parse_changes(changes)
             method_name = custom_method_name if custom_method_name else method.__name__
-            print(method_name)
             TeamLog.objects.create(
                 team=self,
                 field_name='multiple_fields',
@@ -642,13 +641,15 @@ class Tank(models.Model):
 
 
 class TankBox(models.Model):
+    id = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=50)
     price = models.IntegerField(default=0)
+    tier = models.IntegerField(default=1)
     tanks = models.ManyToManyField(Tank, blank=True)
     is_national = models.BooleanField(default=True)
 
     def __str__(self):
-        return self.name
+        return self.name + str(self.tier)
 
     def save(self, *args, **kwargs):
         self.calculate_cost()
@@ -667,6 +668,33 @@ class TankBox(models.Model):
         else:
             self.price = int(mean_price)
 
+    def purchase(self, team):
+        if team.balance < self.price:
+            raise ValueError(f"Team '{team.name}' does not have enough balance to purchase '{self.name}'.")
+
+        team.balance -= self.price
+        team.save()
+
+        box = TeamBox.objects.create(team=team, box=self)
+
+        TeamLog.objects.create(
+            team=team,
+            field_name='balance',
+            previous_value={'balance': team.balance + self.price},
+            new_value={'balance': team.balance},
+            description=f"Changes made by method: purchase_box\nBalance Changed by: {-self.price}\nBox Purchased: {self.name} T{self.tier}",
+            method_name='purchase_box',
+        )
+
+        return {
+            'team': team.name,
+            'box': self.name,
+            'new_balance': team.balance,
+            'id': box.id,
+        }
+
+
+
 
 class TeamBox(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
@@ -684,6 +712,15 @@ class TeamBox(models.Model):
 
         self.team.tanks.add(selected_tank)
         self.delete()
+
+        TeamLog.objects.create(
+            team=self.team,
+            field_name='balance',
+            previous_value={'balance': self.team.balance},
+            new_value={'balance': self.team.balance},
+            description=f"Changes made by method: open_tank_box\nBalance Changed by: 0\nBox Opened: {tank_box.name} T{tank_box.tier}\nTanks Added: {str(selected_tank)}",
+            method_name='open_tank_box',
+        )
 
         return selected_tank
 
@@ -939,7 +976,7 @@ class MatchResult(models.Model):
             for team in winning_teams:
                 team_rewards[team] += winner_total_reward / len(winning_teams)
                 for sub in self.substitutes.all():
-                    if sub.team_played_for == team:
+                    if sub.team_played_for.id == team:
                         team_rewards[sub.team.id] += team_rewards[team] * (sub.activity * 0.05)
                         team_rewards[team] -= team_rewards[team] * (sub.activity * 0.05)
             for team in losing_teams:
@@ -974,9 +1011,8 @@ class MatchResult(models.Model):
             team = Team.objects.get(id=team_id)
             initial_balance = team.balance
             team.balance += reward
-            kits = {}
+            kits = copy.deepcopy(team.upgrade_kits)
             if self.match.mode in ["traditional", "domination"] and team_id in TeamMatch.objects.filter(match=self.match).values_list('team_id', flat=True):
-                kits = copy.deepcopy(team.upgrade_kits)
                 team.upgrade_kits['T1']['quantity'] += 1
             team.save()
 
@@ -985,13 +1021,54 @@ class MatchResult(models.Model):
                 field_name='balance',
                 previous_value={'balance': initial_balance, 'upgrade_kits': kits},
                 new_value={'balance': team.balance, 'upgrade_kits': team.upgrade_kits},
-                description=f"Balance Changed by: {reward}"
-                            f"\n"
-                            f"Kits changed by: {compare_upgrade_kits(kits, team.upgrade_kits)}",
+                description=f"Balance Changed by: {reward}\n"
+                            f"Kits changed by: {compare_upgrade_kits(kits, team.upgrade_kits)}\n"
+                            f"Match ID: {self.match.id}",
                 method_name='calc_rewards',
             )
 
         self.is_calced = True
+        self.save()
+
+    def revert_rewards(self):
+        if not self.is_calced:
+            raise ValueError("Rewards have not been calculated yet, cannot revert.")
+
+        team_logs = TeamLog.objects.filter(
+            method_name='calc_rewards',
+            description__icontains=f"Match ID: {self.match.id}"
+        )
+
+        for log in team_logs:
+            team = log.team
+            current_balance = team.balance
+            current_kits = team.upgrade_kits
+
+            calc_difference = log.new_value['balance'] - log.previous_value['balance']
+            revert_balance = current_balance - calc_difference
+
+            previous_kits = log.previous_value.get('upgrade_kits', {})
+            new_kits = log.new_value.get('upgrade_kits', {})
+
+            kits_difference = {
+                kit: new_kits[kit]['quantity'] - previous_kits.get(kit, {}).get('quantity', 0)
+                for kit in new_kits
+            }
+            for kit, diff in kits_difference.items():
+                current_kits[kit]['quantity'] -= diff
+
+            team.balance = revert_balance
+            team.upgrade_kits = current_kits
+            team.save()
+
+            log.previous_value = {'balance': 0}
+            log.new_value = {'balance': 0}
+            log.description = f"Balance Changed by: 0\n" \
+                              f"\nReverted rewards calculation for Match ID: {self.match.id}."
+            log.method_name = 'revert_rewards'
+            log.save()
+
+        self.is_calced = False
         self.save()
 
 
@@ -1093,6 +1170,15 @@ class ImportTank(models.Model):
         team.save()
 
         TeamTank.objects.create(team=team, tank=import_tank.tank)
+
+        TeamLog.objects.create(
+            team=team,
+            field_name='balance',
+            previous_value={'balance': team.balance + tank_price},
+            new_value={'balance': team.balance},
+            description=f"Changes made by method: imports_purchase\nBalance Changed by: {tank_price}\nTanks Added: {str(import_tank.tank)}",
+            method_name='imports_purchase',
+        )
 
         return f"Tank {import_tank.tank.name} purchased from imports successfully. Remaining balance: {team.balance}"
 

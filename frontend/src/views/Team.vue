@@ -215,6 +215,8 @@
         <v-card-text>
           <div>
             <strong>Battle Rating:</strong> {{ selectedTank?.item.tier }}<br />
+            <strong>Rank:</strong> {{ selectedTank?.item.rank }}<br />
+            <strong>Sell Price:</strong> {{ selectedTank?.item.sellPrice }} <br/>
             <strong>Quantity:</strong> {{ selectedTank?.item.quantity }}
             <div style="display: flex; align-items: center; justify-items: center; height: 56px">
               <v-checkbox v-model="getAllUpgrades" style="height: 56px"></v-checkbox>
@@ -495,8 +497,10 @@ export default {
           uniqueTanks.add(tankName);
           acc.push({
             name: tankName,
+            rank: tank.tank.rank,
             tier: tank.tank.battle_rating.toFixed(1),
             quantity: tankCounts[tankName],
+            sellPrice: tank.tank.price.toFixed(1) * 0.6,
           });
         }
         return acc;
@@ -520,6 +524,7 @@ export default {
           uniqueTanks.add(tankName);
           acc.push({
             name: tankName,
+            rank: tank.tank.rank,
             tier: tank.tank.battle_rating.toFixed(1),
             quantity: tankCounts[tankName],
             aval: tank.available

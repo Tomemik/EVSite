@@ -9,7 +9,7 @@ from django.contrib.auth.mixins import PermissionRequiredMixin
 
 from .filters import TeamLogFilter, MatchFilter
 from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch, TeamLog, ImportTank, \
-    ImportCriteria
+    ImportCriteria, TeamBox
 from .serializers import TeamSerializer, ManufacturerSerializer, TankSerializer, MatchSerializer, SlimMatchSerializer, \
     MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer, \
     TeamLogSerializer, SlimTeamSerializerWithTanks, ImportTankSerializer, ImportCriteriaSerializer
@@ -27,7 +27,6 @@ class AllTeamsView(APIView):
         serializer = TeamSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-        print(serializer.errors)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -146,8 +145,6 @@ class TransferMoneyView(APIView):
     def post(self, request):
         user = request.user
         team_name = request.data['team']
-        print(user)
-        print(team_name)
         if not (
             user.has_perm('user.admin_permissions') or
             (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
@@ -276,6 +273,67 @@ class UpgradeTankView(APIView):
         return Response(data={'new_balance': team.balance, 'new_kits': team.upgrade_kits}, status=status.HTTP_200_OK)
 
 
+class PurchaseBoxView(APIView):
+    def post(self, request):
+        user = request.user
+        team_name = request.data['team']
+        if not (
+            user.has_perm('user.admin_permissions') or
+            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+        ):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        box_id = request.data.get('box_id', None)
+        team = Team.objects.get(name=team_name)
+        if box_id is not None:
+            box = TankBox.objects.get(id=box_id)
+            result = box.purchase(team)
+        else:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response(data=result, status=status.HTTP_200_OK)
+
+
+class PurchaseAndOpenBoxView(APIView):
+    def post(self, request):
+        user = request.user
+        team_name = request.data['team']
+        if not (
+            user.has_perm('user.admin_permissions') or
+            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+        ):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        box_id = request.data.get('box_id', None)
+        team = Team.objects.get(name=team_name)
+        if box_id is not None:
+            box = TankBox.objects.get(id=box_id)
+            result = box.purchase(team)
+            new_box = TeamBox.objects.get(id=result['id'])
+            tank = new_box.open_box()
+        else:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response(data=str(tank), status=status.HTTP_200_OK)
+
+
+class OpenBoxView(APIView):
+    def post(self, request):
+        user = request.user
+        team_name = request.data['team']
+        if not (
+            user.has_perm('user.admin_permissions') or
+            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+        ):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        box_id = request.data.get('box_id', None)
+        if box_id is not None:
+            box = TeamBox.objects.get(id=box_id)
+            result = box.open_box()
+        else:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response(data=result, status=status.HTTP_200_OK)
+
+
 class ManufacturerDetailView(APIView):
     def get(self, request, pk):
         manufacturer = Manufacturer.objects.get(pk=pk)
@@ -388,7 +446,6 @@ class MatchView(APIView):
     def get(self, request, pk):
         match = Match.objects.get(pk=pk)
         serializer = MatchSerializer(match)
-        print(serializer.data)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, pk):
@@ -419,9 +476,7 @@ class MatchResultsView(APIView):
         user = request.user
         if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.judge_permissions')]):
             if user.has_perm('user.commander_permissions'):
-                print(request.data)
                 team_matches = request.data.get('team_results', [])
-                print(team_matches)
                 user_team_name = user.team.name if user.team else None
                 team_found = any(match['team_name'] == user_team_name for match in team_matches)
                 if not team_found:
@@ -442,7 +497,6 @@ class MatchResultsView(APIView):
             match.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
-            print(serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def patch(self, request, pk):
@@ -463,7 +517,6 @@ class MatchResultsView(APIView):
             serializer.save(match=match)
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
-            print(serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -475,6 +528,19 @@ class CalcTestView(APIView):
         match_result = MatchResult.objects.get(match__pk=pk)
         if not match_result.is_calced:
             match_result.calculate_rewards()
+            return Response(status=status.HTTP_200_OK)
+        else:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
+class CalcRevertView(APIView):
+    def post(self, request, pk):
+        user = request.user
+        if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.judge_permissions')]):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        match_result = MatchResult.objects.get(match__pk=pk)
+        if match_result.is_calced:
+            match_result.revert_rewards()
             return Response(status=status.HTTP_200_OK)
         else:
             return Response(status=status.HTTP_400_BAD_REQUEST)

@@ -633,3 +633,50 @@ AMX-50-90,AMX-50,T1
 AMX-50 Foch,AMX-50,T2
 AMX-50 Foch,AMX-50-90,T2
 AMX-50 Surbaisse,AMX-50,T2
+Centurion Mk.3,Cearnavon,T1
+Cearnavon,Centurion Mk.3,T1
+Centurion Mk.3,Centurion AX,P
+Centurion AX,Centurion Mk.3,T1
+M48,T54E2,P
+T54E2,M48,P
+T54E2,T54E1,P
+T54E1,T54E2,P
+T-60,BM-8-24,P
+BM-8-24,T-60,P
+T-60,T-70,T1
+T-70,T-60,T1
+T-70,T-80,T1
+T-80,T-70,T1
+T-80,SU-76D,P
+T-80,SU-57B,T2
+SU-76D,T-80,P
+SU-76D,SU-57B,T1
+SU-57B,SU-76D,P
+Chi-To,Chi-To Late,T1
+Chi-To Late,Chi-To,T1
+Chi-Ri II,Ho-Ri Prototype,P
+Ho-Ri Prototype,Chi-Ri II,P
+Ho-Ri Prototype,Ho-Ri Production,T1
+Ho-Ri Production,Ho-Ri Prototype,P
+ST-A1,ST-A2,T1
+ST-A2,Type 61,T2
+Type 61,ST-A3,T1
+ST-A3,Type 61,T1
+Type 61,ST-A2,T1
+ST-A2,ST-A1,T1
+Chi-Ha,Chi-Ha-Kai,T1
+Chi-Ha,Chi-Ha Short Gun,P
+Chi-Ha Short Gun,Chi-Ha,P
+Chi-Ha-Kai,Chi-Ha,T1
+Chi-Ha-Kai,Ho-Ni III,T1
+Ho-Ni III,Chi-Ha-Kai,T1
+Chi-Ha-Kai,Chi-He,T1
+Chi-He,Chi-Ha-Kai,T1
+Chi-He,Ho-I,T1
+Ho-I,Chi-He,T1
+Chi-He,Chi-Nu,T1
+Chi-Nu,Chi-He,T1
+Ho-I,Chi-Nu,T1
+Chi-Nu,Ho-I,T1
+Chi-Nu,Chi-Nu II,P
+Chi-Nu II,Chi-Nu,P

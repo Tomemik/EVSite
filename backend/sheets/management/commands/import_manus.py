@@ -16,6 +16,7 @@ class Command(BaseCommand):
 
             for row in reader:
                 if row:
+                    print(row)
                     manu, created = Manufacturer.objects.get_or_create(
                         name=row['Manu'],
                     )

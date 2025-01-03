@@ -25,7 +25,7 @@ class TeamAdmin(admin.ModelAdmin):
 
 
 class BoxAdmin(admin.ModelAdmin):
-    list_display = ('name', 'get_tanks', 'price', 'is_national')
+    list_display = ('name', 'tier', 'get_tanks', 'price', 'is_national')
 
     def get_tanks(self, obj):
         return ", ".join([tank.name for tank in obj.tanks.all()])

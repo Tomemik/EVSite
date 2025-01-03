@@ -124,6 +124,7 @@ const selectedMethods = ref<any[]>([]);
 const dateFilter = ref<[Date | null, Date | null] | null>(null);
 const methodOptions = [
   { title: 'Match Reward', value: 'calc_rewards' },
+  { title: 'Match Reverted', value: 'revert_rewards' },
   { title: 'Tank Bought', value: 'purchase_tank' },
   { title: 'Tank Sold', value: 'sell_tank' },
   { title: 'Tank Upgraded', value: 'upgrade_or_downgrade_tank' },
@@ -131,6 +132,7 @@ const methodOptions = [
   { title: 'Money Transfers Out', value: 'money_transfer_out' },
   { title: 'Imports Purchase', value: 'import_purchase' },
   { title: 'Box Opened', value: 'open_tank_box' },
+  { title: 'Box Purchased', value: 'purchase_box' },
 ];
 
 function filteredLogsByTeam(TeamName: string) {
@@ -187,6 +189,7 @@ const fetchLogs = async () => {
 
     const colorMapping: { [key: string]: string } = {
       'calc_rewards': '#9fc5e8',
+      'revert_rewards': '#808080',
       'purchase_tank': '#dd7e6b',
       'sell_tank': '#cc4125',
       'upgrade_or_downgrade_tank': '#a64d79',
@@ -195,18 +198,21 @@ const fetchLogs = async () => {
       'money_transfer_out': '#38761d',
       'imports_purchase': '#cccccc',
       'open_tank_box': '#46bdc6',
+      'purchase_box': '#46bdc6',
     };
 
     const descMapping: { [key: string]: string } = {
       'calc_rewards': 'Match Reward',
+      'revert_rewards': 'Match Reverted',
       'purchase_tank': 'Tank Bought',
       'sell_tank': 'Tank Sold',
       'upgrade_or_downgrade_tank': 'Tank Upgraded',
       'do_direct_upgrade': 'Tank Upgraded',
       'money_transfer_in': 'Transfer In',
       'money_transfer_out': 'Transfer Out',
-      'imports_purchase': 'Imports Purchase',
+      'imports_purchase': 'Imports',
       'open_tank_box': 'Box Opened',
+      'purchase_box': 'Box Purchased',
     };
 
 
@@ -240,7 +246,7 @@ const fetchLogs = async () => {
         description: descMapping[log.method_name],
         full_details: log.description.replace(/\n/g, '<br>'),
         color: colorMapping[log.method_name] || '#FFFFFF',
-        date: new Date(log.timestamp).toLocaleDateString(),
+        date: new Date(log.timestamp).toLocaleString(),
       } as Log;
     });
 

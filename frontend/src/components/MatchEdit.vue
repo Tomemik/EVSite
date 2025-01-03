@@ -247,23 +247,25 @@ const getTeamTanks = (side, index) => {
   return [];
 };
 
-const getTeamTanksByName = (name) => {
-  const team = props.allTeamDetails.find(t => t.name === name);
-
-  if (team) {
-    return team.tanks.map(tank => ({
-      id: tank.id,
-      name: tank.tank.name,
-    }));
-  }
-
-  return [];
-};
-
 const getTankNameById = (teamName, tankId) => {
   const tanks = getTeamTanksByName(teamName);
   const tank = tanks.find(t => t.id === tankId);
   return tank ? tank.name : '';
+};
+
+const getTeamTanksByName = (name) => {
+  const team = props.allTeamDetails.find(t => t.name === name);
+
+  if (team) {
+    console.log(team.tanks)
+    return team.tanks.map(tank => ({
+      id: tank.id,
+      name: tank.tank.name,
+      battle_rating: tank.tank.battle_rating // Ensure battle_rating exists in the tank object
+    }));
+  }
+
+  return [];
 };
 
 const getTeamId = (teamName) => {
@@ -281,8 +283,7 @@ const removeTeam = (side, index) => {
 };
 
 const saveChanges = () => {
-   console.log(editForm.value.teammatch_set);
-   const updatedMatch = {
+  const updatedMatch = {
     id: props.detailedMatch.id,
     datetime: editForm.value.datetime,
     gamemode: editForm.value.gamemode,
@@ -294,20 +295,26 @@ const saveChanges = () => {
     teammatch_set: Object.keys(editForm.value.teammatch_set).map(side => {
       return editForm.value.teammatch_set[side].map(team => ({
         team: team.team,
-        tanks: team.tanks.map(tankId => ({
-          id: tankId,
-          tank: {
-            name: getTankNameById(team.team, tankId),
-            id : tankId,
-          },
-          team: getTeamId(team.team)
-        })),
+        tanks: team.tanks
+          .map(tankId => {
+            const tankData = getTeamTanksByName(team.team).find(t => t.id === tankId);
+            return {
+              id: tankId,
+              tank: {
+                name: tankData.name,
+                id: tankId,
+                battle_rating: tankData.battle_rating
+              },
+              team: getTeamId(team.team)
+            };
+          })
+          .sort((a, b) => b.tank.battle_rating - a.tank.battle_rating),
         side: side,
       }));
-    }).flat() // Flatten the array to get a single-level array of team objects
+    }).flat()
   };
-  console.log(updatedMatch)
-  // Emit the updated match data
+
+  console.log(updatedMatch);
   emit('updateMatch', updatedMatch);
   close();
 };

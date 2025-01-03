@@ -16,6 +16,7 @@ class Command(BaseCommand):
 
             for row in reader:
                 if row['Tank Name']:
+                    print(row['Tank Name'])
                     tank, created = Tank.objects.get_or_create(
                         name=row['Tank Name'],
                         defaults={

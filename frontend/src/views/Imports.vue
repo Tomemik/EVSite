@@ -135,6 +135,7 @@ const csrfToken = $cookies.get('csrftoken');
 
 interface Tank {
   id: number;
+  name: string;
   tank_name: string;
   discount: number;
   available_from: string;
@@ -283,7 +284,6 @@ const purchaseTank = async (tank: Tank) => {
       throw new Error("Failed to purchase the tank.");
     }
 
-    // Optionally update the tank's status locally
     tank.is_purchased = true;
     team.value.balance -= calculatePrice(tank);
     alert(`Successfully purchased ${tank.tank_name}!`);

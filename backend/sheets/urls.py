@@ -20,6 +20,7 @@ urlpatterns = [
     path('matches/<int:pk>/', views.MatchView.as_view(), name='match-details'),
     path('matches/<int:pk>/results/', views.MatchResultsView.as_view(), name='match-results'),
     path('matches/<int:pk>/calc/', views.CalcTestView.as_view(), name='match-calc'),
+    path('matches/<int:pk>/revert/', views.CalcRevertView.as_view(), name='match-calc-revert'),
     path("transactions/buy_tanks/", views.PurchaseTankView.as_view(), name='buy-tanks'),
     path("transactions/sell_tanks/", views.SellTankView.as_view(), name='sell-tanks'),
     path("transactions/view_upgrades/", views.AllUpgradesView.as_view(), name='upgrade-all'),
@@ -30,4 +31,7 @@ urlpatterns = [
     path("transactions/merge_split_kit/", views.MergeSplitKitView.as_view(), name='merge-split-kit'),
     path("transactions/transfer/", views.TransferMoneyView.as_view(), name='transfer'),
     path("transactions/buy_imports/", views.PurchaseImportTankView.as_view(), name='buy-imports'),
+    path("transactions/buy_box/", views.PurchaseBoxView.as_view(), name='buy-box'),
+    path("transactions/buy_open_box/", views.PurchaseAndOpenBoxView.as_view(), name='buy-open-box'),
+    path("transactions/open_box/", views.OpenBoxView.as_view(), name='open-box'),
 ]

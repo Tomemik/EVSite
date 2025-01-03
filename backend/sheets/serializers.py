@@ -22,17 +22,16 @@ class TankBoxSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TankBox
-        fields = ['id', 'name', 'price', 'tanks']
+        fields = ['id', 'is_national', 'name', 'tier', 'price', 'tanks']
 
 
 class TeamBoxSerializer(serializers.ModelSerializer):
     box_id = serializers.CharField(source='box.id', read_only=True)
     box_name = serializers.CharField(source='box.name', read_only=True)
-    amount = serializers.IntegerField()
 
     class Meta:
         model = TeamBox
-        fields = ['box_id', 'box_name', 'amount']
+        fields = ['id', 'box_id', 'box_name']
 
 
 class TankBoxCreateSerializer(serializers.ModelSerializer):
@@ -99,7 +98,7 @@ class UpgradePathSerializer(serializers.ModelSerializer):
 
 
 class TeamTankSerializer(serializers.ModelSerializer):
-    tank = TankSerializerSlim()
+    tank = TankSerializer()
     available = serializers.SerializerMethodField()
 
     class Meta:
@@ -111,7 +110,7 @@ class TeamTankSerializer(serializers.ModelSerializer):
 
         non_trad_tanks = team_tanks.filter(is_trad=False)
         highest_non_trad_rank = non_trad_tanks.aggregate(max_rank=Max('tank__rank', default=0))['max_rank']
-        if highest_non_trad_rank is not None and obj.tank.rank <= highest_non_trad_rank:
+        if highest_non_trad_rank is not None and obj.tank.rank <= (highest_non_trad_rank + 1):
             return True
         return False
 
@@ -341,7 +340,6 @@ class MatchResultSerializer(serializers.ModelSerializer):
         depth = 1
 
     def create(self, validated_data):
-        print(validated_data)
         match_data = validated_data.pop('match')
         match = Match.objects.get(id=match_data.id)
         judge_data = validated_data.pop('judge')

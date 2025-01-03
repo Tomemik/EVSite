@@ -10,6 +10,7 @@ import Login from '../views/Login.vue';
 import Log from "../views/Log.vue";
 import Register from "../views/Register.vue";
 import Imports from "../views/Imports.vue";
+import Boxes from "../views/Boxes.vue";
 
 const routes = [
     { path: '/home', name: 'Home', component: Home },
@@ -22,7 +23,8 @@ const routes = [
     { path: '/manufacturers', name: 'manufacturers', component: Manufacturers },
     { path: '/log', name: 'log', component: Log },
     { path: '/register', name: 'register', component: Register },
-    { path: '/imports', name: 'imports', component: Imports}
+    { path: '/imports', name: 'imports', component: Imports},
+    { path: '/boxes', name: 'boxes', component: Boxes},
 ];
 
 const router = createRouter({

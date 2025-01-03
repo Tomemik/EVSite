@@ -159,8 +159,17 @@
       </v-card-text>
 
       <v-card-actions>
+        <v-btn color="info" @click="copyResults">Copy Results</v-btn>
         <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" :disabled="calcOverride" color="success" @click="calcMatch">Calc</v-btn>
         <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" color="success" @click="submitResults">Submit</v-btn>
+        <v-btn
+          v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))"
+          :disabled="!calcOverride"
+          color="warning"
+          @click="revertCalc"
+        >
+    Revert Calc
+  </v-btn>
         <v-btn color="error" @click="close">Close</v-btn>
       </v-card-actions>
     </v-card>
@@ -174,13 +183,19 @@ import {getAuthToken} from "../config/api/user.ts";
 
 const userStore = useUserStore()
 const props = defineProps(['detailedMatch', 'showResultsDialog', 'allTeamDetails', 'results', 'calcOverride']);
-const emit = defineEmits(['update:showResultsDialog', 'postResults', 'calcMatch']);
+const emit = defineEmits(['update:showResultsDialog', 'postResults', 'calcMatch', 'revertCalc']);
 
 const localShowResultsDialog = ref(props.showResultsDialog);
 const allTeamNames = ref([]);
+const calcOverride = ref()
 
 watch(() => props.showResultsDialog, (newValue) => {
   localShowResultsDialog.value = newValue;
+});
+
+watch(() => props.calcOverride, (newValue) => {
+  calcOverride.value = newValue;
+  console.log('calcOverride updated:', newValue);
 });
 
 const updateShowResultsDialog = (value) => {
@@ -199,17 +214,21 @@ watch(() => props.allTeamDetails, (newValue) => {
   }
 });
 
-watch(() => props.calcOverride, (newValue) => {
-  if (newValue) {
-    console.log(newValue)
-  }
-});
 
 const judgeName = ref('');
 const winningSide = ref('');
 const teamResults = ref({});
 const tanksLost = ref({});
 const substitutes = ref({});
+const resultData = ref()
+
+const revertCalc = async () => {
+  try {
+    await emit('revertCalc', props.detailedMatch.id);
+  } catch (error) {
+    console.error('Error reverting calculation:', error);
+  }
+};
 
 watch(() => props.detailedMatch, (newMatch) => {
   if (newMatch) {
@@ -253,7 +272,7 @@ watch(() => props.results, (newResults) => {
     substitutes.value[side] = props.detailedMatch.sides[side].map((team) => {
       return (
         props.results?.substitutes?.filter(
-          (sub) => sub.team_played_for_name === team.team
+          (sub) => sub.team_played_for === team.team
         ) || []
       );
     });
@@ -261,6 +280,7 @@ watch(() => props.results, (newResults) => {
 
   winningSide.value = props.results?.winning_side || '';
   judgeName.value = props.results?.judge || '';
+  console.log(newResults)
 });
 
 const addSubstitute = (side, teamIndex) => {
@@ -280,7 +300,7 @@ const removeSubstitute = (side, teamIndex, subIndex) => {
 };
 
 const submitResults = () => {
-  const resultData = {
+  resultData.value = {
     match_id: props.detailedMatch.id,
     winning_side: winningSide.value,
     judge_name: judgeName.value,
@@ -304,9 +324,9 @@ const submitResults = () => {
       substitutes.value[side].flatMap((substituteList, teamIndex) =>
         substituteList.map(substitute => ({
           team_name: substitute.team,
-          team_played_for_name: substitute.team_played_for.name,
+          team_played_for_name: substitute.team_played_for.name || substitute.team_played_for,
           team: { name: substitute.team },
-          team_played_for: { name: substitute.team_played_for.name },
+          team_played_for: { name: substitute.team_played_for.name || substitute.team_played_for },
           side: substitute.side,
           activity: substitute.activity,
         }))
@@ -314,12 +334,186 @@ const submitResults = () => {
     ),
   };
 
-  emit('postResults', resultData);
+  emit('postResults', resultData.value);
 };
 
-const calcMatch = () => {
-  emit('calcMatch', props.detailedMatch.id);
+const prepResults = () => {
+    resultData.value = {
+    match_id: props.detailedMatch.id,
+    winning_side: winningSide.value,
+    judge_name: judgeName.value,
+    team_results: Object.keys(teamResults.value).flatMap((side) =>
+      teamResults.value[side].map((result, index) => ({
+        team_name: props.detailedMatch.sides[side][index].team,
+        bonuses: result.bonuses,
+        penalties: result.penalties,
+        side: props.detailedMatch.sides[side][index].side,
+      }))
+    ),
+    tanks_lost: Object.keys(tanksLost.value).flatMap((side) =>
+      tanksLost.value[side].flatMap((teamTanks, teamIndex) =>
+        teamTanks.filter(tank => tank.used).map((tank, tankIndex) => ({
+          team_name: props.detailedMatch.sides[side][teamIndex].team,
+          tank_name: props.detailedMatch.sides[side][teamIndex].tanks[tankIndex].tank.name,
+          quantity: tank.quantity,
+        }))
+      )
+    ),
+    substitutes: Object.keys(substitutes.value).flatMap((side) =>
+      substitutes.value[side].flatMap((substituteList, teamIndex) =>
+        substituteList.map(substitute => ({
+          team_name: substitute.team,
+          team_played_for_name: substitute.team_played_for.name || substitute.team_played_for,
+          team: { name: substitute.team },
+          team_played_for: { name: substitute.team_played_for.name || substitute.team_played_for },
+          side: substitute.side,
+          activity: substitute.activity,
+        }))
+      )
+    ),
+  };
 }
+
+const gamemodeOptions = [
+  { value: 'annihilation', title: 'Annihilation' },
+  { value: 'domination', title: 'Domination' },
+  { value: 'flag_tank', title: 'Flag Tank' }
+];
+
+const bestOfOptions = [
+  { value: '3', title: 'Best of 3' },
+  { value: '5', title: 'Best of 5' },
+];
+
+const modeOptions = [
+  { value: 'traditional', title: 'Traditional' },
+  { value: 'advanced', title: 'Advanced' },
+  { value: 'evolved', title: 'Evolved' }
+];
+
+const moneyRulesOptions = [
+  { value: 'money_rule', title: 'Money Rule' },
+  { value: 'even_split', title: 'Even Split' },
+  { value: 'none', title: 'None' }
+];
+
+const activityOptions = [
+  { value: '1', title: 'Low' },
+  { value: '2', title: 'Medium' },
+  { value: '3', title: 'High' }
+];
+
+const getTitleByValue = (options, value) => {
+  const option = options.find(opt => opt.value === value);
+  return option ? option.title : value;
+};
+
+
+const copyResults = () => {
+  prepResults()
+  const match = resultData.value;
+  console.log(match)
+
+  const formatTeamDetails = (teams, tanksLost, substitutes, side) => {
+    console.log(substitutes)
+    return teams
+      .filter(team => team.side === side)
+      .map((team) => {
+        const teamTanksLost = tanksLost
+          .filter(tank => tank.team_name === team.team_name)
+          .map(tank => `x${tank.quantity} - ${tank.tank_name}`)
+          .join('\n');
+
+        const teamSubstitutes = substitutes
+          .filter(sub => sub.team_played_for.name === team.team_name)
+          .map(sub => `- ${sub.team.name} (${getTitleByValue(activityOptions, String(sub.activity))})`)
+          .join('\n');
+
+        return `
+**${team.team_name}**
+Bonuses: ${team.bonuses}
+Penalties: ${team.penalties}
+Substitutes:
+${teamSubstitutes || 'None'}
+
+Tanks Lost:
+${teamTanksLost || 'None'}
+        `;
+      })
+      .join('\n');
+  };
+
+  const matchResults = `
+${formatDateTimeForCopy(props.detailedMatch.datetime)}
+${getTitleByValue(modeOptions, props.detailedMatch.mode)}, ${getTitleByValue(gamemodeOptions, props.detailedMatch.gamemode)}, Bo${props.detailedMatch.best_of_number}, ${props.detailedMatch.map_selection}
+${getTitleByValue(moneyRulesOptions, props.detailedMatch.money_rules)}
+${props.detailedMatch.special_rules || 'None'}
+
+Judge: ${judgeName.value || 'N/A'}
+
+${formatTeamDetails(match.team_results, match.tanks_lost, match.substitutes, 'team_1')}
+
+--- vs. ---
+
+${formatTeamDetails(match.team_results, match.tanks_lost, match.substitutes, 'team_2')}
+  `;
+
+  navigator.clipboard.writeText(matchResults.trim()).then(() => {
+    alert('Match results copied to clipboard!');
+  }).catch(err => {
+    console.error('Failed to copy match results:', err);
+  });
+};
+
+const calculateBonuses = () => {
+  return teamResults.value.team_1.reduce((sum, team) => sum + team.bonuses, 0) +
+         teamResults.value.team_2.reduce((sum, team) => sum + team.bonuses, 0);
+};
+
+const calculatePenalties = () => {
+  return teamResults.value.team_1.reduce((sum, team) => sum + team.penalties, 0) +
+         teamResults.value.team_2.reduce((sum, team) => sum + team.penalties, 0);
+};
+
+const formatSubstitutes = (substitutes) => {
+  if (!substitutes || substitutes.length === 0) return 'None';
+  return substitutes
+    .map(sub => `${sub.team_name} (${sub.activity})`)
+    .join(', ');
+};
+
+const formatDateTimeForCopy = (datetime) => {
+  const date = new Date(datetime);
+
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayName = days[date.getUTCDay()];
+
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const monthName = months[date.getUTCMonth()];
+
+  const day = date.getUTCDate();
+  const ordinal = (n) => {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return s[(v - 20) % 10] || s[v] || s[0];
+  };
+  const dayWithOrdinal = `${day}${ordinal(day)}`;
+
+  const year = date.getUTCFullYear();
+
+  const hours = String(date.getUTCHours()).padStart(2, '0');
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+
+  return `${dayName}, ${monthName} ${dayWithOrdinal}, ${year} - ${hours}:${minutes} UTC`;
+};
+
+const calcMatch = async () => {
+  try {
+    await emit('calcMatch', props.detailedMatch.id);
+  } catch (error) {
+    console.error('Error calculating match:', error);
+  }
+};
 
 </script>
 

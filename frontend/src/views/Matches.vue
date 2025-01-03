@@ -89,6 +89,7 @@
       @postResults="postResults"
       @calcMatch="calcMatch"
       :calcOverride="calcOverride"
+      @revertCalc="handleRevertCalc"
     />
 
     <MatchEdit
@@ -257,8 +258,18 @@ const fetchMatchDetails = async (match) => {
       money_rules: data.money_rules,
       special_rules: data.special_rules,
       sides: {
-        team_1: data.teammatch_set.filter(team => team.side === 'team_1'),
-        team_2: data.teammatch_set.filter(team => team.side === 'team_2')
+        team_1: data.teammatch_set
+          .filter(team => team.side === 'team_1')
+          .map(team => ({
+            ...team,
+            tanks: team.tanks.sort((a, b) => b.tank.battle_rating - a.tank.battle_rating)
+          })),
+        team_2: data.teammatch_set
+          .filter(team => team.side === 'team_2')
+          .map(team => ({
+            ...team,
+            tanks: team.tanks.sort((a, b) => b.tank.battle_rating - a.tank.battle_rating)
+          }))
       },
       start: new Date(data.datetime),
       end: new Date(new Date(data.datetime).getTime() + 60 * 60 * 1000)
@@ -330,6 +341,7 @@ const postResults = async (resultData) => {
   }
 }
 
+
 const fetchResults = async (resultData) => {
   try {
     const response = await fetch('/api/league/matches/' + resultData.value.id + '/results/', {
@@ -346,7 +358,6 @@ const fetchResults = async (resultData) => {
     }
     const data =  await response.json();
     calcOverride.value = data.is_calced
-    console.log(calcOverride.value)
     return data;
   } catch (error) {
     return null;
@@ -370,6 +381,25 @@ const calcMatch = async (id) => {
       calcOverride.value = false
   } catch (error) {
     console.error('Match is already calced', error);
+  }
+}
+
+const handleRevertCalc = async (id) => {
+  try {
+    const response = await fetch('/api/league/matches/' + id + '/revert/', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'Content-Type': 'application/json',
+          'Authorization': getAuthToken(),
+        },
+      });
+      if (!response.ok) throw new Error('Failed to update match details');
+      successMsg.value = 'Match successfully calculated. Check out the log to see the results.'
+      showSuccessDialog.value = true
+      calcOverride.value = true
+  } catch (error) {
+    console.error('Match is not calced', error);
   }
 }
 

@@ -27,14 +27,16 @@ class TeamLogFilter(filters.FilterSet):
         field_name="method_name",
         lookup_expr="iexact",
         choices=[
-            ('calc_rewards', 'Calc Rewards'),
-            ('purchase_tank', 'Purchase Tank'),
-            ('sell_tank', 'Sell Tank'),
-            ('upgrade_or_downgrade_tank', 'Upgrade or Downgrade Tank'),
-            ('import_purchase', 'Import Purchase'),
-            ('money_transfer_in', 'Money Transfer In'),
-            ('money_transfer_out', 'Money Transfer Out'),
+            ('calc_rewards', 'Match Reward'),
+            ('revert_rewards', 'Match Reverted'),
+            ('purchase_tank', 'Tank Bought'),
+            ('sell_tank', 'Tank Sold'),
+            ('upgrade_or_downgrade_tank', 'Tank Upgraded'),
+            ('money_transfer_in', 'Money Transfers In'),
+            ('money_transfer_out', 'Money Transfers Out'),
+            ('import_purchase', 'Imports Purchase'),
             ('open_tank_box', 'Box Opened'),
+            ('purchase_box', 'Box Purchased'),
         ],
     )
     from_date = filters.DateTimeFilter(field_name="timestamp", lookup_expr="gte")
