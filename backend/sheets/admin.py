@@ -10,7 +10,7 @@ class ManufacturerAdmin(admin.ModelAdmin):
 
 
 class TeamAdmin(admin.ModelAdmin):
-    list_display = ('name', 'balance')
+    list_display = ('name', 'balance', 'score', 'total_money_earned', 'total_money_spent')
     search_fields = ('name',)
 
     def save_model(self, request, obj, form, change):

@@ -14,6 +14,25 @@ import copy
 from collections import Counter
 
 
+ROUND_POINTS = {
+    "1:0": 4,
+    "0:0": 3,
+    "0:1": 2,
+    "2:0": 7,
+    "2:1": 6,
+    "1:1": 5,
+    "1:2": 4,
+    "0:2": 3,
+    "3:0": 10,
+    "3:1": 9,
+    "3:2": 8,
+    "2:2": 7,
+    "2:3": 6,
+    "1:3": 5,
+    "0:3": 4
+}
+
+
 def log_team_changes(method=None, custom_method_name=None):
     if method is None:
         return lambda method: log_team_changes(method, custom_method_name)
@@ -154,6 +173,9 @@ class Team(models.Model):
     tanks = models.ManyToManyField('Tank', through='TeamTank', related_name='teams')
     upgrade_kits = models.JSONField(default=default_upgrade_kits)
     tank_boxes = models.ManyToManyField('TankBox', through='TeamBox', related_name='teams')
+    score = models.IntegerField(default=0)
+    total_money_earned = models.IntegerField(default=0)
+    total_money_spent = models.IntegerField(default=0)
 
     def __str__(self):
         return self.name
@@ -220,6 +242,7 @@ class Team(models.Model):
 
         from_team.balance -= amount
         to_team.balance += taxxed_amount
+        from_team.total_money_spent += amount
 
         from_team.save()
         to_team.save()
@@ -259,6 +282,7 @@ class Team(models.Model):
         if not self.manufacturers.filter(id__in=tank.manufacturers.all()).exists():
             raise ValidationError("This tank is not available from your manufacturers.")
         self.balance -= tank.price
+        self.total_money_spent += tank.price
         self.save()
         TeamTank.objects.create(team=self, tank=tank)
         return f"Tank {tank.name} purchased successfully. Remaining balance: {self.balance}"
@@ -673,6 +697,7 @@ class TankBox(models.Model):
             raise ValueError(f"Team '{team.name}' does not have enough balance to purchase '{self.name}'.")
 
         team.balance -= self.price
+        team.total_money_spent += self.price
         team.save()
 
         box = TeamBox.objects.create(team=team, box=self)
@@ -796,7 +821,7 @@ class Match(models.Model):
     was_played = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"Match on {self.datetime} - {self.mode} - {self.gamemode}"
+        return f"Match on {self.datetime} - {self.mode} - {self.gamemode} - {self.teams}"
 
 
 class TeamMatch(models.Model):
@@ -819,6 +844,7 @@ class MatchResult(models.Model):
     winning_side = models.CharField(max_length=10, choices=TeamMatch.SIDE_CHOICES)
     judge = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='judged_matches')
     is_calced = models.BooleanField(default=False)
+    round_score = models.CharField(max_length=5, null=True, blank=True, help_text="Enter the score as 'X:Y' (e.g., 2:1)")
 
     def calculate_average_rank(self):
         tanks_lost = TankLost.objects.filter(match_result__match=self.match)
@@ -1006,11 +1032,48 @@ class MatchResult(models.Model):
         if self.judge:
             team_rewards[self.judge.id] += judge_reward
 
+        winning_teams = teams_on_side[self.winning_side]
+        losing_teams = teams_on_side['team_1' if self.winning_side == 'team_2' else 'team_2']
+
+        # Calculate points for winning teams
+        for team in winning_teams:
+            points = ROUND_POINTS.get(self.round_score, 0)
+            num_rounds = sum(map(int, self.round_score.split(':')))
+            win_percentage = int(self.round_score.split(':')[0]) / num_rounds if num_rounds > 0 else 0
+            total_points = points * (1 + win_percentage)
+            team_rewards[team] += total_points
+
+        # Calculate points for losing teams (reverse the round score)
+        reversed_score = ":".join(self.round_score.split(':')[::-1])
+        for team in losing_teams:
+            points = ROUND_POINTS.get(reversed_score, 0)
+            num_rounds = sum(map(int, reversed_score.split(':')))
+            win_percentage = int(reversed_score.split(':')[0]) / num_rounds if num_rounds > 0 else 0
+            total_points = points * (1 + win_percentage)
+            team_rewards[team] += total_points
 
         for team_id, reward in team_rewards.items():
+            reversed_score = ":".join(self.round_score.split(':')[::-1])
+            if team_id in winning_teams:
+                points = ROUND_POINTS.get(self.round_score, 0)
+                num_rounds = sum(map(int, self.round_score.split(':')))
+                win_percentage = int(self.round_score.split(':')[0]) / num_rounds if num_rounds > 0 else 0
+                total_points = points * (1 + win_percentage)
+            elif team_id in losing_teams:
+                points = ROUND_POINTS.get(reversed_score, 0)
+                num_rounds = sum(map(int, self.round_score.split(':')))
+                win_percentage = int(self.round_score.split(':')[0]) / num_rounds if num_rounds > 0 else 0
+                total_points = points * (1 + win_percentage)
+            else:
+                total_points = 0
+
             team = Team.objects.get(id=team_id)
             initial_balance = team.balance
+            initial_points = team.score
+
             team.balance += reward
+            team.score += total_points
+            team.total_money_earned += reward
             kits = copy.deepcopy(team.upgrade_kits)
             if self.match.mode in ["traditional", "domination"] and team_id in TeamMatch.objects.filter(match=self.match).values_list('team_id', flat=True):
                 team.upgrade_kits['T1']['quantity'] += 1
@@ -1019,8 +1082,8 @@ class MatchResult(models.Model):
             TeamLog.objects.create(
                 team=team,
                 field_name='balance',
-                previous_value={'balance': initial_balance, 'upgrade_kits': kits},
-                new_value={'balance': team.balance, 'upgrade_kits': team.upgrade_kits},
+                previous_value={'balance': initial_balance, 'upgrade_kits': kits, 'score': initial_points},
+                new_value={'balance': team.balance, 'upgrade_kits': team.upgrade_kits, 'score': team.score},
                 description=f"Balance Changed by: {reward}\n"
                             f"Kits changed by: {compare_upgrade_kits(kits, team.upgrade_kits)}\n"
                             f"Match ID: {self.match.id}",
@@ -1043,12 +1106,16 @@ class MatchResult(models.Model):
             team = log.team
             current_balance = team.balance
             current_kits = team.upgrade_kits
+            current_score = team.score
 
             calc_difference = log.new_value['balance'] - log.previous_value['balance']
             revert_balance = current_balance - calc_difference
 
             previous_kits = log.previous_value.get('upgrade_kits', {})
             new_kits = log.new_value.get('upgrade_kits', {})
+
+            calc_score_difference = log.new_value.get('score', 0) - log.previous_value.get('score', 0)
+            revert_score = current_score - calc_score_difference
 
             kits_difference = {
                 kit: new_kits[kit]['quantity'] - previous_kits.get(kit, {}).get('quantity', 0)
@@ -1059,10 +1126,12 @@ class MatchResult(models.Model):
 
             team.balance = revert_balance
             team.upgrade_kits = current_kits
+            team.score = revert_score
+            team.total_money_earned -= calc_difference
             team.save()
 
-            log.previous_value = {'balance': 0}
-            log.new_value = {'balance': 0}
+            log.previous_value = {'balance': 0, 'score': 0}
+            log.new_value = {'balance': 0, 'score': 0}
             log.description = f"Balance Changed by: 0\n" \
                               f"\nReverted rewards calculation for Match ID: {self.match.id}."
             log.method_name = 'revert_rewards'
@@ -1165,6 +1234,7 @@ class ImportTank(models.Model):
             raise ValidationError("Insufficient balance to purchase this tank.")
 
         team.balance -= tank_price
+        team.total_money_spent += tank_price
         import_tank.is_purchased = True
         import_tank.save()
         team.save()

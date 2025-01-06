@@ -15,6 +15,14 @@
           label="Winning Side"
           required
         ></v-select>
+
+        <v-text-field
+          v-model="roundScore"
+          label="Round Score (X:Y | Winning side 1st)"
+          :rules="[roundScoreFormat]"
+          required
+        ></v-text-field>
+
         <v-divider></v-divider>
 
         <v-row>
@@ -221,6 +229,15 @@ const teamResults = ref({});
 const tanksLost = ref({});
 const substitutes = ref({});
 const resultData = ref()
+const roundScore = ref('');
+
+const roundScoreFormat = (value) => {
+  const regex = /^\d+:\d+$/;
+  if (!value) {
+    return true;
+  }
+  return regex.test(value) || 'Invalid score format. Use x:y';
+};
 
 const revertCalc = async () => {
   try {
@@ -280,7 +297,7 @@ watch(() => props.results, (newResults) => {
 
   winningSide.value = props.results?.winning_side || '';
   judgeName.value = props.results?.judge || '';
-  console.log(newResults)
+  roundScore.value = props.results?.round_score || '';
 });
 
 const addSubstitute = (side, teamIndex) => {
@@ -304,6 +321,7 @@ const submitResults = () => {
     match_id: props.detailedMatch.id,
     winning_side: winningSide.value,
     judge_name: judgeName.value,
+    round_score: roundScore.value,
     team_results: Object.keys(teamResults.value).flatMap((side) =>
       teamResults.value[side].map((result, index) => ({
         team_name: props.detailedMatch.sides[side][index].team,
@@ -342,6 +360,7 @@ const prepResults = () => {
     match_id: props.detailedMatch.id,
     winning_side: winningSide.value,
     judge_name: judgeName.value,
+    round_score: roundScore.value,
     team_results: Object.keys(teamResults.value).flatMap((side) =>
       teamResults.value[side].map((result, index) => ({
         team_name: props.detailedMatch.sides[side][index].team,
@@ -443,6 +462,11 @@ ${teamTanksLost || 'None'}
       .join('\n');
   };
 
+  const winningSideTeams = match.team_results
+    .filter(team => props.detailedMatch.sides[winningSide.value].some(sideTeam => sideTeam.team === team.team_name))
+    .map(team => team.team_name)
+    .join(' + ');
+
   const matchResults = `
 ${formatDateTimeForCopy(props.detailedMatch.datetime)}
 ${getTitleByValue(modeOptions, props.detailedMatch.mode)}, ${getTitleByValue(gamemodeOptions, props.detailedMatch.gamemode)}, Bo${props.detailedMatch.best_of_number}, ${props.detailedMatch.map_selection}
@@ -450,6 +474,8 @@ ${getTitleByValue(moneyRulesOptions, props.detailedMatch.money_rules)}
 ${props.detailedMatch.special_rules || 'None'}
 
 Judge: ${judgeName.value || 'N/A'}
+
+**${winningSideTeams} win ${roundScore.value}**
 
 ${formatTeamDetails(match.team_results, match.tanks_lost, match.substitutes, 'team_1')}
 
