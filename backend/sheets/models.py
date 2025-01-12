@@ -1035,7 +1035,6 @@ class MatchResult(models.Model):
         winning_teams = teams_on_side[self.winning_side]
         losing_teams = teams_on_side['team_1' if self.winning_side == 'team_2' else 'team_2']
 
-        # Calculate points for winning teams
         for team in winning_teams:
             points = ROUND_POINTS.get(self.round_score, 0)
             num_rounds = sum(map(int, self.round_score.split(':')))
@@ -1043,7 +1042,6 @@ class MatchResult(models.Model):
             total_points = points * (1 + win_percentage)
             team_rewards[team] += total_points
 
-        # Calculate points for losing teams (reverse the round score)
         reversed_score = ":".join(self.round_score.split(':')[::-1])
         for team in losing_teams:
             points = ROUND_POINTS.get(reversed_score, 0)

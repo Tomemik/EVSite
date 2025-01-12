@@ -332,7 +332,7 @@ class MatchResultSerializer(serializers.ModelSerializer):
     judge = serializers.SlugRelatedField(slug_field='name', read_only=True)
     match_id = serializers.IntegerField(source='match.id', write_only=True)
     match = serializers.SlugRelatedField(slug_field='id', read_only=True)
-    round_score = serializers.CharField(required=False, allow_blank=True, help_text="Enter the score as 'X:Y' (e.g., 2:1)")
+    round_score = serializers.CharField(help_text="Enter the score as 'X:Y' (e.g., 2:1)")
 
     class Meta:
         model = MatchResult

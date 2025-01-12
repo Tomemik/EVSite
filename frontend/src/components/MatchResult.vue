@@ -169,7 +169,7 @@
       <v-card-actions>
         <v-btn color="info" @click="copyResults">Copy Results</v-btn>
         <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" :disabled="calcOverride" color="success" @click="calcMatch">Calc</v-btn>
-        <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" color="success" @click="submitResults">Submit</v-btn>
+        <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" :disabled="!canSubmitResults" color="success" @click="submitResults">Submit</v-btn>
         <v-btn
           v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))"
           :disabled="!calcOverride"
@@ -185,7 +185,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import {useUserStore} from "../config/store.ts";
 import {getAuthToken} from "../config/api/user.ts";
 
@@ -238,6 +238,11 @@ const roundScoreFormat = (value) => {
   }
   return regex.test(value) || 'Invalid score format. Use x:y';
 };
+
+const canSubmitResults = computed(() => {
+  const roundScoreRegex = /^\d+:\d+$/;
+  return winningSide.value && roundScoreRegex.test(roundScore.value);
+});
 
 const revertCalc = async () => {
   try {
