@@ -1,0 +1,7 @@
+python manage.py import_tanks db_imports/tank_list_25.csv
+python manage.py import_upgrades db_imports/upgrade_data.csv
+python manage.py import_manus db_imports/manu_data.csv
+python manage.py import_teams db_imports/team_data.csv
+python manage.py import_trad db_imports/trad_tanks.csv
+python manage.py import_current db_imports/starting_tanks.csv
+python manage.py import_boxes db_imports/boxes.csv
