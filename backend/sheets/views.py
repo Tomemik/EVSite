@@ -465,6 +465,14 @@ class MatchView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+    def delete(self, request, pk):
+        user = request.user
+        if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.commander_permissions'), user.has_perm('user.judge_permissions')]):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        match = Match.objects.get(pk=pk)
+        match.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 class MatchResultsView(APIView):
     def get(self, request, pk):
         match = Match.objects.get(pk=pk)

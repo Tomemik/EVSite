@@ -93,12 +93,13 @@ const barItemsLoggedIn = ref([
 
 const drawerItems = ref([
   { title: 'Teams', path: '/teams' },
+  { title: 'Team Tanks', path: '/teamtanks'},
   { title: 'Imports', path: '/imports'},
   { title: 'Boxes', path: '/boxes' },
+  { title: 'Matches', path: '/matches' },
+  { title: 'Money Log', path: '/log'},
   { title: 'Tanks', path: '/tanks' },
   { title: 'Manufacturers', path: '/manufacturers' },
-  { title: 'Matches', path: '/matches' },
-  { title: 'Money Log', path: '/log'}
 ]);
 
 watch(

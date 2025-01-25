@@ -28,6 +28,9 @@ class TeamLogFilter(filters.FilterSet):
         lookup_expr="iexact",
         choices=[
             ('calc_rewards', 'Match Reward'),
+            ('sub_rewards', 'Sub Reward'),
+            ('judge_rewards', 'Judge Reward'),
+            ('judge_and_sub_rewards', 'Judge + Sub'),
             ('revert_rewards', 'Match Reverted'),
             ('purchase_tank', 'Tank Bought'),
             ('sell_tank', 'Tank Sold'),

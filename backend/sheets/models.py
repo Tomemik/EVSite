@@ -821,7 +821,17 @@ class Match(models.Model):
     was_played = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"Match on {self.datetime} - {self.mode} - {self.gamemode} - {self.teams}"
+        teams_by_side = {
+            'team_1': [],
+            'team_2': [],
+        }
+        team_matches = TeamMatch.objects.filter(match=self)
+        for team_match in team_matches:
+            teams_by_side[team_match.side].append(team_match.team.name)
+
+        side_1_teams = ", ".join(teams_by_side['team_1'])
+        side_2_teams = ", ".join(teams_by_side['team_2'])
+        return f"{self.datetime} - {self.mode} - {self.gamemode}\n {side_1_teams} vs {side_2_teams}"
 
 
 class TeamMatch(models.Model):
@@ -922,6 +932,9 @@ class MatchResult(models.Model):
         participating_teams = set(
             TeamMatch.objects.filter(match=self.match).values_list('team_id', flat=True)
         )
+        playing_teams = set(
+            TeamMatch.objects.filter(match=self.match).values_list('team_id', flat=True)
+        )
         participating_teams.update(substitute.team.id for substitute in self.substitutes.all())
         if self.judge:
             participating_teams.add(self.judge.id)
@@ -956,16 +969,9 @@ class MatchResult(models.Model):
         if self.match.mode in ["traditional", "flag"]:
             for team in winning_teams:
                 team_rewards[team] += winner_base_reward
-                for sub in self.substitutes.all():
-                    if sub.team_played_for.id == team:
-                        team_rewards[sub.team.id] += team_rewards[team] * (sub.activity * 0.05)
-                        team_rewards[team] -= team_rewards[team] * (sub.activity * 0.05)
+
             for team in losing_teams:
                 team_rewards[team] += loser_base_reward
-                for sub in self.substitutes.all():
-                    if sub.team_played_for.id == team:
-                        team_rewards[sub.team.id] += team_rewards[team] * (sub.activity * 0.05)
-                        team_rewards[team] -= team_rewards[team] * (sub.activity * 0.05)
         else:
             total_loss_penalty_team_1 = 0
             total_gain_reward_team_1 = 0
@@ -1001,23 +1007,66 @@ class MatchResult(models.Model):
 
             for team in winning_teams:
                 team_rewards[team] += winner_total_reward / len(winning_teams)
-                for sub in self.substitutes.all():
-                    if sub.team_played_for.id == team:
-                        team_rewards[sub.team.id] += team_rewards[team] * (sub.activity * 0.05)
-                        team_rewards[team] -= team_rewards[team] * (sub.activity * 0.05)
             for team in losing_teams:
                 team_rewards[team] += loser_total_reward / len(losing_teams)
-                for sub in self.substitutes.all():
-                    if sub.team_played_for.id == team:
-                        team_rewards[sub.team.id] += team_rewards[team] * (sub.activity * 0.05)
-                        team_rewards[team] -= team_rewards[team] * (sub.activity * 0.05)
 
         for team_result in self.team_results.all():
             team_id = team_result.team.id
             if team_result.bonuses:
                 team_rewards[team_id] += 10000 * team_result.bonuses
+
+        if self.match.money_rules == "money_rule":
+            for team_id in playing_teams:
+                reward = team_rewards.get(team_id, 0)
+
+                # Handle deficits (negative rewards)
+                if reward < 0:
+                    deficit = abs(reward)
+                    team_rewards[team_id] = 0  # Reset the team reward to 0
+
+                    # Deduct the deficit from the winning side
+                    winning_side_teams = teams_on_side[self.winning_side]
+                    if winning_side_teams:
+                        per_team_deduction = deficit / len(winning_side_teams)
+
+                        for winner_id in winning_side_teams:
+                            team_rewards[winner_id] -= per_team_deduction
+
+                            # Handle cascading deficits if the winner's reward goes negative
+                            if team_rewards[winner_id] < 0:
+                                deficit += abs(team_rewards[winner_id])
+                                team_rewards[winner_id] = 0  # Reset to 0 if negative
+
+                                # Recalculate deduction per team (excluding fully depleted teams)
+                                remaining_winners = [
+                                    t for t in winning_side_teams if team_rewards[t] > 0
+                                ]
+                                if remaining_winners:
+                                    per_team_deduction = deficit / len(remaining_winners)
+
+        if self.match.money_rules == "even_split":
+            total_rewards = sum(team_rewards[team_id] for team_id in playing_teams)
+            num_teams = len(playing_teams)
+            if num_teams > 0:
+                equal_reward = total_rewards / num_teams
+                for team_id in playing_teams:
+                    team_rewards[team_id] = equal_reward
+
+        for team_result in self.team_results.all():
+            team_id = team_result.team.id
             if team_result.penalties:
                 team_rewards[team_id] -= 10000 * average_rank * team_result.penalties
+
+        for team in winning_teams:
+            for sub in self.substitutes.all():
+                if sub.team_played_for.id == team:
+                    team_rewards[sub.team.id] += team_rewards[team] * (sub.activity * 0.05) if team_rewards[team] > 0 else 0
+                    team_rewards[team] -= team_rewards[team] * (sub.activity * 0.05) if team_rewards[team] > 0 else 0
+        for team in losing_teams:
+            for sub in self.substitutes.all():
+                if sub.team_played_for.id == team:
+                    team_rewards[sub.team.id] += team_rewards[team] * (sub.activity * 0.05) if team_rewards[team] > 0 else 0
+                    team_rewards[team] -= team_rewards[team] * (sub.activity * 0.05) if team_rewards[team] > 0 else 0
 
         combined_rewards = winner_base_reward + loser_base_reward
         if self.tanks_lost.all().count() >= 12:
@@ -1050,6 +1099,11 @@ class MatchResult(models.Model):
             total_points = points * (1 + win_percentage)
             team_rewards[team] += total_points
 
+        a = TeamLog.objects.filter(
+            Q(description__contains=f'Reverted rewards calculation for Match ID: {self.match.id}')
+        ).delete()
+
+
         for team_id, reward in team_rewards.items():
             reversed_score = ":".join(self.round_score.split(':')[::-1])
             if team_id in winning_teams:
@@ -1077,16 +1131,39 @@ class MatchResult(models.Model):
                 team.upgrade_kits['T1']['quantity'] += 1
             team.save()
 
-            TeamLog.objects.create(
-                team=team,
-                field_name='balance',
-                previous_value={'balance': initial_balance, 'upgrade_kits': kits, 'score': initial_points},
-                new_value={'balance': team.balance, 'upgrade_kits': team.upgrade_kits, 'score': team.score},
-                description=f"Balance Changed by: {reward}\n"
-                            f"Kits changed by: {compare_upgrade_kits(kits, team.upgrade_kits)}\n"
-                            f"Match ID: {self.match.id}",
-                method_name='calc_rewards',
-            )
+            if team_id in playing_teams:
+                log_method = "calc_rewards"
+            elif self.judge and team_id == self.judge.id and any(sub.team.id == team_id for sub in self.substitutes.all()):
+                log_method = "judge_and_sub_rewards"
+            elif any(sub.team.id == team_id for sub in self.substitutes.all()):
+                log_method = "sub_rewards"
+            else:
+                log_method = "judge_rewards"
+
+            if log_method == 'calc_rewards':
+                TeamLog.objects.create(
+                    team=team,
+                    field_name='balance',
+                    previous_value={'balance': initial_balance, 'upgrade_kits': kits, 'score': initial_points},
+                    new_value={'balance': team.balance, 'upgrade_kits': team.upgrade_kits, 'score': team.score},
+                    description=f"Balance Changed by: {reward}\n"
+                                f"Kits changed by: {compare_upgrade_kits(kits, team.upgrade_kits)}\n"
+                                f"Match: {self.match.__str__()}\n"
+                                f"Match ID: {self.match.id}",
+                    method_name=log_method
+                )
+            else:
+                TeamLog.objects.create(
+                    team=team,
+                    field_name='balance',
+                    previous_value={'balance': initial_balance},
+                    new_value={'balance': team.balance},
+                    description=f"Balance Changed by: {reward}\n"
+                                f"Match: {self.match.__str__()}\n"
+                                f"Match ID: {self.match.id}",
+                    method_name=log_method
+                )
+
 
         self.is_calced = True
         self.save()
@@ -1096,7 +1173,6 @@ class MatchResult(models.Model):
             raise ValueError("Rewards have not been calculated yet, cannot revert.")
 
         team_logs = TeamLog.objects.filter(
-            method_name='calc_rewards',
             description__icontains=f"Match ID: {self.match.id}"
         )
 
@@ -1179,7 +1255,7 @@ class TeamLog(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
 
     def __str__(self):
-        return f"Change in {self.field_name} for {self.team.name}"
+        return f"{self.method_name} for {self.team.name}"
 
 
 def default_expiry_date():

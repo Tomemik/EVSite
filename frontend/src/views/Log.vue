@@ -124,6 +124,9 @@ const selectedMethods = ref<any[]>([]);
 const dateFilter = ref<[Date | null, Date | null] | null>(null);
 const methodOptions = [
   { title: 'Match Reward', value: 'calc_rewards' },
+  { title: 'Sub Reward', value: 'sub_rewards'},
+  { title: 'Judge Reward', value: 'judge_rewards'},
+  { title: 'Judge + Sub', value: 'judge_and_sub_rewards'},
   { title: 'Match Reverted', value: 'revert_rewards' },
   { title: 'Tank Bought', value: 'purchase_tank' },
   { title: 'Tank Sold', value: 'sell_tank' },
@@ -170,6 +173,14 @@ const fetchTeams = async () => {
 
 const fetchLogs = async () => {
   try {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    if (!dateFilter.value || !dateFilter.value.length) {
+      dateFilter.value = [startOfMonth, endOfMonth];
+    }
+
     const params = new URLSearchParams();
     if (selectedMethods.value.length > 0) {
       selectedMethods.value.forEach(method => {
@@ -189,6 +200,9 @@ const fetchLogs = async () => {
 
     const colorMapping: { [key: string]: string } = {
       'calc_rewards': '#9fc5e8',
+      'sub_rewards': '#ffe599',
+      'judge_rewards': '#3c78d8',
+      'judge_and_sub_rewards': '#3c78d8',
       'revert_rewards': '#808080',
       'purchase_tank': '#dd7e6b',
       'sell_tank': '#cc4125',
@@ -203,6 +217,9 @@ const fetchLogs = async () => {
 
     const descMapping: { [key: string]: string } = {
       'calc_rewards': 'Match Reward',
+      'sub_rewards': 'Sub Reward',
+      'judge_rewards': 'Judge Reward',
+      'judge_and_sub_rewards': 'Judge + Sub',
       'revert_rewards': 'Match Reverted',
       'purchase_tank': 'Tank Bought',
       'sell_tank': 'Tank Sold',

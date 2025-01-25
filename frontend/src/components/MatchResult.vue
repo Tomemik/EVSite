@@ -6,6 +6,7 @@
         <v-select
           v-model="judgeName"
           :items="allTeamNames"
+          clearable
           label="Judge"
         ></v-select>
 
@@ -258,7 +259,7 @@ watch(() => props.detailedMatch, (newMatch) => {
     sides.forEach((side) => {
       teamResults.value[side] = newMatch.sides[side].map(() => ({ bonuses: 0, penalties: 0 }));
       tanksLost.value[side] = newMatch.sides[side].map((team) =>
-        team.tanks.map(() => ({ quantity: 0, notUsed: false, used: true }))
+        team.tanks.map((tank) => ({ quantity: 0, used: true, name:tank.tank.name }))
       );
       substitutes.value[side] = newMatch.sides[side].map(() => []);
     });
@@ -267,42 +268,58 @@ watch(() => props.detailedMatch, (newMatch) => {
 
 
 watch(() => props.results, (newResults) => {
-  const sides = ['team_1', 'team_2'];
-  sides.forEach((side) => {
-    teamResults.value[side] = props.detailedMatch.sides[side].map((team) => {
-      const existingResult = props.results?.team_results?.find(
-        (result) => result.team === team.team
-      ) || {};
-      return {
-        bonuses: existingResult.bonuses || 0,
-        penalties: existingResult.penalties || 0,
-      };
-    });
-    tanksLost.value[side] = props.detailedMatch.sides[side].map((team) =>
-      team.tanks.map((tank) => {
-        const lostTankData = props.results?.tanks_lost?.find(
-          (lostTank) =>
-            lostTank.team === team.team && lostTank.tank === tank.tank.name
+  if (props.results ) {
+    const sides = ['team_1', 'team_2'];
+    sides.forEach((side) => {
+      teamResults.value[side] = props.detailedMatch.sides[side].map((team) => {
+        const existingResult = props.results?.team_results?.find(
+          (result) => result.team === team.team
         ) || {};
         return {
-          quantity: lostTankData.quantity || 0,
-          notUsed: false,
-          used: true,
+          bonuses: existingResult.bonuses || 0,
+          penalties: existingResult.penalties || 0,
         };
-      })
-    );
-    substitutes.value[side] = props.detailedMatch.sides[side].map((team) => {
-      return (
-        props.results?.substitutes?.filter(
-          (sub) => sub.team_played_for === team.team
-        ) || []
-      );
+      });
+      tanksLost.value[side] = props.detailedMatch.sides[side].map((team) => {
+        return team.tanks.map((tank) => {
+          const lostTankData = props.results?.tanks_lost?.find(
+            (lostTank) => lostTank.team === team.team && lostTank.tank === tank.tank.name
+          );
+          const index = props.results?.tanks_lost?.findIndex(
+            (lostTank) => lostTank.team === team.team && lostTank.tank === tank.tank.name
+          );
+
+          props.results.tanks_lost[index] = {}
+
+          if (lostTankData) {
+            return {
+              quantity: lostTankData.quantity,
+              used: true,
+              name: tank.tank.name,
+            }
+          } else {
+            return {
+              quantity: 0,
+              used: false,
+              name: tank.tank.name
+            };
+          }
+        }).flat();
+      });
+      substitutes.value[side] = props.detailedMatch.sides[side].map((team) => {
+        return (
+          props.results?.substitutes?.filter(
+            (sub) => sub.team_played_for === team.team
+          ) || []
+        );
+      });
     });
-  });
+  }
 
   winningSide.value = props.results?.winning_side || '';
   judgeName.value = props.results?.judge || '';
   roundScore.value = props.results?.round_score || '';
+
 });
 
 const addSubstitute = (side, teamIndex) => {
@@ -325,7 +342,7 @@ const submitResults = () => {
   resultData.value = {
     match_id: props.detailedMatch.id,
     winning_side: winningSide.value,
-    judge_name: judgeName.value,
+    judge_name: judgeName.value || '',
     round_score: roundScore.value,
     team_results: Object.keys(teamResults.value).flatMap((side) =>
       teamResults.value[side].map((result, index) => ({
@@ -336,10 +353,11 @@ const submitResults = () => {
     ),
     tanks_lost: Object.keys(tanksLost.value).flatMap((side) =>
       tanksLost.value[side].flatMap((teamTanks, teamIndex) =>
-        teamTanks.filter(tank => tank.used).map((tank, tankIndex) => ({
+        teamTanks.filter(tank => tank.used === true).map((tank) => ({
           team_name: props.detailedMatch.sides[side][teamIndex].team,
-          tank_name: props.detailedMatch.sides[side][teamIndex].tanks[tankIndex].tank.name,
+          tank_name: tank.name,
           quantity: tank.quantity,
+          used: tank.used,
         }))
       )
     ),
@@ -364,7 +382,7 @@ const prepResults = () => {
     resultData.value = {
     match_id: props.detailedMatch.id,
     winning_side: winningSide.value,
-    judge_name: judgeName.value,
+    judge_name: judgeName.value || '',
     round_score: roundScore.value,
     team_results: Object.keys(teamResults.value).flatMap((side) =>
       teamResults.value[side].map((result, index) => ({
@@ -376,10 +394,11 @@ const prepResults = () => {
     ),
     tanks_lost: Object.keys(tanksLost.value).flatMap((side) =>
       tanksLost.value[side].flatMap((teamTanks, teamIndex) =>
-        teamTanks.filter(tank => tank.used).map((tank, tankIndex) => ({
+        teamTanks.filter(tank => tank.used === true).map((tank) => ({
           team_name: props.detailedMatch.sides[side][teamIndex].team,
-          tank_name: props.detailedMatch.sides[side][teamIndex].tanks[tankIndex].tank.name,
+          tank_name: tank.name,
           quantity: tank.quantity,
+          used: tank.used,
         }))
       )
     ),
@@ -444,6 +463,7 @@ const copyResults = () => {
       .filter(team => team.side === side)
       .map((team) => {
         const teamTanksLost = tanksLost
+          .filter(tank => tank.used === true)
           .filter(tank => tank.team_name === team.team_name)
           .map(tank => `x${tank.quantity} - ${tank.tank_name}`)
           .join('\n');
@@ -474,7 +494,7 @@ ${teamTanksLost || 'None'}
 
   const matchResults = `
 ${formatDateTimeForCopy(props.detailedMatch.datetime)}
-${getTitleByValue(modeOptions, props.detailedMatch.mode)}, ${getTitleByValue(gamemodeOptions, props.detailedMatch.gamemode)}, Bo${props.detailedMatch.best_of_number}, ${props.detailedMatch.map_selection}
+${getTitleByValue(gamemodeOptions, props.detailedMatch.gamemode)}, ${getTitleByValue(modeOptions, props.detailedMatch.mode)}, Bo${props.detailedMatch.best_of_number}, ${props.detailedMatch.map_selection}
 ${getTitleByValue(moneyRulesOptions, props.detailedMatch.money_rules)}
 ${props.detailedMatch.special_rules || 'None'}
 

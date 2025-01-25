@@ -11,6 +11,7 @@ import Log from "../views/Log.vue";
 import Register from "../views/Register.vue";
 import Imports from "../views/Imports.vue";
 import Boxes from "../views/Boxes.vue";
+import TeamTanks from "../views/TeamTanks.vue";
 
 const routes = [
     { path: '/home', name: 'Home', component: Home },
@@ -25,6 +26,7 @@ const routes = [
     { path: '/register', name: 'register', component: Register },
     { path: '/imports', name: 'imports', component: Imports},
     { path: '/boxes', name: 'boxes', component: Boxes},
+    { path: '/teamtanks', name: 'teamtanks', component: TeamTanks},
 ];
 
 const router = createRouter({

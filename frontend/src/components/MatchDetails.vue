@@ -49,7 +49,21 @@
         <v-btn color="success" @click="openResultView">Result</v-btn>
         <v-spacer></v-spacer>
         <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" color="primary" @click="toggleEditMode">Edit</v-btn>
+        <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" color="error" @click="confirmDelete">Delete</v-btn>
         <v-btn color="error" @click="close">Close</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+  <v-dialog v-model="showDeleteConfirmation" max-width="400px">
+    <v-card>
+      <v-card-title class="text-h6">Confirm Deletion</v-card-title>
+      <v-card-text>
+        Are you sure you want to delete this match? This action cannot be undone.
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn color="error" @click="deleteMatch">Delete</v-btn>
+        <v-btn color="primary" @click="showDeleteConfirmation = false">Cancel</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -61,9 +75,10 @@ import {useUserStore} from "../config/store.ts";
 const userStore = useUserStore()
 
 const props = defineProps(['detailedMatch', 'showDetailsDialog']);
-const emit = defineEmits(['update:showDetailsDialog', 'editMode', 'resultView']);
+const emit = defineEmits(['update:showDetailsDialog', 'deleteMatch', 'editMode', 'resultView']);
 
 const localShowDetailsDialog = ref(props.showDetailsDialog);
+const showDeleteConfirmation = ref(false);
 
 watch(() => props.showDetailsDialog, (newValue) => {
   localShowDetailsDialog.value = newValue;
@@ -71,6 +86,15 @@ watch(() => props.showDetailsDialog, (newValue) => {
 
 const updateShowDetailsDialog = (value) => {
   emit('update:showDetailsDialog', value);
+};
+
+const confirmDelete = () => {
+  showDeleteConfirmation.value = true;
+};
+
+const deleteMatch = () => {
+  emit("deleteMatch", props.detailedMatch.id);
+  showDeleteConfirmation.value = false;
 };
 
 const formatDateTime = (datetime) => {
@@ -146,14 +170,19 @@ const formatDateTimeForCopy = (datetime) => {
   return `${dayName}, ${monthName} ${dayWithOrdinal}, ${year} - ${hours}:${minutes} UTC`;
 };
 
-const getDiscordTimestamp = (datetime) => {
+const getDiscordTimestampRelative = (datetime) => {
   const unixTimestamp = Math.floor(new Date(datetime).getTime() / 1000);
   return `<t:${unixTimestamp}:R>`;
 };
 
+const getDiscordTimestampFull = (datetime) => {
+  const unixTimestamp = Math.floor(new Date(datetime).getTime() / 1000);
+  return `<t:${unixTimestamp}:f>`;
+};
+
 const copyDetails = () => {
   const matchDetails = `
-${formatDateTimeForCopy(props.detailedMatch.datetime)} - ${getDiscordTimestamp(props.detailedMatch.datetime)}
+${formatDateTimeForCopy(props.detailedMatch.datetime)} - ${getDiscordTimestampFull(props.detailedMatch.datetime)} - ${getDiscordTimestampRelative(props.detailedMatch.datetime)}
 ${getTitleByValue(gamemodeOptions, props.detailedMatch.gamemode)}, ${getTitleByValue(modeOptions, props.detailedMatch.mode)}, Bo${props.detailedMatch.best_of_number}, ${props.detailedMatch.map_selection}
 ${getTitleByValue(moneyRulesOptions, props.detailedMatch.money_rules)}
 ${props.detailedMatch.special_rules || 'None'}

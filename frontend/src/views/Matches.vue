@@ -76,6 +76,7 @@
       :detailedMatch="detailedMatch"
       :showDetailsDialog="showDetailsDialog"
       @update:showDetailsDialog="showDetailsDialog = false"
+      @deleteMatch="deleteMatch"
       @editMode="toggleEdit"
       @resultView="showResults"
     />
@@ -182,6 +183,14 @@ const openCreateMatchDialog = () => {
 
 const fetchMatches = async () => {
   try {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    if (!dateFilter.value || !dateFilter.value.length) {
+      dateFilter.value = [startOfMonth, endOfMonth];
+    }
+
     const params = new URLSearchParams();
     if (settingsStore.filterTeams.length > 0) {
       params.append('team', settingsStore.filterTeams.join(','));
@@ -229,11 +238,18 @@ const fetchMatches = async () => {
         title += ' *';  // Add '*' if UTC and local dates differ
       }
 
+      const endDate = new Date(matchDate.getTime() + 60 * 60 * 1000);
+      const nextDayMidnight = new Date(matchDate);
+      nextDayMidnight.setDate(matchDate.getDate());
+      nextDayMidnight.setHours(23, 59);
+
+      const finalEndDate = endDate > nextDayMidnight ? nextDayMidnight : endDate;
+
       return {
         id: match.id,
         title,
         start: matchDate,
-        end: new Date(matchDate.getTime() + (60 * 60 * 1000)),
+        end: finalEndDate,
       };
     });
     formattedMatches.value.sort((a, b) => a.start - b.start);
@@ -341,6 +357,25 @@ const postResults = async (resultData) => {
   }
 }
 
+const deleteMatch = async (id) => {
+  try {
+    const response = await fetch('/api/league/matches/' + id + '/', {
+        method: 'DELETE',
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'Content-Type': 'application/json',
+          'Authorization': getAuthToken(),
+        },
+      });
+      if (!response.ok) throw new Error('Failed to delete match');
+      successMsg.value = 'The Match has been deleted'
+      showDetailsDialog.value = false
+      showSuccessDialog.value = true
+      await fetchMatches()
+  } catch (error) {
+    console.error('Error deleting match:', error);
+  }
+}
 
 const fetchResults = async (resultData) => {
   try {
@@ -416,7 +451,7 @@ const fetchAllTeams = async () => {
 
     allTeamsDetails.value = await response.json();
     //@ts-ignore
-    teamNames.value = allTeamsDetails.value.map(item => item.name)
+    teamNames.value = allTeamsDetails.value.map(item => item.name).sort();
     allTeamsDetails.value.forEach(team => {
       if (team.tanks && Array.isArray(team.tanks)) {
         team.tanks.sort((a, b) => {
