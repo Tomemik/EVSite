@@ -176,6 +176,7 @@ class Team(models.Model):
     score = models.IntegerField(default=0)
     total_money_earned = models.IntegerField(default=0)
     total_money_spent = models.IntegerField(default=0)
+    discord_role_id = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
         return self.name
@@ -288,16 +289,16 @@ class Team(models.Model):
         return f"Tank {tank.name} purchased successfully. Remaining balance: {self.balance}"
 
     @log_team_changes
-    def sell_tank(self, tank):
-        try:
-            teamtank = TeamTank.objects.filter(team=self, tank=tank, is_trad=False).first()
-        except TeamTank.DoesNotExist:
-            raise ValidationError("You do not own this tank.")
+    def sell_tank(self, teamtank):
 
         teamtank.delete()
-        self.balance += tank.price * 0.6
+        if teamtank.value != 0:
+            price = teamtank.value
+        else:
+            price = Tank.objects.get(name=teamtank.tank.name)
+        self.balance += price * 0.6
         self.save()
-        return f"Tank {tank.name} sold successfully. New balance: {self.balance}"
+        return f"Tank {teamtank.tank.name} sold successfully. New balance: {self.balance}"
 
     @log_team_changes
     def add_upgrade_kit(self, tier, quantity=1):
@@ -331,12 +332,12 @@ class Team(models.Model):
         return self.upgrade_kits.get(tier, {"price": 0})["price"]
 
     @log_team_changes
-    def upgrade_or_downgrade_tank(self, from_tank, to_tank, extra_upgrade_kit_tiers=[]):
-        team_tank_entry = TeamTank.objects.filter(team=self, tank=from_tank, is_upgradable=True)
-        if not team_tank_entry:
+    def upgrade_or_downgrade_tank(self, tank, to_tank, extra_upgrade_kit_tiers=[]):
+        from_tank = tank.tank
+        if not tank.is_upgradable:
             raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
 
-        possible_upgrades = self.get_possible_upgrades(from_tank)
+        possible_upgrades = self.get_possible_upgrades(tank)
 
         upgrade_path = next((path for path in possible_upgrades if path['to_tank'] == to_tank.name), None)
 
@@ -384,12 +385,12 @@ class Team(models.Model):
         return f"Tank {from_tank.name} upgraded to {to_tank.name}. Total cost: {total_cost}. Remaining balance: {self.balance}"
 
     @log_team_changes(custom_method_name="upgrade_or_downgrade_tank")
-    def do_direct_upgrade(self, from_tank, to_tank, extra_upgrade_kit_tiers=[]):
-        team_tank_entry = TeamTank.objects.filter(team=self, tank=from_tank, is_upgradable=True)
-        if not team_tank_entry:
+    def do_direct_upgrade(self, tank, to_tank, extra_upgrade_kit_tiers=[]):
+        from_tank = tank.tank
+        if not tank.is_upgradable:
             raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
 
-        possible_upgrades = self.get_direct_upgrades(from_tank)
+        possible_upgrades = self.get_direct_upgrades(tank)
 
         upgrade_path = next((path for path in possible_upgrades if path['to_tank'] == to_tank.name), None)
 
@@ -436,17 +437,17 @@ class Team(models.Model):
 
         return f"Tank {from_tank.name} upgraded to {to_tank.name}. Total cost: {total_cost}. Remaining balance: {self.balance}"
 
-    def get_direct_upgrades(self, from_tank):
-        team_tank_entry = TeamTank.objects.filter(team=self, tank=from_tank, is_upgradable=True)
-        if not team_tank_entry:
-            raise ValidationError(f"The team does not own the tank or it is not upgradable: {from_tank.name}.")
+    def get_direct_upgrades(self, tank):
+        from_tank = tank.tank
+        if not tank.is_upgradable:
+            raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
 
         direct_upgrade_paths = UpgradePath.objects.filter(from_tank=from_tank)
         direct_upgrades = []
 
         for upgrade_path in direct_upgrade_paths:
             to_tank = upgrade_path.to_tank
-            base_cost = upgrade_path.cost
+            base_cost = max(tank.value - to_tank.price, 0)
             required_kit_tier = upgrade_path.required_kit_tier
             kit_discount = self.get_upgrade_kit_discount(required_kit_tier) if required_kit_tier else 0
 
@@ -476,9 +477,9 @@ class Team(models.Model):
 
         return direct_upgrades
 
-    def get_possible_upgrades(self, from_tank, minimize_kits=True):
-        team_tank_entry = TeamTank.objects.filter(team=self, tank=from_tank, is_upgradable=True)
-        if not team_tank_entry:
+    def get_possible_upgrades(self, tank, minimize_kits=True):
+        from_tank = tank.tank
+        if not tank.is_upgradable:
             raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
 
         best_upgrade_paths = {}
@@ -747,7 +748,7 @@ class TeamBox(models.Model):
             method_name='open_tank_box',
         )
 
-        return selected_tank
+        return selected_tank.name
 
 
 class UpgradePath(models.Model):
@@ -786,9 +787,13 @@ class TeamTank(models.Model):
     tank = models.ForeignKey(Tank, on_delete=models.CASCADE)
     is_trad = models.BooleanField(default=False)
     is_upgradable = models.BooleanField(default=True)
+    value = models.IntegerField(default=0)
+    from_auctions = models.BooleanField(default=False)
 
-    def __str__(self):
-        return self.tank.name
+    def save(self, *args, **kwargs):
+        if not self.pk and self.value == 0:
+            self.value = self.tank.price
+        super().save(*args, **kwargs)
 
 
 class Match(models.Model):
@@ -819,6 +824,9 @@ class Match(models.Model):
     special_rules = models.TextField(blank=True, null=True)
     teams = models.ManyToManyField(Team, through='TeamMatch', related_name='matches')
     was_played = models.BooleanField(default=False)
+    webhook_id_schedule = models.CharField(max_length=255, blank=True, null=True)
+    webhook_id_result = models.CharField(max_length=255, blank=True, null=True)
+    webhook_id_calc = models.CharField(max_length=255, blank=True, null=True)
 
     def __str__(self):
         teams_by_side = {
@@ -850,7 +858,7 @@ class TeamMatch(models.Model):
 
 
 class MatchResult(models.Model):
-    match = models.OneToOneField(Match, on_delete=models.SET_NULL, null=True)
+    match = models.OneToOneField(Match, on_delete=models.SET_NULL, null=True, related_name='match_result')
     winning_side = models.CharField(max_length=10, choices=TeamMatch.SIDE_CHOICES)
     judge = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='judged_matches')
     is_calced = models.BooleanField(default=False)
@@ -956,6 +964,68 @@ class MatchResult(models.Model):
             'team_2': 0,
         }
 
+        for team_result in self.team_results.all():
+            team = team_result.team
+            team_id = team.id
+            side = 'team_1' if team_id in teams_on_side['team_1'] else 'team_2'
+            other_side = 'team_2' if side == 'team_1' else 'team_1'
+
+            if not team_result.was_present:
+                if len(teams_on_side[side]) > 1:
+                    TeamLog.objects.create(
+                        team=team,
+                        field_name='balance',
+                        previous_value={'balance': team.balance},
+                        new_value={'balance': team.balance},
+                        description=f"Balance Changed by: {0}\n"
+                                    f"No Show\n"
+                                    f"Match: {self.match.__str__()}\n"
+                                    f"Match ID: {self.match.id}",
+                        method_name="calc_rewards"
+                    )
+                    participating_teams.remove(team_id)
+                    playing_teams.remove(team_id)
+                else:
+                    initial_balance = team.balance
+                    team.balance -= 20000
+
+                    TeamLog.objects.create(
+                        team=team,
+                        field_name='balance',
+                        previous_value={'balance': initial_balance},
+                        new_value={'balance': team.balance},
+                        description=f"Balance Changed by: {-20000}\n"
+                                    f"No Show\n"
+                                    f"Match: {self.match.__str__()}\n"
+                                    f"Match ID: {self.match.id}",
+                        method_name="calc_rewards"
+                    )
+                    team.save()
+
+                    for other_team in teams_on_side[other_side]:
+                        team = Team.objects.get(id=other_team)
+                        initial_balance = team.balance
+                        team.balance += 20000
+
+                        TeamLog.objects.create(
+                            team=team,
+                            field_name='balance',
+                            previous_value={'balance': initial_balance},
+                            new_value={'balance': team.balance},
+                            description=f"Balance Changed by: {20000}\n"
+                                        f"Enemy No Show\n"
+                                        f"Match: {self.match.__str__()}\n"
+                                        f"Match ID: {self.match.id}",
+                            method_name="calc_rewards"
+                        )
+                        team.save()
+
+                    self.is_calced = True
+                    self.save()
+                    return
+
+
+
         if self.winning_side == 'team_1':
             winner_base_reward -= substitutes_rewards['team_1']
             loser_base_reward -= substitutes_rewards['team_2']
@@ -1010,6 +1080,14 @@ class MatchResult(models.Model):
             for team in losing_teams:
                 team_rewards[team] += loser_total_reward / len(losing_teams)
 
+        if self.match.money_rules == "even_split":
+            total_rewards = sum(team_rewards[team_id] for team_id in playing_teams)
+            num_teams = len(playing_teams)
+            if num_teams > 0:
+                equal_reward = total_rewards / num_teams
+                for team_id in playing_teams:
+                    team_rewards[team_id] = equal_reward
+
         for team_result in self.team_results.all():
             team_id = team_result.team.id
             if team_result.bonuses:
@@ -1019,12 +1097,10 @@ class MatchResult(models.Model):
             for team_id in playing_teams:
                 reward = team_rewards.get(team_id, 0)
 
-                # Handle deficits (negative rewards)
                 if reward < 0:
                     deficit = abs(reward)
-                    team_rewards[team_id] = 0  # Reset the team reward to 0
+                    team_rewards[team_id] = 0
 
-                    # Deduct the deficit from the winning side
                     winning_side_teams = teams_on_side[self.winning_side]
                     if winning_side_teams:
                         per_team_deduction = deficit / len(winning_side_teams)
@@ -1032,25 +1108,15 @@ class MatchResult(models.Model):
                         for winner_id in winning_side_teams:
                             team_rewards[winner_id] -= per_team_deduction
 
-                            # Handle cascading deficits if the winner's reward goes negative
                             if team_rewards[winner_id] < 0:
                                 deficit += abs(team_rewards[winner_id])
-                                team_rewards[winner_id] = 0  # Reset to 0 if negative
+                                team_rewards[winner_id] = 0
 
-                                # Recalculate deduction per team (excluding fully depleted teams)
                                 remaining_winners = [
                                     t for t in winning_side_teams if team_rewards[t] > 0
                                 ]
                                 if remaining_winners:
                                     per_team_deduction = deficit / len(remaining_winners)
-
-        if self.match.money_rules == "even_split":
-            total_rewards = sum(team_rewards[team_id] for team_id in playing_teams)
-            num_teams = len(playing_teams)
-            if num_teams > 0:
-                equal_reward = total_rewards / num_teams
-                for team_id in playing_teams:
-                    team_rewards[team_id] = equal_reward
 
         for team_result in self.team_results.all():
             team_id = team_result.team.id
@@ -1164,9 +1230,55 @@ class MatchResult(models.Model):
                     method_name=log_method
                 )
 
-
         self.is_calced = True
         self.save()
+
+        rewards_summary = {
+            "winning_teams": {},
+            "losing_teams": {},
+            "substitutes": {},
+            "judge": {},
+            "total_rewards": 0,
+            "kits": {},
+        }
+
+        for team_id in playing_teams:
+            team = Team.objects.get(id=team_id)
+            team_data = {
+                "reward": int(team_rewards.get(team_id, 0)),
+                "new_balance": team.balance,
+                "new_score": team.score,
+            }
+
+            if team_id in winning_teams:
+                rewards_summary["winning_teams"][team.name] = team_data
+            else:
+                rewards_summary["losing_teams"][team.name] = team_data
+
+            if self.match.gamemode == 'domination' or self.match.mode == 'traditional':
+                if team_id in TeamMatch.objects.filter(match=self.match).values_list('team_id', flat=True):
+                    rewards_summary["kits"][team.name] = {
+                        "T1_kits_received": 1
+                    }
+
+        for sub in self.substitutes.all():
+            sub_team_name = sub.team.name
+            sub_reward = int(team_rewards.get(sub.team.id, 0))
+            if sub_team_name not in rewards_summary["substitutes"]:
+                rewards_summary["substitutes"][sub_team_name] = {"reward": 0}
+            rewards_summary["substitutes"][sub_team_name]["reward"] += sub_reward
+
+        if self.judge:
+            judge_team = self.judge
+            rewards_summary["judge"] = {
+                "name": judge_team.name,
+                "reward": int(team_rewards.get(judge_team.id, 0)),
+                "new_balance": judge_team.balance,
+            }
+
+        rewards_summary["total_rewards"] = sum(team_rewards.values())
+
+        return rewards_summary
 
     def revert_rewards(self):
         if not self.is_calced:
@@ -1220,7 +1332,7 @@ class TeamResult(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
     bonuses = models.FloatField(blank=True, null=True)
     penalties = models.FloatField(blank=True, null=True)
-
+    was_present = models.BooleanField(default=True)
 
 class TankLost(models.Model):
     match_result = models.ForeignKey(MatchResult, on_delete=models.CASCADE, related_name='tanks_lost')

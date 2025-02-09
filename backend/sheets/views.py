@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.shortcuts import render, get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
@@ -6,10 +7,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView
 from django.contrib.auth.mixins import PermissionRequiredMixin
+import requests
 
+from .discord import format_match_message, format_match_result_message, format_match_calc_message
 from .filters import TeamLogFilter, MatchFilter
 from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch, TeamLog, ImportTank, \
-    ImportCriteria, TeamBox
+    ImportCriteria, TeamBox, TeamTank
 from .serializers import TeamSerializer, ManufacturerSerializer, TankSerializer, MatchSerializer, SlimMatchSerializer, \
     MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer, \
     TeamLogSerializer, SlimTeamSerializerWithTanks, ImportTankSerializer, ImportCriteriaSerializer
@@ -136,7 +139,7 @@ class SellTankView(APIView):
         tanks = request.data.get('tanks', [])
         team = Team.objects.get(name=team_name)
         for tank in tanks:
-            tank = Tank.objects.get(name=tank['name'])
+            tank = TeamTank.objects.get(pk=tank)
             team.sell_tank(tank)
         return Response(data={'new_balance': team.balance, 'sold_tanks': [tank for tank in tanks]}, status=status.HTTP_200_OK)
 
@@ -190,7 +193,7 @@ class AllUpgradesView(APIView):
         team_name = request.headers['team']
         tank = request.headers['tank']
         team = Team.objects.get(name=team_name)
-        tank = Tank.objects.get(name=tank)
+        tank = TeamTank.objects.get(pk=tank)
 
         all_upgrades = team.get_possible_upgrades(tank)
 
@@ -202,7 +205,7 @@ class AllDirectUpgradesView(APIView):
         team_name = request.headers['team']
         tank = request.headers['tank']
         team = Team.objects.get(name=team_name)
-        tank = Tank.objects.get(name=tank)
+        tank = TeamTank.objects.get(pk=tank)
 
         all_upgrades = team.get_direct_upgrades(tank)
 
@@ -412,7 +415,10 @@ class AllMatchesView(APIView):
         serializer = MatchSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+            match = serializer.save()
+
+            self.send_discord_notification(match)
+
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         except ValidationError as e:
@@ -420,6 +426,22 @@ class AllMatchesView(APIView):
                 {"detail": e.detail},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+    def send_discord_notification(self, match):
+        webhook_url = settings.DISCORD_WEBHOOK_URL_SCHEDULE + '?wait=true'
+        if not webhook_url:
+            return
+
+        message = format_match_message(match)
+
+        try:
+            response = requests.post(webhook_url, json={"content": message})
+            response_data = response.json()
+            match.webhook_id_schedule = response_data.get("id")
+            match.save()
+
+        except Exception as e:
+            print(f"Error sending Discord webhook: {e}")
 
 
 class ArchivedAllMatchesView(APIView):
@@ -452,11 +474,16 @@ class MatchView(APIView):
         user = request.user
         if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.commander_permissions'), user.has_perm('user.judge_permissions')]):
             return Response(status=status.HTTP_403_FORBIDDEN)
+
         match = Match.objects.get(pk=pk)
         serializer = MatchSerializer(match, data=request.data, partial=True)
+
         try:
             serializer.is_valid(raise_exception=True)
             serializer.save()
+
+            self.edit_discord_notification(match)
+
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         except ValidationError as e:
@@ -469,9 +496,44 @@ class MatchView(APIView):
         user = request.user
         if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.commander_permissions'), user.has_perm('user.judge_permissions')]):
             return Response(status=status.HTTP_403_FORBIDDEN)
+
         match = Match.objects.get(pk=pk)
+
+        self.delete_discord_notification(match)
+
         match.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def edit_discord_notification(self, match):
+        webhook_url = settings.DISCORD_WEBHOOK_URL_SCHEDULE
+        if not webhook_url or not match.webhook_id_schedule:
+            return
+
+        message_url = f"{webhook_url}/messages/{match.webhook_id_schedule}"
+        message = format_match_message(match)
+
+        try:
+            response = requests.patch(message_url, json={"content": message})
+            if response.status_code not in [200, 204]:
+                print(f"Error editing Discord webhook: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"Error editing Discord webhook: {e}")
+
+    def delete_discord_notification(self, match):
+
+        webhook_url = settings.DISCORD_WEBHOOK_URL_SCHEDULE
+        if not webhook_url or not match.webhook_id_schedule:
+            return
+
+        message_url = f"{webhook_url}/messages/{match.webhook_id_schedule}"
+
+        try:
+            response = requests.delete(message_url)
+            if response.status_code not in [200, 204]:
+                print(f"Error deleting Discord webhook: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"Error deleting Discord webhook: {e}")
+
 
 class MatchResultsView(APIView):
     def get(self, request, pk):
@@ -503,6 +565,10 @@ class MatchResultsView(APIView):
             serializer.save(match=match)
             match.was_played = True
             match.save()
+            if match.webhook_id_result:
+                self.edit_discord_notification(match)
+            else:
+                self.send_discord_notification(match)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -523,28 +589,100 @@ class MatchResultsView(APIView):
         serializer = MatchResultSerializer(match, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save(match=match)
+            self.edit_discord_notification(match)
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+    def send_discord_notification(self, match):
+        webhook_url = settings.DISCORD_WEBHOOK_URL_RESULT + '?wait=true'
+        if not webhook_url:
+            return
+
+        message = format_match_result_message(match)
+
+        try:
+            response = requests.post(webhook_url, json={"content": message})
+            response_data = response.json()
+            match.webhook_id_result = response_data.get("id")
+            match.save()
+
+        except Exception as e:
+            print(f"Error sending Discord webhook: {e}")
+
+
+    def edit_discord_notification(self, match):
+        webhook_url = settings.DISCORD_WEBHOOK_URL_RESULT
+        if not webhook_url or not match.webhook_id_result:
+            return
+
+        message_url = f"{webhook_url}/messages/{match.webhook_id_result}"
+        message = format_match_result_message(match)
+
+        try:
+            response = requests.patch(message_url, json={"content": message})
+            if response.status_code not in [200, 204]:
+                print(f"Error editing Discord webhook: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"Error editing Discord webhook: {e}")
+
 class CalcTestView(APIView):
     def post(self, request, pk):
         user = request.user
-        if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.judge_permissions')]):
+        if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.judge_permissions'), user.has_perm('user.commander_permissions')]):
             return Response(status=status.HTTP_403_FORBIDDEN)
         match_result = MatchResult.objects.get(match__pk=pk)
         if not match_result.is_calced:
-            match_result.calculate_rewards()
+            rewards = match_result.calculate_rewards()
+            try:
+                if match_result.match.webhook_id_calc:
+                    self.edit_discord_notification(match_result.match, rewards)
+                else:
+                    self.send_discord_notification(match_result.match, rewards)
+            except Exception as e:
+                pass
             return Response(status=status.HTTP_200_OK)
         else:
             return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    def send_discord_notification(self, match, rewards):
+        webhook_url = settings.DISCORD_WEBHOOK_URL_CALC + '?wait=true'
+        if not webhook_url:
+            return
+
+        message = format_match_calc_message(match, rewards)
+
+        try:
+            response = requests.post(webhook_url, json={"content": message})
+            response_data = response.json()
+            match.webhook_id_calc = response_data.get("id")
+            match.save()
+
+        except Exception as e:
+            print(f"Error sending Discord webhook: {e}")
+
+
+    def edit_discord_notification(self, match, rewards):
+        webhook_url = settings.DISCORD_WEBHOOK_URL_CALC
+        if not webhook_url or not match.webhook_id_calc:
+            return
+
+        message_url = f"{webhook_url}/messages/{match.webhook_id_calc}"
+        message = format_match_calc_message(match, rewards)
+
+        try:
+            response = requests.patch(message_url, json={"content": message})
+            if response.status_code not in [200, 204]:
+                print(f"Error editing Discord webhook: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"Error editing Discord webhook: {e}")
 
 
 class CalcRevertView(APIView):
     def post(self, request, pk):
         user = request.user
-        if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.judge_permissions')]):
+        if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.judge_permissions'), user.has_perm('user.commander_permissions')]):
             return Response(status=status.HTTP_403_FORBIDDEN)
         match_result = MatchResult.objects.get(match__pk=pk)
         if match_result.is_calced:
@@ -552,7 +690,6 @@ class CalcRevertView(APIView):
             return Response(status=status.HTTP_200_OK)
         else:
             return Response(status=status.HTTP_400_BAD_REQUEST)
-
 
 class TeamLogFilteredView(ListAPIView):
     queryset = TeamLog.objects.all()

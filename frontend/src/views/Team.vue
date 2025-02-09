@@ -70,7 +70,7 @@
         item-key="name"
         dense
         class="team-table"
-        @click:row="handleKitClick"
+        @click:row="handleInventoryClick"
       >
         <template v-slot:[`item.tier`]="{ item }">
           <span>{{ item.tier || 'N/A' }}</span>
@@ -203,6 +203,26 @@
           <v-btn v-if="selectedKit?.tier !== 'T3'" color="primary" @click="submitMergeSplit('merge', selectedKit?.tier, conversionOutput)">Merge</v-btn>
           <v-btn v-if="selectedKit?.tier !== 'T1'" color="primary" @click="submitMergeSplit('split', selectedKit?.tier, splittingInput)">Split</v-btn>
           <v-btn @click="showMergeSplitDialog = false">Cancel</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="showBoxDialog" max-width="600px">
+      <v-card>
+        <v-card-title>
+          <span class="headline">
+            Open Box
+          </span>
+        </v-card-title>
+        <v-card-text>
+          <strong>{{selectedBox.name}} Tier {{selectedBox.tier}}</strong>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn color="primary" @click="openBox">
+            Open
+          </v-btn>
+
+          <v-btn @click="showBoxDialog = false">Cancel</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -427,7 +447,7 @@ export default {
         { title: 'Quantity', value: 'quantity', sortable: true }
       ],
       regularHeaders: [
-        { title: 'Name', value: 'name' , sortable: true},
+        { title: 'Name', value: 'display_name' , sortable: true},
         { title: 'Battle Rating', value: 'tier', sortable: true },
         { title: 'Quantity', value: 'quantity', sortable: true }
       ],
@@ -446,6 +466,8 @@ export default {
       userStore,
       showMergeSplitDialog: false,
       selectedKit: null,
+      selectedBox: null,
+      showBoxDialog: false,
       conversionInput: 0,
       conversionOutput: 0,
       splittingInput: 0,
@@ -480,27 +502,33 @@ export default {
       const prevKit = this.combinedItems.find(item => item.tier === prevTier);
       return prevKit ? prevKit.quantity : 0;
     },
-    regularTanks(){
+    regularTanks() {
       const tankCounts = this.team.tanks.reduce((acc, tank) => {
+        const displayName = tank.from_auctions ? `${tank.tank.name}*` : tank.tank.name;
         if (!tank.is_trad) {
-          acc[tank.tank.name] = acc[tank.tank.name] ? acc[tank.tank.name] + 1 : 1;
+          acc[displayName] = acc[displayName] ? acc[displayName] + 1 : 1;
         }
         return acc;
       }, {});
 
-
       const uniqueTanks = new Set();
 
       const reg_tanks = this.team.tanks.reduce((acc, tank) => {
-        const tankName = tank.tank.name;
-        if (!uniqueTanks.has(tankName) && !tank.is_trad) {
-          uniqueTanks.add(tankName);
+        if (tank.is_trad) return acc;
+
+        const displayName = tank.from_auctions ? `${tank.tank.name}*` : tank.tank.name;
+        const actualName = tank.tank.name;
+
+        if (!uniqueTanks.has(displayName)) {
+          uniqueTanks.add(displayName);
           acc.push({
-            name: tankName,
+            id: tank.id,
+            display_name: displayName,
+            name: actualName,
             rank: tank.tank.rank,
             tier: tank.tank.battle_rating.toFixed(1),
-            quantity: tankCounts[tankName],
-            sellPrice: tank.tank.price.toFixed(1) * 0.6,
+            quantity: tankCounts[displayName],
+            sellPrice: (tank.value !== 0 ? tank.value * 0.6 : tank.tank.price * 0.6).toFixed(1),
           });
         }
         return acc;
@@ -508,7 +536,7 @@ export default {
 
       return reg_tanks.sort((a, b) => a.tier - b.tier);
     },
-    tradTanks(){
+    tradTanks() {
       const tankCounts = this.team.tanks.reduce((acc, tank) => {
         if (tank.is_trad) {
           acc[tank.tank.name] = acc[tank.tank.name] ? acc[tank.tank.name] + 1 : 1;
@@ -538,8 +566,9 @@ export default {
     combinedItems() {
       const tankBoxes = this.team.tank_boxes.map(box => ({
         name: box.box_name,
-        tier: '',
-        quantity: box.amount
+        tier: box.box_tier,
+        quantity: 1,
+        id: box.id,
       }));
 
       const upgradeKits = Object.keys(this.team.upgrade_kits).map(key => ({
@@ -633,10 +662,10 @@ export default {
     getAllUpgrades(newVal) {
       this.selectedUpgrade = null
       if (newVal){
-        this.fetchPossibleUpgrades(this.selectedTank.item.name)
+        this.fetchPossibleUpgrades(this.selectedTank.item)
       }
       else {
-        this.fetchPossibleDirectUpgrades(this.selectedTank.item.name)
+        this.fetchPossibleDirectUpgrades(this.selectedTank.item)
       }
     }
   },
@@ -660,20 +689,20 @@ export default {
     },
     handleRowClick(event, row) {
       this.selectedTank = row;
-      this.fetchPossibleDirectUpgrades(row.item.name);
+      this.fetchPossibleDirectUpgrades(this.selectedTank.item);
       this.showTankDetailsDialog = true;
       this.kitQuantities.T1 = 0;
       this.kitQuantities.T2 = 0;
       this.kitQuantities.T3 = 0;
     },
-    async fetchPossibleUpgrades(tankName) {
+    async fetchPossibleUpgrades(tank) {
       try {
         const response = await fetch(`/api/league/transactions/view_upgrades/`, {
           method: 'GET',
           headers: {
             'X-CSRFToken': this.csrfToken,
             'team': this.team.name,
-            'tank': tankName
+            'tank': tank.id,
           }
         });
 
@@ -696,14 +725,15 @@ export default {
         console.error("Error fetching possible upgrades:", error);
       }
     },
-    async fetchPossibleDirectUpgrades(tankName) {
+    async fetchPossibleDirectUpgrades(tank) {
+      console.log(tank.id)
       try {
         const response = await fetch(`/api/league/transactions/view_upgrades/direct/`, {
           method: 'GET',
           headers: {
             'X-CSRFToken': this.csrfToken,
             'team': this.team.name,
-            'tank': tankName
+            'tank': tank.id,
           }
         });
 
@@ -729,7 +759,7 @@ export default {
     async sellTank() {
       if (!this.selectedTank) return;
 
-      const tanksToSell = [{name: this.selectedTank.item.name, quantity: 1}];
+      const tanksToSell = [this.selectedTank.item.id];
 
       try {
         const response = await fetch('/api/league/transactions/sell_tanks/', {
@@ -908,12 +938,15 @@ export default {
       const kitNumber = tierKits.reduce((total, item) => total + item.quantity, 0)
       return;
     },
-    handleKitClick(event, row) {
+    handleInventoryClick(event, row) {
       if (row.item.name === 'Upgrade Kit') {
         this.selectedKit = row.item;
         this.showMergeSplitDialog = true;
         this.conversionInput = 0;
         this.conversionOutput = 0;
+      } else {
+        this.selectedBox = row.item;
+        this.showBoxDialog = true;
       }
     },
     updateFromInput() {
@@ -1028,11 +1061,38 @@ export default {
         alert('There was an error processing your transfer.');
       }
     },
+    async openBox () {
+      try {
+        console.log(this.selectedBox);
+        const response = await fetch('/api/league/transactions/open_box/', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': this.csrfToken,
+            'Content-Type': 'application/json',
+            'Authorization': getAuthToken(),
+          },
+          body: JSON.stringify({
+            team: this.team.name,
+            box_id: this.selectedBox.id,
+          }),
+        });
+        const data = await response.json();
+        this.showBoxDialog = false
+        if (response.ok) {
+          await fetchTeamDetails();
+          alert(`Box opened: ${data}`);
+        } else {
+          alert('Failed to open box.');
+        }
+      } catch (error) {
+        console.error('Error opening box:', error);
+      }
+    },
     closeDialog() {
       this.showTransferSuccessDialog = false
       this.preTaxAmount = 0
       this.postTaxAmount = 0
-    }
+    },
   },
   created() {
     this.fetchTeamDetails();

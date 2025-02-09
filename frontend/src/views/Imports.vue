@@ -246,7 +246,6 @@ const fetchImportGroups = async () => {
 
     const data: ImportGroups = await response.json();
     importGroups.value = data;
-    console.log(importGroups.value)
   } catch (error) {
     console.error("Error fetching import results:", error);
   }

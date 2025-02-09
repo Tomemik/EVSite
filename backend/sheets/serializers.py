@@ -27,11 +27,12 @@ class TankBoxSerializer(serializers.ModelSerializer):
 
 class TeamBoxSerializer(serializers.ModelSerializer):
     box_id = serializers.CharField(source='box.id', read_only=True)
+    box_tier = serializers.IntegerField(source='box.tier', read_only=True)
     box_name = serializers.CharField(source='box.name', read_only=True)
 
     class Meta:
         model = TeamBox
-        fields = ['id', 'box_id', 'box_name']
+        fields = ['id', 'box_tier', 'box_id', 'box_name']
 
 
 class TankBoxCreateSerializer(serializers.ModelSerializer):
@@ -103,7 +104,7 @@ class TeamTankSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TeamTank
-        fields = ['id', 'tank', 'team', 'is_trad', 'available']
+        fields = ['id', 'tank', 'team', 'is_trad', 'available', 'from_auctions', 'value']
 
     def get_available(self, obj):
         team_tanks = TeamTank.objects.filter(team=obj.team)
@@ -299,7 +300,7 @@ class TeamResultSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TeamResult
-        fields = ['team', 'team_name', 'bonuses', 'penalties']
+        fields = ['team', 'team_name', 'bonuses', 'penalties', 'was_present']
 
 
 class TankLostSerializer(serializers.ModelSerializer):
@@ -337,7 +338,7 @@ class MatchResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = MatchResult
         fields = ['match', 'match_id', 'winning_side', 'judge', 'judge_name', 'team_results', 'tanks_lost',
-                  'substitutes', 'is_calced', 'round_score']
+                  'substitutes', 'is_calced', 'round_score',]
         depth = 1
 
     def create(self, validated_data):
@@ -396,12 +397,13 @@ class TeamLogSerializer(serializers.ModelSerializer):
 
 class ImportTankSerializer(serializers.ModelSerializer):
     tank_name = serializers.CharField(source='tank.name')
+    battle_rating = serializers.FloatField(source='tank.battle_rating')
     base_discounted_price = serializers.SerializerMethodField()
     criteria_id = serializers.IntegerField(source='criteria.id', read_only=True)
 
     class Meta:
         model = ImportTank
-        fields = ['id', 'tank_name', 'discount', 'available_from', 'available_until', 'is_purchased', 'base_discounted_price', 'criteria_id']
+        fields = ['id', 'tank_name', 'battle_rating', 'discount', 'available_from', 'available_until', 'is_purchased', 'base_discounted_price', 'criteria_id']
 
     def get_base_discounted_price(self, obj):
         if not obj.tank or obj.tank.price is None:

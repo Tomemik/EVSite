@@ -29,7 +29,13 @@
         <v-row>
           <v-col>
             <div v-for="(team, teamIndex) in detailedMatch.sides.team_1" :key="team.team">
-              <p style="margin-bottom: 20px"><strong>{{ team.team }}:</strong></p>
+              <v-row align="center" style="height: 44px;">
+                <v-checkbox
+                  v-model="teamResults['team_1'][teamIndex].was_present"
+                  class="ma-0"
+                ></v-checkbox>
+                <strong style="height: 44px;">{{ team.team }}:</strong>
+              </v-row>
 
               <v-row>
                 <v-text-field
@@ -100,7 +106,13 @@
 
           <v-col class="d-flex flex-column align-end">
             <div v-for="(team, teamIndex) in detailedMatch.sides.team_2" :key="team.team">
-              <p style="margin-bottom: 20px"><strong>{{ team.team }}:</strong></p>
+              <v-row align="center" style="height: 44px;">
+                <v-checkbox
+                  v-model="teamResults['team_2'][teamIndex].was_present"
+                  class="ma-0"
+                ></v-checkbox>
+                <strong style="height: 44px;">{{ team.team }}:</strong>
+              </v-row>
 
               <v-row>
                 <v-text-field
@@ -257,7 +269,7 @@ watch(() => props.detailedMatch, (newMatch) => {
   if (newMatch) {
     const sides = ['team_1', 'team_2'];
     sides.forEach((side) => {
-      teamResults.value[side] = newMatch.sides[side].map(() => ({ bonuses: 0, penalties: 0 }));
+      teamResults.value[side] = newMatch.sides[side].map(() => ({ bonuses: 0, penalties: 0, was_present: true}));
       tanksLost.value[side] = newMatch.sides[side].map((team) =>
         team.tanks.map((tank) => ({ quantity: 0, used: true, name:tank.tank.name }))
       );
@@ -268,28 +280,30 @@ watch(() => props.detailedMatch, (newMatch) => {
 
 
 watch(() => props.results, (newResults) => {
-  if (props.results ) {
+  console.log(newResults)
+  if (newResults) {
     const sides = ['team_1', 'team_2'];
     sides.forEach((side) => {
       teamResults.value[side] = props.detailedMatch.sides[side].map((team) => {
-        const existingResult = props.results?.team_results?.find(
+        const existingResult = newResults?.team_results?.find(
           (result) => result.team === team.team
         ) || {};
         return {
           bonuses: existingResult.bonuses || 0,
           penalties: existingResult.penalties || 0,
+          was_present: existingResult.was_present,
         };
       });
       tanksLost.value[side] = props.detailedMatch.sides[side].map((team) => {
         return team.tanks.map((tank) => {
-          const lostTankData = props.results?.tanks_lost?.find(
+          const lostTankData = newResults?.tanks_lost?.find(
             (lostTank) => lostTank.team === team.team && lostTank.tank === tank.tank.name
           );
-          const index = props.results?.tanks_lost?.findIndex(
+          const index = newResults?.tanks_lost?.findIndex(
             (lostTank) => lostTank.team === team.team && lostTank.tank === tank.tank.name
           );
 
-          props.results.tanks_lost[index] = {}
+          newResults.tanks_lost[index] = {}
 
           if (lostTankData) {
             return {
@@ -308,7 +322,7 @@ watch(() => props.results, (newResults) => {
       });
       substitutes.value[side] = props.detailedMatch.sides[side].map((team) => {
         return (
-          props.results?.substitutes?.filter(
+          newResults?.substitutes?.filter(
             (sub) => sub.team_played_for === team.team
           ) || []
         );
@@ -316,6 +330,7 @@ watch(() => props.results, (newResults) => {
     });
   }
 
+  console.log(teamResults)
   winningSide.value = props.results?.winning_side || '';
   judgeName.value = props.results?.judge || '';
   roundScore.value = props.results?.round_score || '';
@@ -349,6 +364,7 @@ const submitResults = () => {
         team_name: props.detailedMatch.sides[side][index].team,
         bonuses: result.bonuses,
         penalties: result.penalties,
+        was_present: result.was_present,
       }))
     ),
     tanks_lost: Object.keys(tanksLost.value).flatMap((side) =>
@@ -390,6 +406,7 @@ const prepResults = () => {
         bonuses: result.bonuses,
         penalties: result.penalties,
         side: props.detailedMatch.sides[side][index].side,
+        was_present: result.was_present,
       }))
     ),
     tanks_lost: Object.keys(tanksLost.value).flatMap((side) =>
@@ -455,10 +472,8 @@ const getTitleByValue = (options, value) => {
 const copyResults = () => {
   prepResults()
   const match = resultData.value;
-  console.log(match)
 
   const formatTeamDetails = (teams, tanksLost, substitutes, side) => {
-    console.log(substitutes)
     return teams
       .filter(team => team.side === side)
       .map((team) => {
@@ -473,8 +488,10 @@ const copyResults = () => {
           .map(sub => `- ${sub.team.name} (${getTitleByValue(activityOptions, String(sub.activity))})`)
           .join('\n');
 
+        const attendanceNote = team.was_present ? '' : '**(No Show)**';
+
         return `
-**${team.team_name}**
+**${team.team_name}** ${attendanceNote}
 Bonuses: ${team.bonuses}
 Penalties: ${team.penalties}
 Substitutes:

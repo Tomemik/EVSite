@@ -64,7 +64,7 @@ class MatchFilter(filters.FilterSet):
             if calced_filter:
                 return queryset
             else:
-                return queryset.filter(matchresult__is_calced=False)
+                return queryset.filter(match_result__is_calced=False)
         else:
             return queryset.filter(was_played=False)
 

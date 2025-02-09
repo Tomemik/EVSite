@@ -56,7 +56,7 @@
               <tbody>
                 <tr
                   v-for="tank in school.groupedNonTraditionalTanks"
-                  :key="tank.id"
+                  :key="tank.name"
                 >
                   <td>{{ tank.name }}</td>
                   <td class="text-center">{{ (tank.battleRating).toFixed(1) }}</td>
@@ -79,7 +79,7 @@
               <tbody>
                 <tr
                   v-for="tank in school.groupedTraditionalTanks"
-                  :key="tank.id"
+                  :key="tank.name"
                 >
                   <td>{{ tank.name }}</td>
                   <td class="text-center">{{ (tank.battleRating).toFixed(1) }}</td>
@@ -133,7 +133,8 @@ interface Team {
   color: string;
   balance: number;
   tanks: Tank[];
-  groupedTanks: GroupedTank[];
+  groupedTraditionalTanks: GroupedTank[];
+  groupedNonTraditionalTanks: GroupedTank[];
 }
 
 interface GroupedTank {
@@ -144,7 +145,7 @@ interface GroupedTank {
 }
 
 const showTraditional = ref(true);
-const allTeamsDetails = ref([])
+const allTeamsDetails = ref<Team[]>([])
 const selectedSchools = ref<string[]>([]);
 const currentPage = ref(0);
 const pageSize = 4;
@@ -154,12 +155,12 @@ onMounted(async () => {
 });
 
 const groupTanksByTrad = (tanks: Tank[]): { traditional: GroupedTank[]; nonTraditional: GroupedTank[] } => {
-  const traditional = [];
-  const nonTraditional = [];
+  const traditional : GroupedTank[] = [];
+  const nonTraditional : GroupedTank[] = [];
 
   tanks.forEach((currentTank) => {
     const { name, battle_rating, type } = currentTank.tank;
-    const targetArray = currentTank.is_trad ? traditional : nonTraditional;
+    const targetArray : GroupedTank[] = currentTank.is_trad ? traditional : nonTraditional;
 
     const existingTank = targetArray.find(
       (t: GroupedTank) =>
@@ -177,6 +178,9 @@ const groupTanksByTrad = (tanks: Tank[]): { traditional: GroupedTank[]; nonTradi
       });
     }
   });
+
+  traditional.sort((a, b) => a.battleRating - b.battleRating);
+  nonTraditional.sort((a, b) => a.battleRating - b.battleRating);
 
   return { traditional, nonTraditional };
 };
