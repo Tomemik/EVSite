@@ -289,14 +289,26 @@ class Team(models.Model):
         return f"Tank {tank.name} purchased successfully. Remaining balance: {self.balance}"
 
     @log_team_changes
-    def sell_tank(self, teamtank):
+    def sell_teamtank(self, teamtank):
 
         teamtank.delete()
         if teamtank.value != 0:
             price = teamtank.value
         else:
-            price = Tank.objects.get(name=teamtank.tank.name)
+            price = Tank.objects.get(name=teamtank.tank.name).price
         self.balance += price * 0.6
+        self.save()
+        return f"Tank {teamtank.tank.name} sold successfully. New balance: {self.balance}"
+
+    @log_team_changes
+    def sell_tank(self, tank):
+        try:
+            teamtank = TeamTank.objects.filter(team=self, tank=tank, is_trad=False, from_auctions=False).first()
+        except TeamTank.DoesNotExist:
+            raise ValidationError("You do not own this tank.")
+
+        teamtank.delete()
+        self.balance += tank.price * 0.6
         self.save()
         return f"Tank {teamtank.tank.name} sold successfully. New balance: {self.balance}"
 
@@ -378,7 +390,7 @@ class Team(models.Model):
         for tier, count in required_kits.items():
             self.upgrade_kits[tier]['quantity'] -= count
 
-        self.tanks.through.objects.filter(team=self, tank=from_tank, is_upgradable=True).first().delete()
+        self.tanks.through.objects.filter(team=self, id=tank.id, is_upgradable=True).delete()
         self.tanks.through.objects.create(team=self, tank=to_tank)
         self.save()
 
@@ -431,7 +443,7 @@ class Team(models.Model):
         for tier, count in required_kits.items():
             self.upgrade_kits[tier]['quantity'] -= count
 
-        self.tanks.through.objects.filter(team=self, tank=from_tank, is_upgradable=True).first().delete()
+        self.tanks.through.objects.filter(team=self, id=tank.id, is_upgradable=True).delete()
         self.tanks.through.objects.create(team=self, tank=to_tank)
         self.save()
 
@@ -447,7 +459,10 @@ class Team(models.Model):
 
         for upgrade_path in direct_upgrade_paths:
             to_tank = upgrade_path.to_tank
-            base_cost = max(tank.value - to_tank.price, 0)
+            if tank.from_auctions:
+                base_cost = abs(tank.value - to_tank.price)
+            else:
+                base_cost = upgrade_path.cost
             required_kit_tier = upgrade_path.required_kit_tier
             kit_discount = self.get_upgrade_kit_discount(required_kit_tier) if required_kit_tier else 0
 
@@ -720,8 +735,6 @@ class TankBox(models.Model):
         }
 
 
-
-
 class TeamBox(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
     box = models.ForeignKey(TankBox, on_delete=models.CASCADE)
@@ -924,7 +937,7 @@ class MatchResult(models.Model):
                 return trad_bo3_rewards[min(int(round(average_rank) - 1), 4)]["winner"], \
                     trad_bo3_rewards[min(int(round(average_rank) - 1), 4)]["loser"]
         elif mode == "advanced" or mode == "evolved":
-            if game_mode == "flag":
+            if game_mode == "flag_tank":
                 return flag_rewards[min(int(round(average_rank)-1), 4)]["winner"], \
                     flag_rewards[min(int(round(average_rank)-1), 4)]["loser"]
             else:
@@ -1036,7 +1049,7 @@ class MatchResult(models.Model):
         winning_teams = teams_on_side[self.winning_side]
         losing_teams = teams_on_side['team_1' if self.winning_side == 'team_2' else 'team_2']
 
-        if self.match.mode in ["traditional", "flag"]:
+        if self.match.mode == "traditional" or self.match.gamemode == "flag_tank":
             for team in winning_teams:
                 team_rewards[team] += winner_base_reward
 

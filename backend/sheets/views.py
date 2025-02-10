@@ -138,9 +138,30 @@ class SellTankView(APIView):
 
         tanks = request.data.get('tanks', [])
         team = Team.objects.get(name=team_name)
+        sold = []
         for tank in tanks:
             tank = TeamTank.objects.get(pk=tank)
-            team.sell_tank(tank)
+            sold.append(Tank.objects.get(name=tank.tank.name).name)
+            team.sell_teamtank(tank)
+        return Response(data={'new_balance': team.balance, 'sold_tanks': sold}, status=status.HTTP_200_OK)
+
+class SellTanksView(APIView):
+    def post(self, request):
+        user = request.user
+        team_name = request.data['team']
+        if not (
+            user.has_perm('user.admin_permissions') or
+            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+        ):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        tanks = request.data.get('tanks', [])
+        team = Team.objects.get(name=team_name)
+        for tank in tanks:
+            for i in range(tank['quantity']):
+                print(tank)
+                tanka = Tank.objects.get(name=tank['name'])
+                team.sell_tank(tanka)
         return Response(data={'new_balance': team.balance, 'sold_tanks': [tank for tank in tanks]}, status=status.HTTP_200_OK)
 
 
@@ -228,7 +249,7 @@ class DirectUpgradeTankView(APIView):
         kits = request.data.get('kits', [])
 
         team = Team.objects.get(name=team)
-        from_tank = Tank.objects.get(name=from_tank)
+        from_tank = TeamTank.objects.get(id=from_tank)
         to_tank = Tank.objects.get(name=to_tank)
         extra_kits = []
         for key, val in kits.items():
@@ -260,7 +281,7 @@ class UpgradeTankView(APIView):
         kits = request.data.get('kits', [])
 
         team = Team.objects.get(name=team)
-        from_tank = Tank.objects.get(name=from_tank)
+        from_tank = TeamTank.objects.get(id=from_tank)
         to_tank = Tank.objects.get(name=to_tank)
         extra_kits = []
         for key, val in kits.items():

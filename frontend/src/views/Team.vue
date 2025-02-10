@@ -314,8 +314,8 @@
           <v-form ref="sellTankForm">
             <v-data-table
               :headers="sellTankHeaders"
-              :items="regularTanks"
-              item-key="name"
+              :items="filteredTanks"
+              item-key="id"
               dense
             >
               <template v-slot:[`item.quantityToSell`]="{ item }">
@@ -345,7 +345,7 @@
           <p>Tanks Sold:</p>
           <ul>
             <li v-for="(tank, index) in soldTanks" :key="index">
-              {{ tank.name }} (Quantity: {{ tank.quantity }})
+              {{ tank }}
             </li>
           </ul>
           <p>New Balance: {{ newBalance.toLocaleString() }}$</p>
@@ -458,7 +458,7 @@ export default {
         { title: 'Quantity', value: 'quantity', sortable: true },
       ],
       sellTankHeaders: [
-        { title: 'Name', value: 'name', sortable: true },
+        { title: 'Name', value: 'display_name', sortable: true },
         { title: 'Tier', value: 'tier', sortable: true },
         { title: 'Available Quantity', value: 'quantity', sortable: true },
         { title: 'Quantity to Sell', value: 'quantityToSell', sortable: true }
@@ -580,20 +580,7 @@ export default {
       return [...tankBoxes, ...upgradeKits];
     },
     filteredTanks() {
-      return this.team.tanks.reduce((acc, tank) => {
-        const tankName = tank.tank.name;
-        const foundTank = acc.find(t => t.name === tankName);
-        if (foundTank) {
-          foundTank.quantity += 1;
-        } else {
-          acc.push({
-            name: tankName,
-            tier: tank.tank.battle_rating.toFixed(1),
-            quantity: 1
-          });
-        }
-        return acc;
-      }, []);
+      return this.regularTanks.filter(tank => tank.name === tank.display_name);
     },
     maxKits() {
       const maxKits = {
@@ -762,7 +749,7 @@ export default {
       const tanksToSell = [this.selectedTank.item.id];
 
       try {
-        const response = await fetch('/api/league/transactions/sell_tanks/', {
+        const response = await fetch('/api/league/transactions/sell_tank/', {
           method: 'POST',
           headers: {
             'X-CSRFToken': this.csrfToken,
@@ -780,6 +767,7 @@ export default {
         }
 
         const responseData = await response.json();
+        console.log(responseData.sold_tanks)
         this.soldTanks = responseData.sold_tanks;
         this.newBalance = responseData.new_balance;
 
@@ -806,7 +794,7 @@ export default {
           },
           body: JSON.stringify({
             team: this.team.name,
-            from_tank: this.selectedTank.item.name,
+            from_tank: this.selectedTank.item.id,
             to_tank: upgradeDetails.to_tank,
             kits: this.kitQuantities
           })
@@ -850,7 +838,7 @@ export default {
           },
           body: JSON.stringify({
             team: this.team.name,
-            from_tank: this.selectedTank.item.name,
+            from_tank: this.selectedTank.item.id,
             to_tank: upgradeDetails.to_tank,
             kits: this.kitQuantities
           })
@@ -901,9 +889,7 @@ export default {
           name,
           quantity: this.sellQuantities[name]
         }));
-
       if (tanksToSell.length === 0) return;
-
       try {
         const response = await fetch('/api/league/transactions/sell_tanks/', {
           method: 'POST',
@@ -917,15 +903,12 @@ export default {
             tanks: tanksToSell
           })
         });
-
         if (!response.ok) {
           throw new Error('Error selling tanks');
         }
-
         const responseData = await response.json();
         this.soldTanks = responseData.sold_tanks;
         this.newBalance = responseData.new_balance;
-
         await this.fetchTeamDetails();
         this.showTankDetailsDialog = false;
         this.showSuccessDialog = true;
