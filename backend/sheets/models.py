@@ -1291,7 +1291,12 @@ class MatchResult(models.Model):
             else:
                 rewards_summary["losing_teams"][team.name] = team_data
 
-            if (self.match.gamemode == 'domination' or self.match.mode == 'traditional') and team_1_tanks >= 3 and team_2_tanks >= 3:
+            if (
+                    (self.match.mode == "traditional" or self.match.gamemode == 'domination') and
+                    team_1_tanks >= 3 and
+                    team_2_tanks >= 3 and
+                    team.trad_dom_matches_for_week(self.match.datetime) <= 2
+            ):
                 if team_id in TeamMatch.objects.filter(match=self.match).values_list('team_id', flat=True):
                     rewards_summary["kits"][team.name] = {
                         "T1_kits_received": 1
