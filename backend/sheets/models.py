@@ -759,7 +759,7 @@ class TeamBox(models.Model):
 
         selected_tank = random.choice(available_tanks)
 
-        self.team.tanks.add(selected_tank)
+        TeamTank.objects.create(team=self.team, tank=selected_tank)
         self.delete()
 
         TeamLog.objects.create(

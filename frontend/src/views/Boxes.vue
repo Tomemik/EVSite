@@ -73,7 +73,7 @@
                     color="secondary"
                     class="mx-2"
                   >
-                    Open Box
+                    Buy&Open Box
                   </v-btn>
                   <v-btn
                     v-else
@@ -81,7 +81,7 @@
                     color="secondary"
                     class="mx-2"
                   >
-                    Open Box
+                    Buy&Open Box
                   </v-btn>
                 </div>
               </v-col>

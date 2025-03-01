@@ -1046,7 +1046,6 @@ export default {
     },
     async openBox () {
       try {
-        console.log(this.selectedBox);
         const response = await fetch('/api/league/transactions/open_box/', {
           method: 'POST',
           headers: {
@@ -1061,8 +1060,9 @@ export default {
         });
         const data = await response.json();
         this.showBoxDialog = false
+        console.log(response)
         if (response.ok) {
-          await fetchTeamDetails();
+          await this.fetchTeamDetails();
           alert(`Box opened: ${data}`);
         } else {
           alert('Failed to open box.');
