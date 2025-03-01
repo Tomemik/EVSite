@@ -54,6 +54,7 @@
                     @click="purchaseBox(tier)"
                     color="primary"
                     class="mx-2"
+                    style="width: 150px"
                   >
                     Buy Box
                   </v-btn>
@@ -62,6 +63,7 @@
                     @click="purchaseBox(tier)"
                     color="primary"
                     class="mx-2"
+                    style="width: 150px"
                   >
                     Buy Box
                   </v-btn>
@@ -72,16 +74,18 @@
                     @click="openBox(tier)"
                     color="secondary"
                     class="mx-2"
+                    style="width: 150px"
                   >
-                    Buy&Open Box
+                    Buy & Open Box
                   </v-btn>
                   <v-btn
                     v-else
                     @click="openBox(tier)"
                     color="secondary"
                     class="mx-2"
+                    style="width: 150px"
                   >
-                    Buy&Open Box
+                    Buy & Open Box
                   </v-btn>
                 </div>
               </v-col>
