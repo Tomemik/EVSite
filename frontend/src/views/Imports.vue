@@ -333,11 +333,12 @@ const viewCriteria = (criteria: Criteria | null) => {
 
 const formattedDate = (dateStr: string) => {
   const date = new Date(dateStr);
-  return date.toLocaleDateString(undefined, {
+  return new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
-  });
+    timeZone: "UTC",
+  }).format(date).slice(0, 11);
 };
 
 const formattedTime = (isoString: string | undefined) => {

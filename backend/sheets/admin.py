@@ -61,7 +61,7 @@ class UpgradePathAdmin(admin.ModelAdmin):
 
 
 class TeamTankAdmin(admin.ModelAdmin):
-    list_display = ('team', 'tank', 'is_upgradable', 'is_trad')
+    list_display = ('team', 'tank', 'is_upgradable', 'is_trad', 'is_ghost')
     search_fields = ('team__name', 'tank__name')
     list_filter = ('is_upgradable',)
 

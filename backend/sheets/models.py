@@ -283,7 +283,8 @@ class Team(models.Model):
         return Match.objects.filter(
             teammatch__team=self,
             datetime__date__gte=start_of_week,
-            datetime__date__lte=end_of_week
+            datetime__date__lte=end_of_week,
+            was_played=True,
         ).filter(Q(mode="traditional") | Q(gamemode="domination")).count()
 
     @log_team_changes
@@ -300,12 +301,22 @@ class Team(models.Model):
 
     @log_team_changes
     def sell_teamtank(self, teamtank):
+        active_matches = Match.objects.filter(
+            teammatch__tanks=teamtank,
+            was_played=False
+        )
 
-        teamtank.delete()
+        if active_matches.exists():
+            teamtank.is_ghost = True
+            teamtank.save()
+        else:
+            teamtank.delete()
+
         if teamtank.value != 0:
             price = teamtank.value
         else:
             price = Tank.objects.get(name=teamtank.tank.name).price
+
         self.balance += price * 0.6
         self.save()
         return f"Tank {teamtank.tank.name} sold successfully. New balance: {self.balance}"
@@ -400,8 +411,19 @@ class Team(models.Model):
         for tier, count in required_kits.items():
             self.upgrade_kits[tier]['quantity'] -= count
 
-        self.tanks.through.objects.filter(team=self, id=tank.id, is_upgradable=True).delete()
+        active_matches = Match.objects.filter(
+            teammatch__tanks=tank,
+            was_played=False
+        )
+
         self.tanks.through.objects.create(team=self, tank=to_tank)
+
+        if active_matches.exists():
+            tank.is_ghost = True
+            tank.save()
+        else:
+            self.tanks.through.objects.filter(team=self, id=tank.id, is_upgradable=True).delete()
+
         self.save()
 
         return f"Tank {from_tank.name} upgraded to {to_tank.name}. Total cost: {total_cost}. Remaining balance: {self.balance}"
@@ -453,8 +475,19 @@ class Team(models.Model):
         for tier, count in required_kits.items():
             self.upgrade_kits[tier]['quantity'] -= count
 
-        self.tanks.through.objects.filter(team=self, id=tank.id, is_upgradable=True).delete()
+        active_matches = Match.objects.filter(
+            teammatch__tanks=tank,
+            was_played=False
+        )
+
         self.tanks.through.objects.create(team=self, tank=to_tank)
+
+        if active_matches.exists():
+            tank.is_ghost = True
+            tank.save()
+        else:
+            self.tanks.through.objects.filter(team=self, id=tank.id, is_upgradable=True).delete()
+
         self.save()
 
         return f"Tank {from_tank.name} upgraded to {to_tank.name}. Total cost: {total_cost}. Remaining balance: {self.balance}"
@@ -671,7 +704,7 @@ class Tank(models.Model):
     manufacturers = models.ManyToManyField(Manufacturer, related_name='tanks', blank=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.name}"
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -812,6 +845,7 @@ class TeamTank(models.Model):
     is_upgradable = models.BooleanField(default=True)
     value = models.IntegerField(default=0)
     from_auctions = models.BooleanField(default=False)
+    is_ghost = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if not self.pk and self.value == 0:
@@ -1318,6 +1352,19 @@ class MatchResult(models.Model):
             }
 
         rewards_summary["total_rewards"] = sum(team_rewards.values())
+
+        ghost_tanks_in_match = TeamTank.objects.filter(
+            team_matches__match=self.match,
+            is_ghost=True
+        ).distinct()
+
+        for ghost_tank in ghost_tanks_in_match:
+            other_matches = TeamMatch.objects.filter(
+                tanks=ghost_tank
+            ).exclude(match=self.match).exclude(match__match_result__is_calced=True)
+
+            if not other_matches.exists():
+                ghost_tank.delete()
 
         return rewards_summary
 

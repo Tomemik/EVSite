@@ -26,7 +26,7 @@ def format_match_message(match):
         teams_by_side[team_match.side].append(f"**{team_match.team.name}**")
         team_mentions[team_match.side].append(f"<@&{team_match.team.discord_role_id}>")
 
-        tanks = TeamTank.objects.filter(team_matches=team_match)
+        tanks = TeamTank.objects.filter(team_matches=team_match).order_by('-tank__battle_rating')
         tanks_by_side[team_match.side].append([tank.tank.name for tank in tanks])  # Store list of tank names
 
     team_1_names = ", ".join(teams_by_side['team_1'])
@@ -148,7 +148,7 @@ def format_match_result_message(match):
             penalties_by_side[side].append(team_result.penalties or 0)
 
         # Tanks lost
-        team_tanks_lost = tanks_lost.filter(team=team_match.team)
+        team_tanks_lost = tanks_lost.filter(team=team_match.team).order_by('-tank__battle_rating')
         tanks_lost_by_side[side].append([
             f"x{tank.quantity} - {tank.tank.name}" for tank in team_tanks_lost
         ])
@@ -167,12 +167,10 @@ def format_match_result_message(match):
             side_message += f"Bonuses: {bonuses_by_side[side][idx]}\n"
             side_message += f"Penalties: {penalties_by_side[side][idx]}\n"
 
-            # Substitutes
             substitutes = substitutes_by_side[side][idx]
             substitutes_text = "\n".join(substitutes) if substitutes else "None"
             side_message += f"Substitutes:\n{substitutes_text}\n\n"
 
-            # Tanks lost
             tanks_lost = tanks_lost_by_side[side][idx]
             tanks_lost_text = "\n".join(tanks_lost) if tanks_lost else "None"
             side_message += f"Tanks Lost:\n{tanks_lost_text}\n\n"

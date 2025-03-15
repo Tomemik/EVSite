@@ -107,7 +107,7 @@ class TeamTankSerializer(serializers.ModelSerializer):
         fields = ['id', 'tank', 'team', 'is_trad', 'available', 'from_auctions', 'value']
 
     def get_available(self, obj):
-        team_tanks = TeamTank.objects.filter(team=obj.team)
+        team_tanks = TeamTank.objects.filter(team=obj.team, is_ghost=False)
 
         non_trad_tanks = team_tanks.filter(is_trad=False)
         highest_non_trad_rank = non_trad_tanks.aggregate(max_rank=Max('tank__rank', default=0))['max_rank']
@@ -118,7 +118,7 @@ class TeamTankSerializer(serializers.ModelSerializer):
 
 class TeamSerializer(serializers.ModelSerializer):
     manufacturers = ManufacturerSerializer(many=True, read_only=True)
-    tanks = TeamTankSerializer(many=True, read_only=True, source='teamtank_set')
+    tanks = serializers.SerializerMethodField()
     upgrade_kits = serializers.JSONField(required=False)
     tank_boxes = TeamBoxSerializer(many=True, read_only=True, source='teambox_set')
 
@@ -126,6 +126,10 @@ class TeamSerializer(serializers.ModelSerializer):
         model = Team
         fields = ['id', 'name', 'color', 'balance', 'manufacturers', 'tanks', 'upgrade_kits', 'tank_boxes']
         depth = 1
+
+    def get_tanks(self, obj):
+        team_tanks = obj.teamtank_set.filter(is_ghost=False)
+        return TeamTankSerializer(team_tanks, many=True).data
 
 
 class TeamMatchSerializer(serializers.ModelSerializer):
@@ -271,11 +275,15 @@ class SlimTeamSerializer(serializers.ModelSerializer):
 
 
 class SlimTeamSerializerWithTanks(serializers.ModelSerializer):
-    tanks = TeamTankSerializer(many=True, read_only=True, source='teamtank_set')
+    tanks = serializers.SerializerMethodField()
 
     class Meta:
         model = Team
         fields = ['id', 'name', 'color', 'balance', 'tanks']
+
+    def get_tanks(self, obj):
+        team_tanks = obj.teamtank_set.filter(is_ghost=False)
+        return TeamTankSerializer(team_tanks, many=True).data
 
 
 class SlimTeamMatchSerializer(serializers.ModelSerializer):
