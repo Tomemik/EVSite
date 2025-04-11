@@ -1,5 +1,7 @@
 from django.contrib import admin
-from django.db import transaction
+from django.db.models import Count, Q, F, ExpressionWrapper, When, Case, Value, FloatField
+from django.db.models.functions import Coalesce
+
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, default_upgrade_kits, \
     MatchResult, Substitute, TankLost, TeamResult, TeamLog, TankBox, TeamBox, ImportTank, ImportCriteria
 
@@ -10,8 +12,38 @@ class ManufacturerAdmin(admin.ModelAdmin):
 
 
 class TeamAdmin(admin.ModelAdmin):
-    list_display = ('name', 'balance', 'score', 'total_money_earned', 'total_money_spent')
+    list_display = ('name', 'balance', 'score', 'total_money_earned', 'total_money_spent',
+                     'winrate_display')
     search_fields = ('name',)
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(
+            annotated_matches_played=Count('matches'),
+            annotated_matches_won=Count(
+                'matches',
+                filter=Q(matches__match_result__winning_side=F('matches__teammatch__side'))
+            ),
+            annotated_winrate=Case(
+                When(annotated_matches_played=0, then=Value(0.0)),
+                default=ExpressionWrapper(
+                    (F('annotated_matches_won') * 100.0) / F('annotated_matches_played'),
+                    output_field=FloatField()
+                ),
+                output_field=FloatField()
+            )
+        )
+
+    def winrate_display(self, obj):
+        if hasattr(obj, 'annotated_winrate') and obj.annotated_winrate is not None:
+            return f"{obj.annotated_winrate:.2f}%"
+        return "0%"
+
+    winrate_display.short_description = 'Winrate'
+    winrate_display.admin_order_field = 'annotated_winrate'
+
+
+
 
     def save_model(self, request, obj, form, change):
         if not change and not obj.upgrade_kits:

@@ -181,6 +181,27 @@ class Team(models.Model):
     def __str__(self):
         return self.name
 
+    @property
+    def matches_played(self):
+        return MatchResult.objects.filter(
+            match__teams=self
+        ).count()
+
+    @property
+    def matches_won(self):
+        return MatchResult.objects.filter(
+            models.Q(match__teammatch__team=self) &
+            models.Q(winning_side=models.F('match__teammatch__side'))
+        ).count()
+
+    @property
+    def winrate(self):
+        played = self.matches_played
+        if played == 0:
+            return 0  # Unikamy dzielenia przez 0
+        return (self.matches_won / played) * 100
+
+
     def split_merge_kit(self, action, kit_type, kit_amount):
         if action not in ['merge', 'split']:
             raise ValueError("Action must be 'merge' or 'split'.")
