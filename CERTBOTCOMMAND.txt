@@ -1,0 +1,1 @@
+sudo docker run -it --rm --name certbot -p 80:80             -v "./certbot/www:/etc/letsencrypt"            certbot/certbot certonly --standalone -d gupevolution.click

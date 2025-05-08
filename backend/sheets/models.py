@@ -714,6 +714,16 @@ class Team(models.Model):
             self.save()
 
 
+class Booster(models.Model):
+    name = models.CharField(max_length=50)
+    multiplier = models.FloatField(default=1.0)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    match_limited = models.BooleanField(default=False)
+    matches_left = models.IntegerField(null=True, blank=True)
+    active = models.BooleanField(default=True)
+    team = models.OneToOneField(Team, related_name='booster', on_delete=models.CASCADE, null=True, blank=True)
+
+
 class Tank(models.Model):
 
     name = models.CharField(max_length=50)
@@ -1153,18 +1163,65 @@ class MatchResult(models.Model):
             winner_total_reward = winner_base_reward
             loser_total_reward = loser_base_reward
 
+            if self.match.money_rules == "even_split":
+                winner_total_reward = (winner_base_reward + loser_base_reward) / 2
+                loser_total_reward = (winner_base_reward + loser_base_reward) / 2
+
             for team in winning_teams:
                 team_rewards[team] += winner_total_reward / len(winning_teams)
+
             for team in losing_teams:
                 team_rewards[team] += loser_total_reward / len(losing_teams)
 
-        if self.match.money_rules == "even_split":
-            total_rewards = sum(team_rewards[team_id] for team_id in playing_teams)
-            num_teams = len(playing_teams)
-            if num_teams > 0:
-                equal_reward = total_rewards / num_teams
-                for team_id in playing_teams:
-                    team_rewards[team_id] = equal_reward
+
+
+        used_boosters = {}
+
+        for team in winning_teams:
+            try:
+                booster = Booster.objects.get(team=team)
+            except Booster.DoesNotExist:
+                continue
+
+            if booster and booster.active:
+                if booster.expires_at and booster.expires_at < now():
+                    booster.delete()
+                elif booster.match_limited and (booster.matches_left is None or booster.matches_left <= 0):
+                    booster.delete()
+                else:
+                    team_rewards[team] *= booster.multiplier
+                    if booster.match_limited and booster.matches_left is not None:
+                        used_boosters[team] = {
+                            "team_id": team,
+                            "booster_id": booster.id,
+                            "matches_left_before": booster.matches_left,
+                            "matches_left_after": booster.matches_left - 1
+                        }
+                        booster.matches_left -= 1
+                    booster.save()
+
+        for team in losing_teams:
+            try:
+                booster = Booster.objects.get(team=team)
+            except Booster.DoesNotExist:
+                continue
+
+            if booster and booster.active:
+                if booster.expires_at and booster.expires_at < now():
+                    booster.delete()
+                elif booster.match_limited and (booster.matches_left is None or booster.matches_left <= 0):
+                    booster.delete()
+                else:
+                    team_rewards[team] *= booster.multiplier
+                    if booster.match_limited and booster.matches_left is not None:
+                        used_boosters[team] = {
+                            "team_id": team,
+                            "booster_id": booster.id,
+                            "matches_left_before": booster.matches_left,
+                            "matches_left_after": booster.matches_left - 1
+                        }
+                        booster.matches_left -= 1
+                    booster.save()
 
         for team_result in self.team_results.all():
             team_id = team_result.team.id
@@ -1297,27 +1354,59 @@ class MatchResult(models.Model):
             else:
                 log_method = "judge_rewards"
 
+            booster_log_data = used_boosters.get(team.id)
+            if booster_log_data:
+                previous_booster = {
+                    "booster_id": booster_log_data["booster_id"],
+                    "matches_left": booster_log_data["matches_left_before"]
+                }
+                new_booster = {
+                    "booster_id": booster_log_data["booster_id"],
+                    "matches_left": booster_log_data["matches_left_after"]
+                }
+            else:
+                previous_booster = None
+                new_booster = None
+
             if log_method == 'calc_rewards':
                 TeamLog.objects.create(
                     team=team,
                     field_name='balance',
-                    previous_value={'balance': initial_balance, 'upgrade_kits': kits, 'score': initial_points},
-                    new_value={'balance': team.balance, 'upgrade_kits': team.upgrade_kits, 'score': team.score},
+                    previous_value={
+                        'balance': initial_balance,
+                        'upgrade_kits': kits,
+                        'score': initial_points,
+                        'booster': previous_booster
+                    },
+                    new_value={
+                        'balance': team.balance,
+                        'upgrade_kits': team.upgrade_kits,
+                        'score': team.score,
+                        'booster': new_booster
+                    },
                     description=f"Balance Changed by: {reward}\n"
                                 f"Kits changed by: {compare_upgrade_kits(kits, team.upgrade_kits)}\n"
                                 f"Match: {self.match.__str__()}\n"
-                                f"Match ID: {self.match.id}",
+                                f"Match ID: {self.match.id}\n"
+                                f"Booster: {booster_log_data if booster_log_data else 'None'}",
                     method_name=log_method
                 )
             else:
                 TeamLog.objects.create(
                     team=team,
                     field_name='balance',
-                    previous_value={'balance': initial_balance},
-                    new_value={'balance': team.balance},
+                    previous_value={
+                        'balance': initial_balance,
+                        'booster': previous_booster
+                    },
+                    new_value={
+                        'balance': team.balance,
+                        'booster': new_booster
+                    },
                     description=f"Balance Changed by: {reward}\n"
                                 f"Match: {self.match.__str__()}\n"
-                                f"Match ID: {self.match.id}",
+                                f"Match ID: {self.match.id}\n"
+                                f"Booster: {booster_log_data if booster_log_data else 'None'}",
                     method_name=log_method
                 )
 
@@ -1389,6 +1478,7 @@ class MatchResult(models.Model):
 
         return rewards_summary
 
+
     def revert_rewards(self):
         if not self.is_calced:
             raise ValueError("Rewards have not been calculated yet, cannot revert.")
@@ -1418,6 +1508,16 @@ class MatchResult(models.Model):
             }
             for kit, diff in kits_difference.items():
                 current_kits[kit]['quantity'] -= diff
+
+            prev_booster = log.previous_value.get('booster')
+            new_booster = log.new_value.get('booster')
+            if prev_booster and new_booster:
+                try:
+                    booster = Booster.objects.get(id=prev_booster['booster_id'], team=team)
+                    booster.matches_left = prev_booster['matches_left']
+                    booster.save()
+                except Booster.DoesNotExist:
+                    pass
 
             team.balance = revert_balance
             team.upgrade_kits = current_kits
