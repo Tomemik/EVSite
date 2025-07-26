@@ -1,7 +1,15 @@
 import pytz
 import datetime
 from .models import TeamMatch, TeamTank, Match, Substitute, MatchResult
+from django.conf import settings
 
+
+def discord_message_url(channel_id, message_id):
+    guild_id = settings.DISCORD_GUILD_ID
+    if not message_id:
+        return None
+    base = "https://discord.com/channels"
+    return f"{base}/{guild_id}/{channel_id}/{message_id}"
 
 def format_match_message(match):
 
@@ -75,16 +83,6 @@ def format_match_message(match):
 
 
 def format_match_result_message(match):
-    """
-    Formats the match result details into a message string for Discord.
-
-    Args:
-    - match: The Match object for which the result needs to be formatted.
-
-    Returns:
-    - A formatted message string summarizing the match result.
-    """
-
     # Retrieve the MatchResult via reverse query
     match_result = getattr(match, 'match_result', None)
     if not match_result:
@@ -104,6 +102,9 @@ def format_match_result_message(match):
     judge_name = match_result.judge.name if match_result.judge else "None"
     winning_side = dict(TeamMatch.SIDE_CHOICES).get(match_result.winning_side, "Unknown")
     round_score = match_result.round_score if match_result.round_score else "N/A"
+
+    schedule_url = discord_message_url(match.channel_id_schedule, match.webhook_id_schedule)
+    schedule_link = f"[View Schedule]({schedule_url})" if schedule_url else "Schedule link unavailable."
 
     # Initialize teams and data
     teams_by_side = {
@@ -194,6 +195,7 @@ Judge: {judge_name}
 {winning_side_names} win {round_score}
 
 {format_side('team_1')}--- vs. ---\n\n{format_side('team_2')}
+{schedule_link}
 """
 
     return message
@@ -208,6 +210,12 @@ def format_match_calc_message(match, rewards_summary):
     best_of_number = match.best_of_number
     money_rules = dict(Match.MONEY_RULES).get(match.money_rules, "None")
     special_rules = match.special_rules if match.special_rules else "No Special Rules"
+
+    schedule_url = discord_message_url(match.channel_id_schedule, match.webhook_id_schedule)
+    result_url = discord_message_url(match.channel_id_result, match.webhook_id_result)
+
+    schedule_link = f"[View Schedule]({schedule_url})" if schedule_url else "Schedule link unavailable."
+    result_link = f"[View Result]({result_url})" if result_url else "Result link unavailable."
 
     teams_by_side = {
         'team_1': [],
@@ -250,6 +258,8 @@ def format_match_calc_message(match, rewards_summary):
     if rewards_summary["judge"]:
         judge_data = rewards_summary["judge"]
         message += f"\n**Judge:**\n - {judge_data['name']}: {judge_data['reward']}\n"
+
+    message += f"\n{schedule_link} | {result_link}"
 
 
     return message

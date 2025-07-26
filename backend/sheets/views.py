@@ -8,6 +8,8 @@ from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView
 from django.contrib.auth.mixins import PermissionRequiredMixin
 import requests
+from django.db.models import F, Window
+from django.db.models.functions import RowNumber
 
 from .discord import format_match_message, format_match_result_message, format_match_calc_message
 from .filters import TeamLogFilter, MatchFilter
@@ -56,9 +58,9 @@ class TeamDetailView(APIView):
         team = Team.objects.get(name=name)
 
         if tank_box_ids and box_amounts:
-            team.add_tank_boxes(tank_box_ids, box_amounts)
+            team.add_tank_boxes(tank_box_ids, box_amounts, user=request.user)
         if upgrade_kit and kit_amount:
-            team.add_upgrade_kit(upgrade_kit, kit_amount)
+            team.add_upgrade_kit(upgrade_kit, kit_amount, user=request.user)
         team.save()
 
         serializer = TeamSerializer(team, data=request.data, partial=True)
@@ -122,7 +124,7 @@ class PurchaseTankView(APIView):
         team = Team.objects.get(name=team_name)
         for tank in tanks:
             tank = Tank.objects.get(name=tank)
-            team.purchase_tank(tank)
+            team.purchase_tank(tank, user=request.user)
         return Response(data={'new_balance': team.balance, 'new_tanks': [tank for tank in tanks]}, status=status.HTTP_200_OK)
 
 
@@ -142,7 +144,7 @@ class SellTankView(APIView):
         for tank in tanks:
             tank = TeamTank.objects.get(pk=tank)
             sold.append(Tank.objects.get(name=tank.tank.name).name)
-            team.sell_teamtank(tank)
+            team.sell_teamtank(tank, user=request.user)
         return Response(data={'new_balance': team.balance, 'sold_tanks': sold}, status=status.HTTP_200_OK)
 
 class SellTanksView(APIView):
@@ -159,9 +161,8 @@ class SellTanksView(APIView):
         team = Team.objects.get(name=team_name)
         for tank in tanks:
             for i in range(tank['quantity']):
-                print(tank)
                 tanka = Tank.objects.get(name=tank['name'])
-                team.sell_tank(tanka)
+                team.sell_tank(tanka, user=request.user)
         return Response(data={'new_balance': team.balance, 'sold_tanks': [tank for tank in tanks]}, status=status.HTTP_200_OK)
 
 
@@ -180,7 +181,7 @@ class TransferMoneyView(APIView):
 
         from_team = Team.objects.get(name=team_name)
         to_team = Team.objects.get(name=to_team_name)
-        from_team.money_transfer(from_team, to_team, amount)
+        from_team.money_transfer(from_team, to_team, amount, request.user)
         return Response(data={'new_balance': from_team.balance}, status=status.HTTP_200_OK)
 
 
@@ -260,7 +261,7 @@ class DirectUpgradeTankView(APIView):
             if key == 'T3':
                 extra_kits += ['T3'] * val
 
-        all_upgrades = team.do_direct_upgrade(from_tank, to_tank, extra_kits)
+        all_upgrades = team.do_direct_upgrade(from_tank, to_tank, extra_kits, user=request.user)
 
         return Response(data={'new_balance': team.balance, 'new_kits': team.upgrade_kits}, status=status.HTTP_200_OK)
 
@@ -292,7 +293,7 @@ class UpgradeTankView(APIView):
             if key == 'T3':
                 extra_kits += ['T3'] * val
 
-        all_upgrades = team.upgrade_or_downgrade_tank(from_tank, to_tank, extra_kits)
+        all_upgrades = team.upgrade_or_downgrade_tank(from_tank, to_tank, extra_kits, user=request.user)
 
         return Response(data={'new_balance': team.balance, 'new_kits': team.upgrade_kits}, status=status.HTTP_200_OK)
 
@@ -311,7 +312,7 @@ class PurchaseBoxView(APIView):
         team = Team.objects.get(name=team_name)
         if box_id is not None:
             box = TankBox.objects.get(id=box_id)
-            result = box.purchase(team)
+            result = box.purchase(team, request.user)
         else:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         return Response(data=result, status=status.HTTP_200_OK)
@@ -331,9 +332,9 @@ class PurchaseAndOpenBoxView(APIView):
         team = Team.objects.get(name=team_name)
         if box_id is not None:
             box = TankBox.objects.get(id=box_id)
-            result = box.purchase(team)
+            result = box.purchase(team, request.user)
             new_box = TeamBox.objects.get(id=result['id'])
-            tank = new_box.open_box()
+            tank = new_box.open_box(request.user)
         else:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         return Response(data=str(tank), status=status.HTTP_200_OK)
@@ -352,7 +353,7 @@ class OpenBoxView(APIView):
         box_id = request.data.get('box_id', None)
         if box_id is not None:
             box = TeamBox.objects.get(id=box_id)
-            result = box.open_box()
+            result = box.open_box(request.user)
         else:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         return Response(data=result, status=status.HTTP_200_OK)
@@ -459,6 +460,7 @@ class AllMatchesView(APIView):
             response = requests.post(webhook_url, json={"content": message})
             response_data = response.json()
             match.webhook_id_schedule = response_data.get("id")
+            match.channel_id_schedule = response_data.get("channel_id")
             match.save()
 
         except Exception as e:
@@ -627,6 +629,7 @@ class MatchResultsView(APIView):
             response = requests.post(webhook_url, json={"content": message})
             response_data = response.json()
             match.webhook_id_result = response_data.get("id")
+            match.channel_id_result = response_data.get("channel_id")
             match.save()
 
         except Exception as e:
@@ -655,7 +658,7 @@ class CalcTestView(APIView):
             return Response(status=status.HTTP_403_FORBIDDEN)
         match_result = MatchResult.objects.get(match__pk=pk)
         if not match_result.is_calced:
-            rewards = match_result.calculate_rewards()
+            rewards = match_result.calculate_rewards(request.user)
             try:
                 if match_result.match.webhook_id_calc:
                     self.edit_discord_notification(match_result.match, rewards)
@@ -678,6 +681,7 @@ class CalcTestView(APIView):
             response = requests.post(webhook_url, json={"content": message})
             response_data = response.json()
             match.webhook_id_calc = response_data.get("id")
+            match.channel_id_calc = response_data.get("channel_id")
             match.save()
 
         except Exception as e:
@@ -719,14 +723,13 @@ class TeamLogFilteredView(ListAPIView):
     filterset_class = TeamLogFilter
 
     def get_queryset(self):
-        teams = TeamLog.objects.values_list('team', flat=True).distinct()
-
-        latest_logs = TeamLog.objects.none()
-        for team in teams:
-            team_logs = TeamLog.objects.filter(team=team).order_by('-timestamp')[:100]
-            latest_logs = latest_logs | team_logs
-
-        return latest_logs
+        return TeamLog.objects.annotate(
+            row_number=Window(
+                expression=RowNumber(),
+                partition_by=[F('team')],
+                order_by=F('timestamp').desc()
+            )
+        ).filter(row_number__lte=100)
 
 
 class ActiveImportCriteriaView(APIView):
@@ -776,6 +779,6 @@ class PurchaseImportTankView(APIView):
 
         if import_id is not None:
             tank = ImportTank.objects.get(pk=import_id)
-            tank.purchase_from_imports(team)
+            tank.purchase_from_imports(team, request.user)
             return Response(data={'new_balance': team.balance, 'new_tanks': [tank.tank.name]}, status=status.HTTP_200_OK)
         return Response(status=status.HTTP_400_BAD_REQUEST)

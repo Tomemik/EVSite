@@ -1,7 +1,6 @@
 <template>
   <v-container>
     <v-row class="d-flex flex-wrap mt-3">
-      <!-- Teams Filter (v-select) -->
       <v-col cols="12" md="3" class="mt-5">
         <v-select
           v-model="settingsStore.filterTeams"
@@ -12,7 +11,6 @@
         ></v-select>
       </v-col>
 
-      <!-- Date Range Picker and Show Played Checkbox -->
       <v-col cols="12" md="6" class="d-flex align-center">
         <div class="d-flex align-center" style="width: 100%;">
           <VueDatePicker v-model="dateFilter" range placeholder="Select a date range to show" style="max-width: 60%" />
@@ -33,7 +31,6 @@
         </div>
       </v-col>
 
-      <!-- Apply Filters and Create New Match Button -->
       <v-col cols="12" md="3" class="d-flex align-center justify-end">
         <v-btn color="primary" class="mr-4" @click="fetchMatches">Apply Filters</v-btn>
         <div v-if="userStore.groups.some(i => ['commander', 'admin'].includes(i.name))">

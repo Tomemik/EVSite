@@ -13,7 +13,6 @@ from django.forms.models import model_to_dict
 import copy
 from collections import Counter
 
-
 ROUND_POINTS = {
     "1:0": 4,
     "0:0": 3,
@@ -39,6 +38,10 @@ def log_team_changes(method=None, custom_method_name=None):
 
     @wraps(method)
     def wrapper(self, *args, **kwargs):
+        user = kwargs.get('user')
+        if user is None:
+            raise ValueError("User must be provided as a keyword argument to the decorated method.")
+
         initial_state = model_to_dict(self)
 
         initial_upgrade_kits = copy.deepcopy(self.upgrade_kits)
@@ -90,6 +93,7 @@ def log_team_changes(method=None, custom_method_name=None):
             method_name = custom_method_name if custom_method_name else method.__name__
             TeamLog.objects.create(
                 team=self,
+                user=user,
                 field_name='multiple_fields',
                 previous_value=json.dumps(initial_state),
                 new_value=json.dumps(final_state),
@@ -239,7 +243,7 @@ class Team(models.Model):
         self.save()
         return True
 
-    def money_transfer(self, from_team, to_team, amount):
+    def money_transfer(self, from_team, to_team, amount, user):
         if amount <= 0:
             raise ValueError("Amount to transfer must be greater than zero.")
 
@@ -271,6 +275,7 @@ class Team(models.Model):
 
         TeamLog.objects.create(
             team=from_team,
+            user=user,
             field_name='balance',
             previous_value={'balance': from_team.balance + amount},
             new_value={'balance': from_team.balance},
@@ -280,6 +285,7 @@ class Team(models.Model):
 
         TeamLog.objects.create(
             team=to_team,
+            user=user,
             field_name='balance',
             previous_value={'balance': to_team.balance - taxxed_amount},
             new_value={'balance': to_team.balance},
@@ -309,7 +315,7 @@ class Team(models.Model):
         ).filter(Q(mode="traditional") | Q(gamemode="domination")).count()
 
     @log_team_changes
-    def purchase_tank(self, tank):
+    def purchase_tank(self, tank, *, user):
         if tank.price > self.balance:
             raise ValidationError("Insufficient balance to purchase this tank.")
         if not self.manufacturers.filter(id__in=tank.manufacturers.all()).exists():
@@ -321,7 +327,7 @@ class Team(models.Model):
         return f"Tank {tank.name} purchased successfully. Remaining balance: {self.balance}"
 
     @log_team_changes
-    def sell_teamtank(self, teamtank):
+    def sell_teamtank(self, teamtank, *, user):
         active_matches = Match.objects.filter(
             teammatch__tanks=teamtank,
             was_played=False
@@ -343,19 +349,34 @@ class Team(models.Model):
         return f"Tank {teamtank.tank.name} sold successfully. New balance: {self.balance}"
 
     @log_team_changes
-    def sell_tank(self, tank):
+    def sell_tank(self, tank, *, user):
         try:
             teamtank = TeamTank.objects.filter(team=self, tank=tank, is_trad=False, from_auctions=False).first()
         except TeamTank.DoesNotExist:
             raise ValidationError("You do not own this tank.")
 
-        teamtank.delete()
-        self.balance += tank.price * 0.6
+        active_matches = Match.objects.filter(
+            teammatch__tanks=teamtank,
+            was_played=False
+        )
+
+        if active_matches.exists():
+            teamtank.is_ghost = True
+            teamtank.save()
+        else:
+            teamtank.delete()
+
+        if teamtank.value != 0:
+            price = teamtank.value
+        else:
+            price = Tank.objects.get(name=teamtank.tank.name).price
+
+        self.balance += price * 0.6
         self.save()
         return f"Tank {teamtank.tank.name} sold successfully. New balance: {self.balance}"
 
     @log_team_changes
-    def add_upgrade_kit(self, tier, quantity=1):
+    def add_upgrade_kit(self, tier, quantity=1, *, user,):
         if tier in self.UPGRADE_KITS:
             if tier in self.upgrade_kits:
                 self.upgrade_kits[tier]['quantity'] += quantity
@@ -365,7 +386,7 @@ class Team(models.Model):
             return "Invalid upgrade kit tier."
 
     @log_team_changes
-    def add_tank_boxes(self, tank_box_ids, amounts):
+    def add_tank_boxes(self, tank_box_ids, amounts, *, user,):
         if len(tank_box_ids) != len(amounts):
             raise ValueError("The length of tank_box_ids and amounts must be the same.")
 
@@ -386,7 +407,7 @@ class Team(models.Model):
         return self.upgrade_kits.get(tier, {"price": 0})["price"]
 
     @log_team_changes
-    def upgrade_or_downgrade_tank(self, tank, to_tank, extra_upgrade_kit_tiers=[]):
+    def upgrade_or_downgrade_tank(self, tank, to_tank, extra_upgrade_kit_tiers=[], *, user,):
         from_tank = tank.tank
         if not tank.is_upgradable:
             raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
@@ -450,7 +471,7 @@ class Team(models.Model):
         return f"Tank {from_tank.name} upgraded to {to_tank.name}. Total cost: {total_cost}. Remaining balance: {self.balance}"
 
     @log_team_changes(custom_method_name="upgrade_or_downgrade_tank")
-    def do_direct_upgrade(self, tank, to_tank, extra_upgrade_kit_tiers=[]):
+    def do_direct_upgrade(self, tank, to_tank, extra_upgrade_kit_tiers=[], *, user,):
         from_tank = tank.tank
         if not tank.is_upgradable:
             raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
@@ -782,7 +803,7 @@ class TankBox(models.Model):
         else:
             self.price = int(mean_price)
 
-    def purchase(self, team):
+    def purchase(self, team, user):
         if team.balance < self.price:
             raise ValueError(f"Team '{team.name}' does not have enough balance to purchase '{self.name}'.")
 
@@ -794,6 +815,7 @@ class TankBox(models.Model):
 
         TeamLog.objects.create(
             team=team,
+            user=user,
             field_name='balance',
             previous_value={'balance': team.balance + self.price},
             new_value={'balance': team.balance},
@@ -828,6 +850,7 @@ class TeamBox(models.Model):
 
         TeamLog.objects.create(
             team=self.team,
+            user=user,
             field_name='balance',
             previous_value={'balance': self.team.balance},
             new_value={'balance': self.team.balance},
@@ -915,6 +938,9 @@ class Match(models.Model):
     webhook_id_schedule = models.CharField(max_length=255, blank=True, null=True)
     webhook_id_result = models.CharField(max_length=255, blank=True, null=True)
     webhook_id_calc = models.CharField(max_length=255, blank=True, null=True)
+    channel_id_schedule = models.CharField(max_length=255, blank=True, null=True)
+    channel_id_result = models.CharField(max_length=255, blank=True, null=True)
+    channel_id_calc = models.CharField(max_length=255, blank=True, null=True)
 
     def __str__(self):
         teams_by_side = {
@@ -980,7 +1006,7 @@ class MatchResult(models.Model):
             {"rank": 1, "winner": 35000, "loser": 15000},
             {"rank": 2, "winner": 60000, "loser": 25000},
             {"rank": 3, "winner": 85000, "loser": 40000},
-            {"rank": 4, "winner": 11000, "loser": 50000},
+            {"rank": 4, "winner": 110000, "loser": 50000},
             {"rank": 5, "winner": 150000, "loser": 70000},
         ]
 
@@ -1021,7 +1047,7 @@ class MatchResult(models.Model):
 
         return 0, 0
 
-    def calculate_rewards(self):
+    def calculate_rewards(self, user):
         average_rank = self.calculate_average_rank()
         winner_base_reward, loser_base_reward = self.calculate_base_reward(average_rank)
 
@@ -1062,6 +1088,7 @@ class MatchResult(models.Model):
                 if len(teams_on_side[side]) > 1:
                     TeamLog.objects.create(
                         team=team,
+                        user=user,
                         field_name='balance',
                         previous_value={'balance': team.balance},
                         new_value={'balance': team.balance},
@@ -1079,6 +1106,7 @@ class MatchResult(models.Model):
 
                     TeamLog.objects.create(
                         team=team,
+                        user=user,
                         field_name='balance',
                         previous_value={'balance': initial_balance},
                         new_value={'balance': team.balance},
@@ -1097,6 +1125,7 @@ class MatchResult(models.Model):
 
                         TeamLog.objects.create(
                             team=team,
+                            user=user,
                             field_name='balance',
                             previous_value={'balance': initial_balance},
                             new_value={'balance': team.balance},
@@ -1123,6 +1152,10 @@ class MatchResult(models.Model):
 
         winning_teams = teams_on_side[self.winning_side]
         losing_teams = teams_on_side['team_1' if self.winning_side == 'team_2' else 'team_2']
+
+        tank_counts = TeamMatch.objects.filter(match=self.match).values('side').annotate(total_tanks=Count('tanks'))
+        team_1_tanks = next((t['total_tanks'] for t in tank_counts if t['side'] == 'team_1'), 0)
+        team_2_tanks = next((t['total_tanks'] for t in tank_counts if t['side'] == 'team_2'), 0)
 
         if self.match.mode == "traditional" or self.match.gamemode == "flag_tank":
             for team in winning_teams:
@@ -1152,6 +1185,10 @@ class MatchResult(models.Model):
                 else:
                     total_gain_reward_team_1 += gain_reward
                     total_loss_penalty_team_2 += loss_penalty
+
+                if team_1_tanks == 1 and team_2_tanks == 1:
+                    total_gain_reward_team_2 = 0
+                    total_gain_reward_team_1 = 0
 
             if self.winning_side == 'team_1':
                 winner_base_reward += total_gain_reward_team_1 - total_loss_penalty_team_1
@@ -1304,11 +1341,6 @@ class MatchResult(models.Model):
             Q(description__contains=f'Reverted rewards calculation for Match ID: {self.match.id}')
         ).delete()
 
-        tank_counts = TeamMatch.objects.filter(match=self.match).values('side').annotate(total_tanks=Count('tanks'))
-
-        team_1_tanks = next((t['total_tanks'] for t in tank_counts if t['side'] == 'team_1'), 0)
-        team_2_tanks = next((t['total_tanks'] for t in tank_counts if t['side'] == 'team_2'), 0)
-
         today = now().date()
         start_of_week = today - timedelta(days=today.weekday())
         end_of_week = start_of_week + timedelta(days=6)
@@ -1371,6 +1403,7 @@ class MatchResult(models.Model):
             if log_method == 'calc_rewards':
                 TeamLog.objects.create(
                     team=team,
+                    user=user,
                     field_name='balance',
                     previous_value={
                         'balance': initial_balance,
@@ -1394,6 +1427,7 @@ class MatchResult(models.Model):
             else:
                 TeamLog.objects.create(
                     team=team,
+                    user=user,
                     field_name='balance',
                     previous_value={
                         'balance': initial_balance,
@@ -1568,6 +1602,7 @@ class Substitute(models.Model):
 
 class TeamLog(models.Model):
     team = models.ForeignKey('Team', on_delete=models.CASCADE)
+    user = models.CharField(max_length=255, blank=True, null=True)
     field_name = models.CharField(max_length=255)
     previous_value = models.JSONField()
     new_value = models.JSONField()
@@ -1602,7 +1637,7 @@ class ImportTank(models.Model):
         return f"Import {self.tank.name} ({status})"
 
     @transaction.atomic
-    def purchase_from_imports(self, team):
+    def purchase_from_imports(self, team, user):
         import_tank = ImportTank.objects.select_for_update().get(pk=self.pk)
         team = Team.objects.select_for_update().get(pk=team.pk)
 
@@ -1638,6 +1673,7 @@ class ImportTank(models.Model):
 
         TeamLog.objects.create(
             team=team,
+            user=user,
             field_name='balance',
             previous_value={'balance': team.balance + tank_price},
             new_value={'balance': team.balance},

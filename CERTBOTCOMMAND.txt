@@ -1,1 +1,11 @@
-sudo docker run -it --rm --name certbot -p 80:80             -v "./certbot/www:/etc/letsencrypt"            certbot/certbot certonly --standalone -d gupevolution.click
+sudo docker run --rm \
+  --entrypoint /bin/sh \
+  -v "$(pwd)/certbot/etc:/etc/letsencrypt" \
+  -v "$(pwd)/certbot/lib:/var/lib/letsencrypt" \
+  -v "$(pwd)/certbot/logs:/var/log/letsencrypt" \
+  -v "$(pwd)/certbot/etc/live:/cert-export" \
+  -p 80:80 \
+  certbot/certbot -c "\
+    certbot certonly --standalone -d gupevolution.click --non-interactive --agree-tos -m tomemik111@gmail.com && \
+    mkdir -p /cert-export/gupevolution.click && \
+    cp -L /etc/letsencrypt/live/gupevolution.click/*.pem /cert-export/gupevolution.click/"

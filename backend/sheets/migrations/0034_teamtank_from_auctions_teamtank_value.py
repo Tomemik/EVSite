@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('sheets', '0033_remove_match_webhook_id_schedule'),
+        ('sheets', '0032_match_webhook_id_calc_match_webhook_id_result_and_more'),
     ]
 
     operations = [

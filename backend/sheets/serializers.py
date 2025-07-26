@@ -399,7 +399,7 @@ class TeamLogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TeamLog
-        fields = ['id', 'team', 'team_name', 'method_name', 'description', 'timestamp']
+        fields = ['id', 'team', 'user', 'team_name', 'method_name', 'description', 'timestamp']
         depth = 0
 
 

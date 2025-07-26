@@ -3,10 +3,8 @@
     <v-card>
       <v-card-title>Match Details</v-card-title>
       <v-card-text v-if="detailedMatch">
-        <!-- Date and Time -->
         <p><strong>Date:</strong> {{ formatDateTime(detailedMatch.datetime) }}</p>
 
-        <!-- Basic Match Information -->
         <v-divider></v-divider>
         <p><strong>Mode:</strong> {{ getTitleByValue(modeOptions, detailedMatch.mode) }}</p>
         <p><strong>Game Mode:</strong> {{ getTitleByValue(gamemodeOptions, detailedMatch.gamemode) }}</p>

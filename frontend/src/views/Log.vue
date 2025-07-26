@@ -14,7 +14,7 @@
         <label>Date range:</label>
         <VueDatePicker v-model="dateFilter" range />
       </v-col>
-      <v-col cols="3">
+      <v-col cols="3" style="display: flex; align-items: center">
         <v-btn color="primary" @click="fetchLogs">Apply Filters</v-btn>
       </v-col>
     </v-row>
@@ -91,6 +91,7 @@
           <div><strong>Description:</strong> {{ selectedLog?.description }}</div>
           <div><strong>Details:</strong> <span v-html="selectedLog?.full_details"></span></div>
           <div><strong>Date:</strong> {{ selectedLog?.date }}</div>
+          <div><strong>User:</strong> {{ selectedLog?.user }}</div>
         </v-card-text>
         <v-card-actions>
           <v-btn color="primary" @click="closeLogDetails">Close</v-btn>
@@ -111,6 +112,7 @@ interface Team {
 
 interface Log {
   team: string;
+  user: string;
   amount: string;
   description: string;
   full_details: string;
@@ -130,10 +132,11 @@ const methodOptions = [
   { title: 'Match Reverted', value: 'revert_rewards' },
   { title: 'Tank Bought', value: 'purchase_tank' },
   { title: 'Tank Sold', value: 'sell_tank' },
+  { title: 'Tank Sold', value: 'sell_teamtank' },
   { title: 'Tank Upgraded', value: 'upgrade_or_downgrade_tank' },
   { title: 'Money Transfers In', value: 'money_transfer_in' },
   { title: 'Money Transfers Out', value: 'money_transfer_out' },
-  { title: 'Imports Purchase', value: 'import_purchase' },
+  { title: 'Imports Purchase', value: 'imports_purchase' },
   { title: 'Box Opened', value: 'open_tank_box' },
   { title: 'Box Purchased', value: 'purchase_box' },
 ];
@@ -206,6 +209,7 @@ const fetchLogs = async () => {
       'revert_rewards': '#808080',
       'purchase_tank': '#dd7e6b',
       'sell_tank': '#cc4125',
+      'sell_teamtank': '#cc4125',
       'upgrade_or_downgrade_tank': '#a64d79',
       'do_direct_upgrade': '#a64d79',
       'money_transfer_in': '#38761d',
@@ -223,6 +227,7 @@ const fetchLogs = async () => {
       'revert_rewards': 'Match Reverted',
       'purchase_tank': 'Tank Bought',
       'sell_tank': 'Tank Sold',
+      'sell_teamtank': 'Tank Sold',
       'upgrade_or_downgrade_tank': 'Tank Upgraded',
       'do_direct_upgrade': 'Tank Upgraded',
       'money_transfer_in': 'Transfer In',
@@ -259,6 +264,7 @@ const fetchLogs = async () => {
 
       return {
         team: log.team_name,
+        user: log.user,
         amount: amount,
         description: descMapping[log.method_name],
         full_details: log.description.replace(/\n/g, '<br>'),

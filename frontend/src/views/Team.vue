@@ -345,7 +345,7 @@
           <p>Tanks Sold:</p>
           <ul>
             <li v-for="(tank, index) in soldTanks" :key="index">
-              {{ tank }}
+              {{ tank.name }}: {{ tank.quantity }}
             </li>
           </ul>
           <p>New Balance: {{ newBalance.toLocaleString() }}$</p>
@@ -801,7 +801,8 @@ export default {
         });
 
         if (!response.ok) {
-          throw new Error("Error upgrading tank");
+          const res = await response.json();
+          alert(`Error upgrading tank: ${res}`);
         }
 
         const responseData = await response.json();
@@ -819,7 +820,7 @@ export default {
         this.showUpgradeSuccessDialog = true;
 
       } catch (error) {
-        alert('Error upgrading tank:', error);
+        console.error('Error upgrading tank:', error);
       }
     },
     async upgradeTankDirect() {
@@ -845,7 +846,8 @@ export default {
         });
 
         if (!response.ok) {
-          throw new Error("Error upgrading tank");
+          const res = await response.json();
+          alert(`Error upgrading tank: ${res}`);
         }
 
         const responseData = await response.json();
@@ -863,7 +865,7 @@ export default {
         this.showUpgradeSuccessDialog = true;
 
       } catch (error) {
-        alert('Error upgrading tank:', error);
+        console.error('Error upgrading tank:', error);
       }
     },
     async fetchTeamDetails() {
