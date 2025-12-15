@@ -1,100 +1,261 @@
 <template>
   <v-dialog v-model="localShowEditDialog" @update:model-value="close" max-width="1000px">
-    <v-card>
-      <v-card-title>Edit Match</v-card-title>
-      <v-card-text>
+    <v-card class="rounded-lg">
+      <v-toolbar color="primary" density="compact">
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold">
+          <v-icon start icon="mdi-pencil"></v-icon>
+          Edit Match Details
+        </v-toolbar-title>
+        <v-spacer></v-spacer>
+        <v-btn icon @click="close">
+          <v-icon>mdi-close</v-icon>
+        </v-btn>
+      </v-toolbar>
+
+      <v-card-text class="pa-6">
         <v-form>
-          <v-text-field v-model="editForm.datetime" label="Date and Time" type="datetime-local"></v-text-field>
+          <v-row dense>
+            <v-col cols="12">
+              <v-text-field
+                v-model="editForm.datetime"
+                label="Date and Time"
+                type="datetime-local"
+                prepend-inner-icon="mdi-calendar-clock"
+                variant="outlined"
+                density="comfortable"
+              ></v-text-field>
+            </v-col>
+          </v-row>
 
-          <v-select
-            v-model="editForm.mode"
-            :items="modeOptions"
-            label="Mode"
-          ></v-select>
-          <v-select
-            v-model="editForm.gamemode"
-            :items="gamemodeOptions"
-            label="Game Mode"
-          ></v-select>
+          <v-row dense>
+            <v-col cols="12" md="6">
+              <v-select
+                v-model="editForm.mode"
+                :items="modeOptions"
+                label="Mode"
+                prepend-inner-icon="mdi-controller"
+                variant="outlined"
+                density="compact"
+              ></v-select>
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-select
+                v-model="editForm.gamemode"
+                :items="gamemodeOptions"
+                label="Game Mode"
+                prepend-inner-icon="mdi-controller-classic"
+                variant="outlined"
+                density="compact"
+              ></v-select>
+            </v-col>
+          </v-row>
 
-          <v-text-field v-model="editForm.map_selection" label="Map Selection"></v-text-field>
-          <v-select
-            v-model="editForm.best_of_number"
-            label="Best of Number"
-            :items="bestOfOptions"
-          ></v-select>
-          <v-text-field v-model="editForm.special_rules" label="Special Rules"></v-text-field>
-          <v-select
-            v-model="editForm.money_rules"
-            :items="moneyRulesOptions"
-            label="Money Rules"
-          ></v-select>
+          <v-row dense>
+            <v-col cols="12" md="4">
+              <v-select
+                v-model="editForm.money_rules"
+                :items="moneyRulesOptions"
+                label="Money Rules"
+                prepend-inner-icon="mdi-cash"
+                variant="outlined"
+                density="compact"
+              ></v-select>
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-select
+                v-model="editForm.best_of_number"
+                label="Format (Best of)"
+                :items="bestOfOptions"
+                prepend-inner-icon="mdi-trophy-outline"
+                variant="outlined"
+                density="compact"
+              ></v-select>
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-text-field
+                v-model="editForm.map_selection"
+                label="Map Selection"
+                prepend-inner-icon="mdi-map-marker"
+                variant="outlined"
+                density="compact"
+              ></v-text-field>
+            </v-col>
+          </v-row>
 
-          <v-divider></v-divider>
+          <v-row dense>
+            <v-col cols="12">
+              <v-text-field
+                v-model="editForm.special_rules"
+                label="Special Rules"
+                prepend-inner-icon="mdi-alert-circle-outline"
+                variant="outlined"
+                density="compact"
+              ></v-text-field>
+            </v-col>
+          </v-row>
+
+          <v-divider class="my-6"></v-divider>
 
           <v-row>
-            <v-col>
-              <div v-for="(team, index) in editForm.teammatch_set.team_1" :key="index">
-                <v-select
-                  v-model="team.team"
-                  :items="teamOptions"
-                  label="Team Name"
-                  item-text="name"
-                  item-value="name"
-                  @change="onTeamSelect('team_1', index)"
-                ></v-select>
+            <v-col cols="12" md="5">
+              <div class="text-subtitle-1 mb-2 text-center font-weight-bold text-primary">Team 1</div>
 
-                <v-select
-                  v-model="team.tanks"
-                  :items="getTeamTanks('team_1', index)"
-                  label="Tanks"
-                  multiple
-                  chips
-                  item-value="id"
-                  item-text="tank.name"
-                ></v-select>
+              <div v-for="(team, teamIndex) in editForm.teammatch_set.team_1" :key="teamIndex" class="mb-4">
+                <v-card variant="outlined" class="border-grey">
+                  <v-card-item class="bg-grey-lighten-1 py-2">
+                    <div class="d-flex align-center">
+                      <v-autocomplete
+                        v-model="team.team"
+                        :items="teamOptions"
+                        label="Select Team"
+                        item-title="title"
+                        item-value="title"
+                        hide-details
+                        variant="plain"
+                        density="compact"
+                        class="font-weight-bold"
+                        @update:model-value="onTeamSelect('team_1', teamIndex)"
+                      >
+                        <template v-slot:selection="{ item }">
+                          <span class="text-primary">{{ item.title }}</span>
+                        </template>
+                      </v-autocomplete>
+                      <v-btn
+                        icon="mdi-close"
+                        variant="text"
+                        color="error"
+                        size="small"
+                        @click="removeTeam('team_1', teamIndex)"
+                      ></v-btn>
+                    </div>
+                  </v-card-item>
 
-                <v-btn @click="removeTeam('team_1', index)" color="red">Remove Team</v-btn>
+                  <v-divider></v-divider>
+
+                  <v-card-text class="pa-2">
+                    <div
+                      v-for="(tankEntry, tankIndex) in team.tanks"
+                      :key="tankIndex"
+                      class="d-flex align-center mb-1"
+                    >
+                      <v-icon icon="mdi-tank" size="small" color="grey-lighten-1" class="mr-2"></v-icon>
+                      <v-autocomplete
+                        class="my-1"
+                        v-model="tankEntry.id"
+                        :items="getTeamTanks('team_1', teamIndex, tankIndex)"
+                        label="Select Tank"
+                        item-title="title"
+                        item-value="id"
+                        placeholder="Add a tank..."
+                        hide-details
+                        variant="underlined"
+                        density="compact"
+                        @update:model-value="onTankChange('team_1', teamIndex, tankIndex)"
+                      ></v-autocomplete>
+
+                      <v-btn
+                        v-if="tankIndex !== team.tanks.length - 1"
+                        icon="mdi-close"
+                        size="x-small"
+                        variant="text"
+                        color="grey"
+                        class="ml-1"
+                        @click="removeTank('team_1', teamIndex, tankIndex)"
+                      ></v-btn>
+                      <div v-else style="width: 28px; margin-left: 4px;"></div>
+                    </div>
+                  </v-card-text>
+                </v-card>
               </div>
-              <v-btn @click="addTeam('team_1')" color="primary">Add Team</v-btn>
+              <v-btn block variant="tonal" color="primary" prepend-icon="mdi-plus" @click="addTeam('team_1')">Add Team</v-btn>
             </v-col>
 
-            <v-col class="d-flex justify-center align-center">
-              <p style="text-align:center; font-weight: bold;">vs</p>
+            <v-col cols="12" md="2" class="d-flex justify-center align-center">
+               <div class="text-h5 text-disabled font-italic font-weight-black">VS</div>
             </v-col>
 
-            <v-col>
-              <div v-for="(team, index) in editForm.teammatch_set.team_2" :key="index">
-                <v-select
-                  v-model="team.team"
-                  :items="teamOptions"
-                  label="Team Name"
-                  item-text="name"
-                  item-value="name"
-                  @change="onTeamSelect('team_2', index)"
-                ></v-select>
+            <v-col cols="12" md="5">
+              <div class="text-subtitle-1 mb-2 text-center font-weight-bold text-error">Team 2</div>
 
-                <v-select
-                  v-model="team.tanks"
-                  :items="getTeamTanks('team_2', index)"
-                  label="Tanks"
-                  multiple
-                  chips
-                  item-value="id"
-                  item-text="tank.name"
-                ></v-select>
+              <div v-for="(team, teamIndex) in editForm.teammatch_set.team_2" :key="teamIndex" class="mb-4">
+                <v-card variant="outlined" class="border-grey">
+                  <v-card-item class="bg-grey-lighten-1 py-2">
+                    <div class="d-flex align-center">
+                      <v-autocomplete
+                        v-model="team.team"
+                        :items="teamOptions"
+                        label="Select Team"
+                        item-title="title"
+                        item-value="title"
+                        hide-details
+                        variant="plain"
+                        density="compact"
+                        class="font-weight-bold"
+                        @update:model-value="onTeamSelect('team_2', teamIndex)"
+                      >
+                        <template v-slot:selection="{ item }">
+                          <span class="text-error">{{ item.title }}</span>
+                        </template>
+                      </v-autocomplete>
+                      <v-btn
+                        icon="mdi-close"
+                        variant="text"
+                        color="error"
+                        size="small"
+                        @click="removeTeam('team_2', teamIndex)"
+                      ></v-btn>
+                    </div>
+                  </v-card-item>
 
-                <v-btn @click="removeTeam('team_2', index)" color="red">Remove Team</v-btn>
+                  <v-divider></v-divider>
+
+                   <v-card-text class="pa-2">
+                    <div
+                      v-for="(tankEntry, tankIndex) in team.tanks"
+                      :key="tankIndex"
+                      class="d-flex align-center mb-1"
+                    >
+                      <v-icon icon="mdi-tank" size="small" color="grey-lighten-1" class="mr-2"></v-icon>
+                      <v-autocomplete
+                        class="my-1"
+                        v-model="tankEntry.id"
+                        :items="getTeamTanks('team_2', teamIndex, tankIndex)"
+                        label="Select Tank"
+                        item-title="title"
+                        item-value="id"
+                        placeholder="Add a tank..."
+                        hide-details
+                        variant="underlined"
+                        density="compact"
+                        @update:model-value="onTankChange('team_2', teamIndex, tankIndex)"
+                      ></v-autocomplete>
+
+                      <v-btn
+                        v-if="tankIndex !== team.tanks.length - 1"
+                        icon="mdi-close"
+                        size="x-small"
+                        variant="text"
+                        color="grey"
+                        class="ml-1"
+                        @click="removeTank('team_2', teamIndex, tankIndex)"
+                      ></v-btn>
+                      <div v-else style="width: 28px; margin-left: 4px;"></div>
+                    </div>
+                  </v-card-text>
+                </v-card>
               </div>
-              <v-btn @click="addTeam('team_2')" color="primary">Add Team</v-btn>
+              <v-btn block variant="tonal" color="primary" prepend-icon="mdi-plus" @click="addTeam('team_2')">Add Team</v-btn>
             </v-col>
           </v-row>
         </v-form>
       </v-card-text>
 
-      <v-card-actions>
-        <v-btn color="primary" @click="saveChanges">Save</v-btn>
-        <v-btn color="error" @click="close">Cancel</v-btn>
+      <v-divider></v-divider>
+
+      <v-card-actions class="pa-4">
+        <v-spacer></v-spacer>
+        <v-btn color="error" variant="text" prepend-icon="mdi-close" @click="close">Cancel</v-btn>
+        <v-btn color="primary" variant="elevated" prepend-icon="mdi-content-save" @click="saveChanges">Save Changes</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -112,6 +273,8 @@ const emit = defineEmits(['update:showEditDialog', 'updateMatch']);
 
 const localShowEditDialog = ref(props.showEditDialog);
 const teamOptions = ref([]);
+
+// Structure: tanks is now an array of objects { id: number | null }
 const editForm = ref({
   id: '',
   datetime: '',
@@ -122,8 +285,8 @@ const editForm = ref({
   money_rules: '',
   special_rules: '',
   teammatch_set: {
-    team_1: [{ team: '', tanks: [] }],
-    team_2: [{ team: '', tanks: [] }],
+    team_1: [{ team: '', tanks: [{ id: null }] }],
+    team_2: [{ team: '', tanks: [{ id: null }] }],
   },
 });
 
@@ -151,6 +314,7 @@ const moneyRulesOptions = [
 ];
 
 const updateTeamOptions = () => {
+  if (!props.allTeamDetails) return;
   teamOptions.value = props.allTeamDetails.map(team => ({
     title: team.name,
     id: team.id,
@@ -158,13 +322,15 @@ const updateTeamOptions = () => {
 };
 
 const updateAvailableTeams = () => {
+  if (!props.allTeamDetails) return;
+
   const allTeams = [
     ...editForm.value.teammatch_set.team_1.map(team => team.team),
     ...editForm.value.teammatch_set.team_2.map(team => team.team)
   ];
 
   teamOptions.value = props.allTeamDetails
-    .filter(team => !allTeams.includes(team.name))
+    .filter(team => !allTeams.includes(team.name)) // Only filter if you want to prevent duplicate teams
     .map(team => ({
       title: team.name,
       id: team.id,
@@ -172,16 +338,7 @@ const updateAvailableTeams = () => {
     .sort((a, b) => a.title.localeCompare(b.title));
 };
 
-watch(() => editForm.value.teammatch_set, () => {
-  updateAvailableTeams();
-}, { deep: true });
-
-watch(() => props.allTeamDetails, (newData) => {
-  if (newData) {
-    updateAvailableTeams();
-    updateTeamOptions();
-  }
-}, { immediate: true });
+// --- Watchers ---
 
 watch(() => props.showEditDialog, (newValue) => {
   localShowEditDialog.value = newValue;
@@ -191,6 +348,13 @@ watch(() => localShowEditDialog.value, (newValue) => {
   emit('update:showEditDialog', newValue);
 });
 
+watch(() => props.allTeamDetails, (newData) => {
+  if (newData) {
+    updateTeamOptions();
+  }
+}, { immediate: true });
+
+// Initialize form when detailedMatch changes
 watch(() => props.detailedMatch, (newVal) => {
   if (newVal) {
     editForm.value = {
@@ -205,82 +369,114 @@ watch(() => props.detailedMatch, (newVal) => {
       teammatch_set: {
         team_1: newVal.sides.team_1.map(team => ({
           team: team.team,
-          tanks: team.tanks.map(tank => tank.id)
+          // Convert IDs to objects and append one empty slot
+          tanks: [...team.tanks.map(tank => ({ id: tank.id })), { id: null }]
         })),
         team_2: newVal.sides.team_2.map(team => ({
           team: team.team,
-          tanks: team.tanks.map(tank => tank.id)
+          // Convert IDs to objects and append one empty slot
+          tanks: [...team.tanks.map(tank => ({ id: tank.id })), { id: null }]
         })),
       },
     };
   }
 }, { immediate: true });
 
+
+// --- Form Logic ---
+
 const onTeamSelect = (side, index) => {
-  editForm.value.teammatch_set[side][index].tanks = [];
+  // When team changes, reset tanks to one empty slot
+  editForm.value.teammatch_set[side][index].tanks = [{ id: null }];
+  updateAvailableTeams();
 };
 
-const getTeamTanks = (side, index) => {
-  const selectedTeamName = editForm.value.teammatch_set[side][index].team;
-  const mode = editForm.value.mode; // Get the current mode
+const onTankChange = (side, teamIndex, tankIndex) => {
+  const currentTeam = editForm.value.teammatch_set[side][teamIndex];
+  // If we just edited the last row, add a new empty row
+  if (tankIndex === currentTeam.tanks.length - 1 && currentTeam.tanks[tankIndex].id) {
+    currentTeam.tanks.push({ id: null });
+  }
+};
 
+const removeTank = (side, teamIndex, tankIndex) => {
+  const currentTeam = editForm.value.teammatch_set[side][teamIndex];
+  // Allow removing unless it's the only one (optional, keeping 1 empty is usually good UX)
+  if (currentTeam.tanks.length > 1) {
+    currentTeam.tanks.splice(tankIndex, 1);
+  } else {
+    // If it's the last one, just clear the value
+    currentTeam.tanks[0].id = null;
+  }
+};
+
+const addTeam = (side) => {
+  editForm.value.teammatch_set[side].push({ team: '', tanks: [{ id: null }] });
+};
+
+const removeTeam = (side, index) => {
+  if (editForm.value.teammatch_set[side].length > 1) {
+    editForm.value.teammatch_set[side].splice(index, 1);
+    updateAvailableTeams();
+  } else {
+    // Optional: alert user they can't have 0 teams on a side
+    alert("At least one team is required per side.");
+  }
+};
+
+// --- Helpers ---
+
+const getTeamTanks = (side, teamIndex, currentTankRowIndex) => {
+  const selectedTeamName = editForm.value.teammatch_set[side][teamIndex].team;
+  if (!selectedTeamName) return [];
+
+  const mode = editForm.value.mode;
   const team = props.allTeamDetails.find(t => t.name === selectedTeamName);
 
   if (team) {
+    const currentTeamRows = editForm.value.teammatch_set[side][teamIndex].tanks;
+    const usedIds = currentTeamRows
+      .map((row, idx) => {
+        return idx !== currentTankRowIndex ? row.id : null;
+      })
+      .filter(id => id !== null);
+
     return team.tanks
       .filter(tank => {
-        // Return tanks based on the current mode
-        if (mode === 'traditional') {
-          // Only include available traditional tanks if the mode is "traditional"
-          return tank.is_trad && tank.available;
-        } else {
-          // Return all tanks that are not traditional (is_trad is false)
-          return !tank.is_trad;
-        }
+        const isModeValid = (mode === 'traditional')
+          ? (tank.is_trad && tank.available)
+          : (!tank.is_trad);
+
+        const isNotUsed = !usedIds.includes(tank.id);
+
+        return isModeValid && isNotUsed;
       })
       .map(tank => ({
         id: tank.id,
         title: tank.tank.name,
       }));
   }
-
   return [];
-};
-
-const getTankNameById = (teamName, tankId) => {
-  const tanks = getTeamTanksByName(teamName);
-  const tank = tanks.find(t => t.id === tankId);
-  return tank ? tank.name : '';
 };
 
 const getTeamTanksByName = (name) => {
   const team = props.allTeamDetails.find(t => t.name === name);
-
   if (team) {
-    console.log(team.tanks)
     return team.tanks.map(tank => ({
       id: tank.id,
       name: tank.tank.name,
-      battle_rating: tank.tank.battle_rating // Ensure battle_rating exists in the tank object
+      battle_rating: tank.tank.battle_rating
     }));
   }
-
   return [];
 };
 
 const getTeamId = (teamName) => {
-  return props.allTeamDetails.find(t => t.name === teamName).id;
+  const t = props.allTeamDetails.find(t => t.name === teamName);
+  return t ? t.id : null;
 }
 
-const addTeam = (side) => {
-  editForm.value.teammatch_set[side].push({ team: '', tanks: [] });
-};
-
-const removeTeam = (side, index) => {
-  if (editForm.value.teammatch_set[side].length > 1) {
-    editForm.value.teammatch_set[side].splice(index, 1);
-  }
-};
+// --- Save ---
 
 const saveChanges = () => {
   const updatedMatch = {
@@ -292,12 +488,19 @@ const saveChanges = () => {
     best_of_number: editForm.value.best_of_number,
     money_rules: editForm.value.money_rules,
     special_rules: editForm.value.special_rules,
+
     teammatch_set: Object.keys(editForm.value.teammatch_set).map(side => {
-      return editForm.value.teammatch_set[side].map(team => ({
-        team: team.team,
-        tanks: team.tanks
+      return editForm.value.teammatch_set[side].map(team => {
+
+        const tankReferenceList = getTeamTanksByName(team.team);
+
+        const cleanedTanks = team.tanks
+          .filter(t => t.id)
+          .map(t => t.id)
           .map(tankId => {
-            const tankData = getTeamTanksByName(team.team).find(t => t.id === tankId);
+            const tankData = tankReferenceList.find(ref => ref.id === tankId);
+            if (!tankData) return null;
+
             return {
               id: tankId,
               tank: {
@@ -308,13 +511,19 @@ const saveChanges = () => {
               team: getTeamId(team.team)
             };
           })
-          .sort((a, b) => b.tank.battle_rating - a.tank.battle_rating),
-        side: side,
-      }));
+          .filter(t => t !== null)
+          .sort((a, b) => b.tank.battle_rating - a.tank.battle_rating);
+
+        return {
+          team: team.team,
+          tanks: cleanedTanks,
+          side: side,
+        };
+      });
     }).flat()
   };
 
-  console.log(updatedMatch);
+  console.log("Saving Updated Match:", updatedMatch);
   emit('updateMatch', updatedMatch);
   close();
 };
@@ -325,7 +534,7 @@ const close = () => {
 </script>
 
 <style scoped>
-.v-select {
-  margin-bottom: 10px;
+.border-grey {
+  border-color: #BDBDBD !important;
 }
 </style>

@@ -23,6 +23,7 @@ class Command(BaseCommand):
                     tank_entries = [tank.strip() for tank in row['Tanks'].split(',')]
                     for tank_entry in tank_entries:
                         if 'x' in tank_entry:
+                            print(tank_entry)
                             count, tank_name = tank_entry.split('x')
                             count = count.strip()
                             tank_name = tank_name.strip()

@@ -5,21 +5,31 @@
       <v-col
         v-for="(group, index) in visibleGroups"
         :key="`group-${index}`"
+        cols="12"
         md="3"
       >
-        <v-card class="pa-2">
-          <v-card-title class="text-center">
-            <strong>
-              {{ formattedDate(group.date) }} - {{ formattedTime(group.tanks[0]?.available_from) }}
-            </strong>
+        <v-card class="pa-2 h-100">
+          <v-card-title class="text-center text-wrap py-3">
+            <div class="text-h6 font-weight-bold mb-1">
+              {{ formattedDate(group.date) }}
+            </div>
+            <div class="text-subtitle-3 text-medium-emphasis font-weight-bold">
+              {{ formattedTimeUTC(group.tanks[0]?.available_from) }}
+            </div>
+            <div class="text-subtitle-1 text-disabled">
+              {{ formattedTimeLocal(group.tanks[0]?.available_from) }}
+            </div>
           </v-card-title>
+
           <v-divider></v-divider>
-          <v-card-text>
+
+          <v-card-text class="px-2">
             <v-table dense class="elevation-1">
               <thead>
                 <tr>
-                  <th class="text-left" style="width: 50%;">Tank</th>
-                  <th class="text-right" style="width: 50%;">Your Price</th>
+                  <th class="text-left" style="width: 45%;">Tank</th>
+                  <th class="text-right" style="width: 35%;">Your Price</th>
+                  <th class="text-center" style="width: 20%;">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -31,24 +41,25 @@
                     'expired-tank': isExpired(tank) && !isPurchased(tank)
                   }"
                 >
-                  <td>
+                  <td class="text-body-2 font-weight-medium">
                     <span :class="{ 'text-line-through': isPurchased(tank) }">
                       {{ tank.tank_name }}
                     </span>
                   </td>
-                  <td class="text-right">
+                  <td class="text-right text-body-2">
                     <span :class="{ 'text-line-through': isPurchased(tank) }">
                       {{ calculatePrice(tank).toLocaleString() }}
                     </span>
                   </td>
-                  <td class="text-center">
+                  <td class="text-center pa-1">
                     <v-btn
                       color="success"
-                      small
+                      size="large"
                       @click="purchaseTank(tank)"
-                      :disabled="!isCommander || isPurchased(tank) || isExpired(tank) || isBeforeAvailableFrom(tank) || canAfford(tank)"
+                      class="mt-1"
+                      :disabled="!isCommander || isPurchased(tank) || isExpired(tank) || isBeforeAvailableFrom(tank) || !canAfford(tank)"
                     >
-                      Purchase
+                      Buy
                     </v-btn>
                   </td>
                 </tr>
@@ -57,7 +68,7 @@
             <v-btn
               color="primary"
               block
-              class="mt-2"
+              class="mt-4"
               @click="viewCriteria(group.criteria)"
             >
               View Criteria
@@ -67,7 +78,7 @@
       </v-col>
     </v-row>
 
-    <v-row justify="space-between" class="mb-2">
+    <v-row justify="space-between" class="mb-2 mt-4">
       <v-btn @click="prevPage" :disabled="currentPage === 0" color="primary" class="ml-3">
         ← Previous
       </v-btn>
@@ -156,6 +167,7 @@ interface Criteria {
 }
 
 interface Group {
+  date: string;
   criteria: Criteria | null;
   tanks: Tank[];
 }
@@ -236,8 +248,33 @@ const isPurchased = (tank: Tank): boolean => {
 };
 
 const canAfford = (tank: Tank): boolean => {
-  return calculatePrice(tank) >= team.value.balance;
+  return calculatePrice(tank) <= team.value.balance;
 }
+
+const setInitialPage = () => {
+  const now = new Date();
+
+  let targetIndex = groupList.value.findIndex((group) => {
+    if (!group.tanks || group.tanks.length === 0) return false;
+    const activeFrom = new Date(group.tanks[0].available_from);
+    const activeUntil = new Date(group.tanks[0].available_until);
+    return now >= activeFrom && now <= activeUntil;
+  });
+
+  if (targetIndex === -1) {
+    targetIndex = groupList.value.findIndex((group) => {
+      if (!group.tanks || group.tanks.length === 0) return false;
+      const activeUntil = new Date(group.tanks[0].available_until);
+      return activeUntil > now;
+    });
+  }
+
+  if (targetIndex !== -1) {
+    currentPage.value = Math.floor(targetIndex / pageSize);
+  } else if (groupList.value.length > 0) {
+    currentPage.value = Math.floor((groupList.value.length - 1) / pageSize);
+  }
+};
 
 const fetchImportGroups = async () => {
   try {
@@ -246,6 +283,8 @@ const fetchImportGroups = async () => {
 
     const data: ImportGroups = await response.json();
     importGroups.value = data;
+
+    setInitialPage();
   } catch (error) {
     console.error("Error fetching import results:", error);
   }
@@ -260,14 +299,13 @@ const fetchManufacturers = async () => {
       throw new Error("Network response was not ok");
     }
     const data = await response.json();
-    allTanks.value = data.map((manufacturer) => manufacturer.tanks).flat();
+    allTanks.value = data.map((manufacturer: any) => manufacturer.tanks).flat();
   } catch (error) {
     console.error("There was a problem with the fetch operation:", error);
   }
 };
 
 const purchaseTank = async (tank: Tank) => {
-  console.log('pursgsa')
   try {
     const response = await fetch(`/api/league/transactions/buy_imports/`, {
       method: "POST",
@@ -305,7 +343,7 @@ const fetchTeamDetails = async () => {
   }
 }
 
-const calculatePrice = (tank) => {
+const calculatePrice = (tank: Tank) => {
   let tank_price = tank.base_discounted_price;
   const allTank = allTanks.value.find((t) => t.name === tank.tank_name);
 
@@ -338,13 +376,25 @@ const formattedDate = (dateStr: string) => {
     day: "numeric",
     year: "numeric",
     timeZone: "UTC",
-  }).format(date).slice(0, 11);
+  }).format(date);
 };
 
-const formattedTime = (isoString: string | undefined) => {
+// Renamed from formattedTime
+const formattedTimeUTC = (isoString: string | undefined) => {
   if (!isoString) return "";
   const date = new Date(isoString);
   return date.toISOString().slice(11, 16) + " UTC";
+};
+
+// Added Local Time formatter
+const formattedTimeLocal = (isoString: string | undefined) => {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  return date.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false // Set to true if you prefer AM/PM
+  }) + " Local";
 };
 
 onMounted(() => {
@@ -357,8 +407,8 @@ onMounted(() => {
 <style scoped>
 .v-table td,
 .v-table th {
-  font-size: 0.875rem;
-  padding: 4px 8px;
+  font-size: 0.95rem;
+  padding: 8px 8px;
 }
 
 .v-card {

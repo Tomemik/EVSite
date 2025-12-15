@@ -100,6 +100,7 @@ const drawerItems = ref([
   { title: 'Money Log', path: '/log'},
   { title: 'Tanks', path: '/tanks' },
   { title: 'Manufacturers', path: '/manufacturers' },
+  { title: 'Upgrade Charts', path: '/upgrades' },
 ]);
 
 watch(

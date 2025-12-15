@@ -125,7 +125,7 @@ Factory No. 174 + No. 185 + GAZ,T-50
 Factory No. 174 + No. 185 + GAZ,SU-57B
 Factory No. 174 + No. 185 + GAZ,T-126
 Factory No. 174 + No. 185 + GAZ,SU-100Y
-Lendliz,"MK-II """"Matilda"""""
+Lendliz,"MK-II ""Matilda"""
 Krupp + Alkett + Vomag,Pz.IV C
 Krupp + Alkett + Vomag,Pz.IV E
 Krupp + Alkett + Vomag,Pz.IV F1
@@ -136,7 +136,7 @@ Krupp + Alkett + Vomag,Pz.IV J
 Krupp + Alkett + Vomag,Pz.IV H
 Krupp + Alkett + Vomag,Jagdpanzer IV
 Krupp + Alkett + Vomag,Jagdpanzer IV/70 (A)
-Krupp + Alkett + Vomag,StuPz. IV 'Brummbär'
+Krupp + Alkett + Vomag,StuPz. IV 'Brummbar'
 Krupp + Alkett + Vomag,Jagdpanzer IV/70 (V)
 Henschel + Porsche,Pz.II C
 Henschel + Porsche,Pz.II F
@@ -180,7 +180,7 @@ MAN AG + Rheinmetall,Panther A
 MAN AG + Rheinmetall,Panther G
 MAN AG + Rheinmetall,Panther F
 MAN AG + Rheinmetall,JPz. V 'Jagdpanther'
-MAN AG + Rheinmetall,"Pz. V """"Panther"""" II"
+MAN AG + Rheinmetall,"Pz. V ""Panther"" II"
 Beutepanzer,T 34 747 (r)
 Beutepanzer,KW I C 756 (r)
 Nuffield + Leyland,A13 Mk. I
@@ -218,7 +218,7 @@ Vickers - Armstrong + Messrs Vulcan,Archer
 Vickers - Armstrong + Messrs Vulcan,Valentine Mk. IX
 Vickers - Armstrong + Messrs Vulcan,Sherman II
 Vickers - Armstrong + Messrs Vulcan,Achilles
-Vickers - Armstrong + Messrs Vulcan,"Sherman IC """"Trzyniec"""""
+Vickers - Armstrong + Messrs Vulcan,"Sherman IC ""Trzyniec"""
 Vickers - Armstrong + Messrs Vulcan,M4 Tipo IC
 Vickers - Armstrong + Messrs Vulcan,Sherman VC
 Vickers - Armstrong + Messrs Vulcan,Sherman VC (APDS)
@@ -503,7 +503,7 @@ Polski Aliancki Przemysl Czolgowy,Valentine Mk. IX
 Polski Aliancki Przemysl Czolgowy,Archer
 Polski Aliancki Przemysl Czolgowy,Cromwell V
 Polski Aliancki Przemysl Czolgowy,Churchill Mk. III
-Polski Aliancki Przemysl Czolgowy,"Sherman IC """"Trzyniec"""""
+Polski Aliancki Przemysl Czolgowy,"Sherman IC ""Trzyniec"""
 Polski Aliancki Przemysl Czolgowy,Sherman VC
 Polski Aliancki Przemysl Czolgowy,A30 Challenger
 Ludowa Fabryka Pojazdow Pancernych,T-70
@@ -622,7 +622,7 @@ TTG,M4A4 (1st PTG)
 TTG,M4A1 (75) W
 TTG,Chi-Nu II
 TTG,PT-76
-TTG,Chi-to Late
+TTG,Chi-To Late
 TTG,Churchill Mk. VII
 TTG,Chi-Ri II
 TTG,M4A2 (76) W
@@ -642,7 +642,6 @@ FiBIS,H.39
 FiBIS,M2A4
 FiBIS,Pz.35 (t)
 FiBIS,A13 Mk. I
-FiBIS,Vickers Independent
 FiBIS,Pz.II F
 FiBIS,Pz.38 (t) F
 FiBIS,M22
@@ -890,7 +889,7 @@ Mitsubishi Heavy Industries,Chi-He
 Mitsubishi Heavy Industries,Chi-Nu
 Mitsubishi Heavy Industries,Chi-Nu II
 Kawasaki + Kobe,Chi-To
-Kawasaki + Kobe,Chi-to Late
+Kawasaki + Kobe,Chi-To Late
 Kawasaki + Kobe,Chi-Ri II
 Kawasaki + Kobe,Ho-Ri Prototype
 Kawasaki + Kobe,Ho-Ri Production
@@ -912,3 +911,14 @@ CHT Extra,M41A1
 CHT Extra,ST-A3
 CHT Extra,M47
 CHT Extra,M48
+NATO,M103
+Warsaw Pact,IS-4M
+CHT Extra,M26
+Ludowa Fabryka Pojazdow Pancernych,T-44-100
+Vickers - Armstrong + Messrs Vulcan,Mark V
+WKGA,Mark V
+FiBIS,Mark V
+Beutepanzer,Beutepanzer IV
+FiBIS,Beutepanzer IV
+Daimler-Benz + Skoda,A7V
+FAMH,St. Chamond

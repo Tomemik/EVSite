@@ -25,10 +25,12 @@ class Command(BaseCommand):
                     except Tank.DoesNotExist:
                         print(f'Tank {row["To Tank"]} does not exist')
                     kit = row['Kit']
+                    In_graph = True if row['In_graph'] == 'true' else False
 
                     path, created = UpgradePath.objects.get_or_create(
                         from_tank=from_tank,
                         to_tank=to_tank,
+                        in_graph=In_graph,
                         defaults={
                             'required_kit_tier': kit if kit != 'P' else '',
                         }

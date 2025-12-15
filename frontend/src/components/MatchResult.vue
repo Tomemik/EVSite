@@ -1,197 +1,366 @@
 <template>
-  <v-dialog v-model="localShowResultsDialog" @update:model-value="close" max-width="800px">
-    <v-card>
-      <v-card-title>Match Results</v-card-title>
-      <v-card-text v-if="detailedMatch">
-        <v-select
-          v-model="judgeName"
-          :items="allTeamNames"
-          clearable
-          label="Judge"
-        ></v-select>
+  <v-dialog v-model="localShowResultsDialog" @update:model-value="close" max-width="1000px">
+    <v-card class="rounded-lg">
+      <v-toolbar color="primary" density="compact">
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold">
+          <v-icon start icon="mdi-clipboard-check"></v-icon>
+          Match Results
+        </v-toolbar-title>
+        <v-spacer></v-spacer>
+        <v-btn icon @click="close">
+          <v-icon>mdi-close</v-icon>
+        </v-btn>
+      </v-toolbar>
 
-        <v-select
-          v-model="winningSide"
-          :items="sides"
-          label="Winning Side"
-          required
-        ></v-select>
+      <v-card-text class="pa-6">
+        <v-form>
+          <v-row dense>
+            <v-col cols="12" md="4">
+              <v-select
+                v-model="judgeName"
+                :items="allTeamNames"
+                clearable
+                label="Judge"
+                prepend-inner-icon="mdi-gavel"
+                variant="outlined"
+                density="compact"
+              ></v-select>
+            </v-col>
 
-        <v-text-field
-          v-model="roundScore"
-          label="Round Score (X:Y | Winning side 1st)"
-          :rules="[roundScoreFormat]"
-          required
-        ></v-text-field>
+            <v-col cols="12" md="4">
+              <v-select
+                v-model="winningSide"
+                :items="sides"
+                label="Winning Side"
+                required
+                prepend-inner-icon="mdi-trophy"
+                variant="outlined"
+                density="compact"
+              ></v-select>
+            </v-col>
 
-        <v-divider></v-divider>
+            <v-col cols="12" md="4">
+              <v-text-field
+                v-model="roundScore"
+                label="Round Score (X:Y)"
+                placeholder="Winning side 1st"
+                :rules="[roundScoreFormat]"
+                required
+                prepend-inner-icon="mdi-scoreboard"
+                variant="outlined"
+                density="compact"
+              ></v-text-field>
+            </v-col>
+          </v-row>
 
-        <v-row>
-          <v-col>
-            <div v-for="(team, teamIndex) in detailedMatch.sides.team_1" :key="team.team">
-              <v-row align="center" style="height: 44px;">
-                <v-checkbox
-                  v-model="teamResults['team_1'][teamIndex].was_present"
-                  class="ma-0"
-                ></v-checkbox>
-                <strong style="height: 44px;">{{ team.team }}:</strong>
-              </v-row>
+          <v-divider class="my-6"></v-divider>
 
-              <v-row>
-                <v-text-field
-                  v-model="teamResults['team_1'][teamIndex].bonuses"
-                  label="Bonuses"
-                  type="number"
-                  min="0"
-                  class="ml-2"
-                  style="width: 100px;"
-                ></v-text-field>
-                <v-text-field
-                  v-model="teamResults['team_1'][teamIndex].penalties"
-                  label="Penalties"
-                  type="number"
-                  min="0"
-                  class="ml-2"
-                  style="width: 100px;"
-                ></v-text-field>
-              </v-row>
+          <v-row v-if="detailedMatch">
+            <v-col cols="12" md="5">
+              <div class="text-subtitle-1 mb-2 text-center font-weight-bold text-primary">Team 1</div>
 
-              <!-- Tanks Lost -->
-              <ul style="list-style-type: none; padding-left: 0;">
-                <li v-for="(tank, tankIndex) in team.tanks" :key="tank.id">
-                  <v-row align="center">
-                    <v-checkbox
-                      v-model="tanksLost['team_1'][teamIndex][tankIndex].used"
-                      class="mr-2"
-                    ></v-checkbox>
+              <div v-for="(team, teamIndex) in detailedMatch.sides.team_1" :key="team.team" class="mb-4">
+                <v-card variant="outlined" class="border-grey">
+                  <v-card-item class="bg-grey-lighten-1 py-1">
+                    <div class="d-flex align-center">
+                      <v-checkbox
+                        v-model="teamResults['team_1'][teamIndex].was_present"
+                        hide-details
+                        density="compact"
+                        class="mr-2"
+                      ></v-checkbox>
+                      <span class="text-subtitle-2 font-weight-bold">{{ team.team }}</span>
+                    </div>
+                  </v-card-item>
 
-                    <v-text-field
-                      v-model="tanksLost['team_1'][teamIndex][tankIndex].quantity"
-                      :label="tank.tank.name"
-                      type="number"
-                      min="0"
-                      class="ml-2"
-                      style="width: 100px; max-width: 100px;"
-                    ></v-text-field>
-                  </v-row>
-                </li>
-              </ul>
+                  <v-divider></v-divider>
 
-              <!-- Add Substitute Button -->
-              <v-btn @click="addSubstitute('team_1', teamIndex)" color="primary">Add Substitute</v-btn>
-              <div v-for="(substitute, subIndex) in substitutes['team_1'][teamIndex]" :key="subIndex">
-                <v-row>
-                  <v-select
-                    v-model="substitute.team"
-                    :items="allTeamNames"
-                    label="Substitute Team"
-                  ></v-select>
-                  <v-text-field
-                    v-model="substitute.activity"
-                    label="Activity"
-                    type="number"
-                    min="0"
-                    class="ml-2"
-                    style="width: 100px;"
-                  ></v-text-field>
-                  <v-btn @click="removeSubstitute('team_1', teamIndex, subIndex)" color="red">Remove</v-btn>
-                </v-row>
+                  <v-card-text class="pa-3">
+                    <v-row dense class="mb-2">
+                      <v-col cols="6">
+                        <v-text-field
+                          v-model="teamResults['team_1'][teamIndex].bonuses"
+                          label="Bonuses"
+                          type="number"
+                          min="0"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          prepend-inner-icon="mdi-star"
+                        ></v-text-field>
+                      </v-col>
+                      <v-col cols="6">
+                        <v-text-field
+                          v-model="teamResults['team_1'][teamIndex].penalties"
+                          label="Penalties"
+                          type="number"
+                          min="0"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          prepend-inner-icon="mdi-alert-circle"
+                        ></v-text-field>
+                      </v-col>
+                    </v-row>
+
+                    <v-divider class="my-3 border-dashed"></v-divider>
+                    <div class="text-caption font-weight-bold text-medium-emphasis mb-2">TANKS LOST</div>
+
+                    <div
+                      v-for="(tank, tankIndex) in team.tanks"
+                      :key="tank.id"
+                      class="d-flex align-center mb-1"
+                    >
+                      <v-checkbox-btn
+                        v-model="tanksLost['team_1'][teamIndex][tankIndex].used"
+                        density="compact"
+                        class="mr-2"
+                      ></v-checkbox-btn>
+
+                      <div class="text-body-2 text-truncate flex-grow-1" :class="{'text-decoration-line-through text-disabled': !tanksLost['team_1'][teamIndex][tankIndex].used}">
+                        {{ tank.tank.name }}
+                      </div>
+
+                      <v-text-field
+                        v-model="tanksLost['team_1'][teamIndex][tankIndex].quantity"
+                        type="number"
+                        min="0"
+                        variant="outlined"
+                        density="compact"
+                        hide-details
+                        style="max-width: 70px;"
+                        :disabled="!tanksLost['team_1'][teamIndex][tankIndex].used"
+                      ></v-text-field>
+                    </div>
+
+                    <v-divider class="my-3 border-dashed"></v-divider>
+
+                    <div class="d-flex justify-space-between align-center mb-2">
+                      <div class="text-caption font-weight-bold text-medium-emphasis">SUBSTITUTES</div>
+                      <v-btn
+                        size="x-small"
+                        variant="tonal"
+                        color="primary"
+                        prepend-icon="mdi-account-plus"
+                        @click="addSubstitute('team_1', teamIndex)"
+                      >Add</v-btn>
+                    </div>
+
+                    <div v-for="(substitute, subIndex) in substitutes['team_1'][teamIndex]" :key="subIndex" class="pa-2 rounded mb-2 border">
+                      <v-select
+                        v-model="substitute.team"
+                        :items="allTeamNames"
+                        label="Sub Team"
+                        density="compact"
+                        variant="outlined"
+                        hide-details
+                        class="mb-2"
+                      ></v-select>
+                      <div class="d-flex align-center">
+                        <v-select
+                          v-model="substitute.activity"
+                          label="Activity"
+                          :items="activityOptions"
+                          item-title="title"
+                          item-value="value"
+                          density="compact"
+                          variant="outlined"
+                          hide-details
+                        ></v-select>
+                        <v-btn
+                          icon="mdi-delete"
+                          size="small"
+                          variant="text"
+                          color="error"
+                          class="ml-2"
+                          @click="removeSubstitute('team_1', teamIndex, subIndex)"
+                        ></v-btn>
+                      </div>
+                    </div>
+
+                  </v-card-text>
+                </v-card>
               </div>
-            </div>
-          </v-col>
+            </v-col>
 
-          <v-col class="d-flex justify-center align-center">
-            <p style="text-align:center; font-weight: bold;">vs</p>
-          </v-col>
+            <v-col cols="12" md="2" class="d-flex justify-center align-center">
+               <div class="text-h5 text-disabled font-italic font-weight-black">VS</div>
+            </v-col>
 
-          <v-col class="d-flex flex-column align-end">
-            <div v-for="(team, teamIndex) in detailedMatch.sides.team_2" :key="team.team">
-              <v-row align="center" style="height: 44px;">
-                <v-checkbox
-                  v-model="teamResults['team_2'][teamIndex].was_present"
-                  class="ma-0"
-                ></v-checkbox>
-                <strong style="height: 44px;">{{ team.team }}:</strong>
-              </v-row>
+            <v-col cols="12" md="5">
+              <div class="text-subtitle-1 mb-2 text-center font-weight-bold text-error">Team 2</div>
 
-              <v-row>
-                <v-text-field
-                  v-model="teamResults['team_2'][teamIndex].bonuses"
-                  label="Bonuses"
-                  type="number"
-                  min="0"
-                  class="ml-2"
-                  style="width: 100px;"
-                ></v-text-field>
-                <v-text-field
-                  v-model="teamResults['team_2'][teamIndex].penalties"
-                  label="Penalties"
-                  type="number"
-                  min="0"
-                  class="ml-2"
-                  style="width: 100px;"
-                ></v-text-field>
-              </v-row>
+              <div v-for="(team, teamIndex) in detailedMatch.sides.team_2" :key="team.team" class="mb-4">
+                <v-card variant="outlined" class="border-grey">
+                  <v-card-item class="bg-grey-lighten-1 py-1">
+                    <div class="d-flex align-center">
+                      <v-checkbox
+                        v-model="teamResults['team_2'][teamIndex].was_present"
+                        hide-details
+                        density="compact"
+                        class="mr-2"
+                      ></v-checkbox>
+                      <span class="text-subtitle-2 font-weight-bold">{{ team.team }}</span>
+                    </div>
+                  </v-card-item>
 
-              <!-- Tanks Lost -->
-              <ul style="list-style-type: none; padding-left: 0;">
-                <li v-for="(tank, tankIndex) in team.tanks" :key="tank.id">
-                  <v-row align="center">
-                    <v-checkbox
-                      v-model="tanksLost['team_2'][teamIndex][tankIndex].used"
-                      class="mr-2"
-                    ></v-checkbox>
+                  <v-divider></v-divider>
 
-                    <v-text-field
-                      v-model="tanksLost['team_2'][teamIndex][tankIndex].quantity"
-                      :label="tank.tank.name"
-                      type="number"
-                      min="0"
-                      class="ml-2"
-                      style="width: 100px; max-width: 100px;"
-                    ></v-text-field>
-                  </v-row>
-                </li>
-              </ul>
+                  <v-card-text class="pa-3">
+                    <v-row dense class="mb-2">
+                      <v-col cols="6">
+                        <v-text-field
+                          v-model="teamResults['team_2'][teamIndex].bonuses"
+                          label="Bonuses"
+                          type="number"
+                          min="0"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          prepend-inner-icon="mdi-star"
+                        ></v-text-field>
+                      </v-col>
+                      <v-col cols="6">
+                        <v-text-field
+                          v-model="teamResults['team_2'][teamIndex].penalties"
+                          label="Penalties"
+                          type="number"
+                          min="0"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          prepend-inner-icon="mdi-alert-circle"
+                        ></v-text-field>
+                      </v-col>
+                    </v-row>
 
-              <!-- Add Substitute Button -->
-              <v-btn @click="addSubstitute('team_2', teamIndex)" color="primary">Add Substitute</v-btn>
-              <div v-for="(substitute, subIndex) in substitutes['team_2'][teamIndex]" :key="subIndex">
-                <v-row>
-                  <v-select
-                    v-model="substitute.team"
-                    :items="allTeamNames"
-                    label="Substitute Team"
-                  ></v-select>
-                  <v-text-field
-                    v-model="substitute.activity"
-                    label="Activity"
-                    type="number"
-                    min="0"
-                    class="ml-2"
-                    style="width: 100px;"
-                  ></v-text-field>
-                  <v-btn @click="removeSubstitute('team_2', teamIndex, subIndex)" color="red">Remove</v-btn>
-                </v-row>
+                    <v-divider class="my-3 border-dashed"></v-divider>
+                    <div class="text-caption font-weight-bold text-medium-emphasis mb-2">TANKS LOST</div>
+
+                    <div
+                      v-for="(tank, tankIndex) in team.tanks"
+                      :key="tank.id"
+                      class="d-flex align-center mb-1"
+                    >
+                      <v-checkbox-btn
+                        v-model="tanksLost['team_2'][teamIndex][tankIndex].used"
+                        density="compact"
+                        class="mr-2"
+                      ></v-checkbox-btn>
+
+                      <div class="text-body-2 text-truncate flex-grow-1" :class="{'text-decoration-line-through text-disabled': !tanksLost['team_2'][teamIndex][tankIndex].used}">
+                        {{ tank.tank.name }}
+                      </div>
+
+                      <v-text-field
+                        v-model="tanksLost['team_2'][teamIndex][tankIndex].quantity"
+                        type="number"
+                        min="0"
+                        variant="outlined"
+                        density="compact"
+                        hide-details
+                        style="max-width: 70px;"
+                        :disabled="!tanksLost['team_2'][teamIndex][tankIndex].used"
+                      ></v-text-field>
+                    </div>
+
+                    <v-divider class="my-3 border-dashed"></v-divider>
+
+                    <div class="d-flex justify-space-between align-center mb-2">
+                      <div class="text-caption font-weight-bold text-medium-emphasis">SUBSTITUTES</div>
+                      <v-btn
+                        size="x-small"
+                        variant="tonal"
+                        color="primary"
+                        prepend-icon="mdi-account-plus"
+                        @click="addSubstitute('team_2', teamIndex)"
+                      >Add</v-btn>
+                    </div>
+
+                    <div v-for="(substitute, subIndex) in substitutes['team_2'][teamIndex]" :key="subIndex" class="pa-2 rounded mb-2 border">
+                      <v-select
+                        v-model="substitute.team"
+                        :items="allTeamNames"
+                        label="Sub Team"
+                        density="compact"
+                        variant="outlined"
+                        hide-details
+                        class="mb-2"
+                      ></v-select>
+                      <div class="d-flex align-center">
+                        <v-select
+                          v-model="substitute.activity"
+                          label="Activity"
+                          type="number"
+                          :items="activityOptions"
+                          item-title="title"
+                          item-value="value"
+                          density="compact"
+                          variant="outlined"
+                          hide-details
+                        ></v-select>
+                        <v-btn
+                          icon="mdi-delete"
+                          size="small"
+                          variant="text"
+                          color="error"
+                          class="ml-2"
+                          @click="removeSubstitute('team_2', teamIndex, subIndex)"
+                        ></v-btn>
+                      </div>
+                    </div>
+
+                  </v-card-text>
+                </v-card>
               </div>
-            </div>
-          </v-col>
-        </v-row>
+            </v-col>
+          </v-row>
+        </v-form>
       </v-card-text>
 
-      <v-card-actions>
-        <v-btn color="info" @click="copyResults">Copy Results</v-btn>
-        <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" :disabled="calcOverride" color="success" @click="calcMatch">Calc</v-btn>
-        <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" :disabled="!canSubmitResults" color="success" @click="submitResults">Submit</v-btn>
+      <v-divider></v-divider>
+
+      <v-card-actions class="pa-4">
         <v-btn
-          v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))"
-          :disabled="!calcOverride"
-          color="warning"
-          @click="revertCalc"
-        >
-    Revert Calc
-  </v-btn>
-        <v-btn color="error" @click="close">Close</v-btn>
+          color="info"
+          variant="text"
+          prepend-icon="mdi-content-copy"
+          @click="copyResults"
+        >Copy Results</v-btn>
+
+        <v-spacer></v-spacer>
+
+        <template v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))">
+          <v-btn
+            v-if="calcOverride"
+            color="warning"
+            variant="tonal"
+            prepend-icon="mdi-undo"
+            @click="revertCalc"
+          >Revert Calc</v-btn>
+
+          <v-btn
+            :disabled="calcOverride"
+            color="success"
+            variant="tonal"
+            prepend-icon="mdi-calculator"
+            @click="calcMatch"
+          >Calc</v-btn>
+
+          <v-btn
+            :disabled="!canSubmitResults"
+            color="success"
+            variant="elevated"
+            prepend-icon="mdi-check"
+            @click="submitResults"
+          >Submit</v-btn>
+        </template>
+
+        <v-btn
+          color="error"
+          variant="text"
+          @click="close"
+        >Close</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -303,7 +472,9 @@ watch(() => props.results, (newResults) => {
             (lostTank) => lostTank.team === team.team && lostTank.tank === tank.tank.name
           );
 
-          newResults.tanks_lost[index] = {}
+          if (index !== -1 && newResults.tanks_lost) {
+              newResults.tanks_lost[index] = {}
+          }
 
           if (lostTankData) {
             return {
@@ -341,7 +512,7 @@ const addSubstitute = (side, teamIndex) => {
   substitutes.value[side][teamIndex].push({
     team: '',
     team_played_for: { name: props.detailedMatch.sides[side][teamIndex].team },
-    activity: 0,
+    activity: null,
     side: side,
   });
 };
@@ -586,7 +757,10 @@ const calcMatch = async () => {
 </script>
 
 <style scoped>
-.v-select {
-  margin-bottom: 10px;
+.border-grey {
+  border-color: #BDBDBD !important;
+}
+.border-dashed {
+  border-style: dashed;
 }
 </style>

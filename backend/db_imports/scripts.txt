@@ -5,3 +5,8 @@ python manage.py import_teams db_imports/team_data.csv
 python manage.py import_trad db_imports/trad_tanks.csv
 python manage.py import_current db_imports/starting_tanks.csv
 python manage.py import_boxes db_imports/boxes.csv
+
+
+python manage.py import_teams_extra db_imports/team_data_extra_08_2025.csv
+python manage.py import_current db_imports/team_tanks_08_2025.csv
+python manage.py import_labels db_imports/upgrade_tree_labels.csv

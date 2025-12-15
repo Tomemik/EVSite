@@ -37,6 +37,16 @@ class Command(BaseCommand):
                                     is_trad=False,
                                     is_upgradable=True,
                                 )
+                        else:
+                            tank_name = tank_entry.strip()
+                            print(tank_name)
+                            tank_model = Tank.objects.get(name=tank_name)
+                            tank = TeamTank.objects.create(
+                                team=team,
+                                tank=tank_model,
+                                is_trad=False,
+                                is_upgradable=True,
+                            )
 
 
         self.stdout.write(self.style.SUCCESS('Successfully imported current Tanks'))

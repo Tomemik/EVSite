@@ -3,7 +3,8 @@ from django.db.models import Count, Q, F, ExpressionWrapper, When, Case, Value, 
 from django.db.models.functions import Coalesce
 
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, default_upgrade_kits, \
-    MatchResult, Substitute, TankLost, TeamResult, TeamLog, TankBox, TeamBox, ImportTank, ImportCriteria, Booster
+    MatchResult, Substitute, TankLost, TeamResult, TeamLog, TankBox, TeamBox, ImportTank, ImportCriteria, Booster, \
+    UpgradeTree
 
 
 class ManufacturerAdmin(admin.ModelAdmin):
@@ -19,6 +20,7 @@ class TeamAdmin(admin.ModelAdmin):
     list_display = ('name', 'balance', 'score', 'total_money_earned', 'total_money_spent',
                      'winrate_display')
     search_fields = ('name',)
+    autocomplete_fields = ('manufacturers',)
 
     def winrate_display(self, obj):
         return f"{obj.winrate:.2f}%"
@@ -37,6 +39,7 @@ class TeamAdmin(admin.ModelAdmin):
 
 class BoxAdmin(admin.ModelAdmin):
     list_display = ('name', 'tier', 'get_tanks', 'price', 'is_national')
+    autocomplete_fields = ('tanks',)
 
     def get_tanks(self, obj):
         return ", ".join([tank.name for tank in obj.tanks.all()])
@@ -63,17 +66,19 @@ class TankAdmin(admin.ModelAdmin):
     list_display = ('name', 'battle_rating', 'price', 'rank', 'type')
     search_fields = ('name', 'type')
     list_filter = ('type', 'rank')
-
+    autocomplete_fields = ('manufacturers',)
 
 class UpgradePathAdmin(admin.ModelAdmin):
     list_display = ('from_tank', 'to_tank', 'required_kit_tier', 'cost')
     search_fields = ('from_tank__name', 'to_tank__name')
+    autocomplete_fields = ('from_tank', 'to_tank')
     list_filter = ('required_kit_tier',)
 
 
 class TeamTankAdmin(admin.ModelAdmin):
     list_display = ('team', 'tank', 'is_upgradable', 'is_trad', 'is_ghost')
     search_fields = ('team__name', 'tank__name')
+    autocomplete_fields = ('tank',)
     list_filter = ('is_upgradable',)
 
 
@@ -145,6 +150,11 @@ class ImportCriteriaAdmin(admin.ModelAdmin):
     set_active.short_description = "Set selected criteria as active"
 
 
+class UpgradeTreeAdmin(admin.ModelAdmin):
+    list_display = ('label', 'value')
+    autocomplete_fields = ('value',)
+
+
 admin.site.register(Booster, BoosterAdmin)
 admin.site.register(MatchResult, MatchResultAdmin)
 admin.site.register(Manufacturer, ManufacturerAdmin)
@@ -159,4 +169,5 @@ admin.site.register(TankBox, BoxAdmin)
 admin.site.register(TeamBox, TeamBoxAdmin)
 admin.site.register(ImportTank, ImportTankAdmin)
 admin.site.register(ImportCriteria, ImportCriteriaAdmin)
+admin.site.register(UpgradeTree, UpgradeTreeAdmin)
 

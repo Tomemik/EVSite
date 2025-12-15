@@ -2,7 +2,7 @@ from django.db.models import Avg, Q, Max
 from django.utils import timezone
 from rest_framework import serializers
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, Substitute, MatchResult, \
-    TankLost, TeamResult, TankBox, TeamBox, TeamLog, ImportTank, ImportCriteria
+    TankLost, TeamResult, TankBox, TeamBox, TeamLog, ImportTank, ImportCriteria, UpgradeTree
 
 
 class TankSerializerSlim(serializers.ModelSerializer):
@@ -428,3 +428,23 @@ class ImportCriteriaSerializer(serializers.ModelSerializer):
             'required_tanks', 'required_tank_count', 'discount', 'required_tank_discount',
         ]
         depth = 1
+
+
+
+class UpgradePathSerializer(serializers.ModelSerializer):
+    from_tank = serializers.CharField(source="from_tank.name")
+    to_tank = serializers.CharField(source="to_tank.name")
+
+    class Meta:
+        model = UpgradePath
+        fields = [
+            "from_tank", "to_tank", "cost", "required_kit_tier", "in_graph"
+        ]
+
+
+class UpgradeTreeSerializer(serializers.ModelSerializer):
+    value = serializers.CharField(source='value.name')
+
+    class Meta:
+        model = UpgradeTree
+        fields = ['label', 'value']

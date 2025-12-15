@@ -1,57 +1,142 @@
 <template>
-  <v-dialog v-model="localShowDetailsDialog" @update:model-value="close" max-width="800px">
-    <v-card>
-      <v-card-title>Match Details</v-card-title>
-      <v-card-text v-if="detailedMatch">
-        <p><strong>Date:</strong> {{ formatDateTime(detailedMatch.datetime) }}</p>
+  <v-dialog v-model="localShowDetailsDialog" @update:model-value="close" max-width="900px">
+    <v-card class="rounded-lg">
+      <v-toolbar color="primary" density="compact">
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold">
+          <v-icon start icon="mdi-calendar-clock"></v-icon>
+          {{ detailedMatch ? formatDateTime(detailedMatch.datetime) : 'Match Details' }}
+        </v-toolbar-title>
+        <v-spacer></v-spacer>
+        <v-btn icon @click="close">
+          <v-icon>mdi-close</v-icon>
+        </v-btn>
+      </v-toolbar>
 
-        <v-divider></v-divider>
-        <p><strong>Mode:</strong> {{ getTitleByValue(modeOptions, detailedMatch.mode) }}</p>
-        <p><strong>Game Mode:</strong> {{ getTitleByValue(gamemodeOptions, detailedMatch.gamemode) }}</p>
-        <p><strong>Map Selection:</strong> {{ detailedMatch.map_selection }}</p>
-        <p><strong>Best of Number:</strong> {{ getTitleByValue(bestOfOptions, detailedMatch.best_of_number) }}</p>
-        <p><strong>Special Rules:</strong> {{ detailedMatch.special_rules || 'None' }}</p>
-        <p><strong>Money Rules:</strong> {{ getTitleByValue(moneyRulesOptions, detailedMatch.money_rules) }}</p>
+      <v-card-text v-if="detailedMatch" class="pa-6">
 
-        <v-divider></v-divider>
+        <v-row class="mb-0" dense>
+          <v-col cols="12" md="6">
+            <v-list density="compact" nav class="py-0">
+              <v-list-item prepend-icon="mdi-controller">
+                <v-list-item-subtitle>Game Mode</v-list-item-subtitle>
+                <div class="mt-1">
+                  <v-chip color="secondary" size="small" class="mr-2" label>
+                    {{ getTitleByValue(gamemodeOptions, detailedMatch.gamemode) }}
+                  </v-chip>
+                  <v-chip variant="outlined" size="small" label>
+                    {{ getTitleByValue(modeOptions, detailedMatch.mode) }}
+                  </v-chip>
+                </div>
+              </v-list-item>
 
-        <v-row>
-          <v-col>
-            <div v-for="team in detailedMatch.sides.team_1" :key="team.team">
-              <p><strong>{{ team.team }}:</strong></p>
+              <v-list-item prepend-icon="mdi-trophy-outline">
+                <v-list-item-subtitle>Format</v-list-item-subtitle>
+                <div class="text-body-2 font-weight-medium">
+                  Best of {{ getTitleByValue(bestOfOptions, detailedMatch.best_of_number) }}
+                </div>
+              </v-list-item>
+            </v-list>
+          </v-col>
 
-              <ul style="list-style-type: none; padding-left: 0;">
-                <li v-for="tank in team.tanks" :key="tank.id">{{ tank.tank.name }}</li>
-              </ul>
+          <v-col cols="12" md="6">
+            <v-list density="compact" nav class="py-0">
+              <v-list-item prepend-icon="mdi-map-marker">
+                <v-list-item-subtitle>Map Selection</v-list-item-subtitle>
+                <div class="text-body-2 font-weight-medium">
+                  {{ detailedMatch.map_selection }}
+                </div>
+              </v-list-item>
+
+              <v-list-item prepend-icon="mdi-cash">
+                <v-list-item-subtitle>Money Rules</v-list-item-subtitle>
+                <div class="text-body-2">
+                  {{ getTitleByValue(moneyRulesOptions, detailedMatch.money_rules) }}
+                </div>
+              </v-list-item>
+            </v-list>
+          </v-col>
+        </v-row>
+
+        <v-row v-if="detailedMatch.special_rules" class="mb-2" dense>
+          <v-col cols="12">
+            <v-list density="compact" nav class="py-0">
+              <v-list-item prepend-icon="mdi-alert-circle-outline">
+                <v-list-item-subtitle>Special Rules</v-list-item-subtitle>
+                <div class="text-body-2 text-error">
+                  {{ detailedMatch.special_rules }}
+                </div>
+              </v-list-item>
+            </v-list>
+          </v-col>
+        </v-row>
+
+        <v-divider class="mb-6 mt-2"></v-divider>
+
+        <v-row align="stretch">
+          <v-col cols="12" md="5">
+            <div v-for="team in detailedMatch.sides.team_1" :key="team.team" class="mb-4">
+              <v-card variant="outlined" class="h-100 border-grey">
+                <v-card-item class="bg-grey-lighten-1 py-2">
+                  <div class="text-subtitle-1 font-weight-bold text-center text-primary">
+                    {{ team.team }}
+                  </div>
+                </v-card-item>
+                <v-divider></v-divider>
+                <v-list density="compact" class="py-0">
+                  <v-list-item v-for="tank in team.tanks" :key="tank.id">
+                    <template v-slot:prepend>
+                      <v-icon icon="mdi-tank" size="small" color="grey"></v-icon>
+                    </template>
+                    <v-list-item-title>{{ tank.tank.name }}</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-card>
             </div>
           </v-col>
 
-          <v-col class="d-flex justify-center align-center">
-            <p style="text-align:center; font-weight: bold;">vs</p>
+          <v-col cols="12" md="2" class="d-flex justify-center align-center">
+            <div class="text-h5 text-disabled font-italic font-weight-black">VS</div>
           </v-col>
 
-          <v-col class="d-flex flex-column align-end">
-            <div v-for="team in detailedMatch.sides.team_2" :key="team.team">
-              <p><strong>{{ team.team }}:</strong></p>
-
-              <ul style="list-style-type: none; padding-left: 0;">
-                <li v-for="tank in team.tanks" :key="tank.id">{{ tank.tank.name }}</li>
-              </ul>
+          <v-col cols="12" md="5">
+            <div v-for="team in detailedMatch.sides.team_2" :key="team.team" class="mb-4">
+              <v-card variant="outlined" class="h-100 border-grey">
+                <v-card-item class="bg-grey-lighten-1 py-2">
+                  <div class="text-subtitle-1 font-weight-bold text-center text-error">
+                    {{ team.team }}
+                  </div>
+                </v-card-item>
+                <v-divider></v-divider>
+                <v-list density="compact" class="py-0">
+                  <v-list-item v-for="tank in team.tanks" :key="tank.id">
+                    <template v-slot:prepend>
+                      <v-icon icon="mdi-tank" size="small" color="grey"></v-icon>
+                    </template>
+                    <v-list-item-title class="text-right">{{ tank.tank.name }}</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-card>
             </div>
           </v-col>
         </v-row>
       </v-card-text>
 
-      <v-card-actions>
-        <v-btn color="info" @click="copyDetails">Copy Details</v-btn>
-        <v-btn color="success" @click="openResultView">Result</v-btn>
+      <v-divider></v-divider>
+
+      <v-card-actions class="pa-4">
+        <v-btn variant="text" color="info" prepend-icon="mdi-content-copy" @click="copyDetails">Copy Discord Format</v-btn>
+        <v-btn variant="tonal" color="success" prepend-icon="mdi-scoreboard" @click="openResultView">Result</v-btn>
         <v-spacer></v-spacer>
-        <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" color="primary" @click="toggleEditMode">Edit</v-btn>
-        <v-btn v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))" color="error" @click="confirmDelete">Delete</v-btn>
-        <v-btn color="error" @click="close">Close</v-btn>
+
+        <template v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))">
+          <v-btn color="primary" variant="elevated" prepend-icon="mdi-pencil" @click="toggleEditMode">Edit</v-btn>
+          <v-btn color="error" variant="text" prepend-icon="mdi-delete" @click="confirmDelete">Delete</v-btn>
+        </template>
+        <v-btn variant="plain" @click="close">Close</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
+
   <v-dialog v-model="showDeleteConfirmation" max-width="400px">
     <v-card>
       <v-card-title class="text-h6">Confirm Deletion</v-card-title>
@@ -66,6 +151,7 @@
     </v-card>
   </v-dialog>
 </template>
+
 <script setup>
 import {ref, watch} from 'vue';
 import {useUserStore} from "../config/store.ts";
@@ -143,6 +229,7 @@ const close = () => {
   updateShowDetailsDialog(false);
 }
 
+// ... COPY FUNCTIONALITY (UNCHANGED) ...
 const formatDateTimeForCopy = (datetime) => {
   const date = new Date(datetime);
 
@@ -204,5 +291,11 @@ ${team.tanks.map(tank => tank.tank.name).join('\n')}
     console.error('Failed to copy match details: ', err);
   });
 };
-
 </script>
+
+
+<style scoped>
+.border-grey {
+  border-color: #BDBDBD !important;
+}
+</style>

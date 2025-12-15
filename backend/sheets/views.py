@@ -14,10 +14,11 @@ from django.db.models.functions import RowNumber
 from .discord import format_match_message, format_match_result_message, format_match_calc_message
 from .filters import TeamLogFilter, MatchFilter
 from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch, TeamLog, ImportTank, \
-    ImportCriteria, TeamBox, TeamTank
+    ImportCriteria, TeamBox, TeamTank, UpgradePath, get_upgrade_tree, UpgradeTree
 from .serializers import TeamSerializer, ManufacturerSerializer, TankSerializer, MatchSerializer, SlimMatchSerializer, \
     MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer, \
-    TeamLogSerializer, SlimTeamSerializerWithTanks, ImportTankSerializer, ImportCriteriaSerializer
+    TeamLogSerializer, SlimTeamSerializerWithTanks, ImportTankSerializer, ImportCriteriaSerializer, \
+    UpgradePathSerializer, UpgradeTreeSerializer
 
 
 class AllTeamsView(APIView):
@@ -220,6 +221,14 @@ class AllUpgradesView(APIView):
         all_upgrades = team.get_possible_upgrades(tank)
 
         return Response(all_upgrades, status=status.HTTP_200_OK)
+
+
+class UpgradeTreeView(APIView):
+    def get(self, request):
+        tank = request.headers['tank']
+        all_upgrades = get_upgrade_tree(start_tank_name=tank)
+        serializer = UpgradePathSerializer(all_upgrades, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class AllDirectUpgradesView(APIView):
@@ -782,3 +791,10 @@ class PurchaseImportTankView(APIView):
             tank.purchase_from_imports(team, request.user)
             return Response(data={'new_balance': team.balance, 'new_tanks': [tank.tank.name]}, status=status.HTTP_200_OK)
         return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
+class UpgradeTreeListView(APIView):
+    def get(self, request):
+        trees = UpgradeTree.objects.all()
+        serializer = UpgradeTreeSerializer(trees, many=True)
+        return Response(serializer.data)

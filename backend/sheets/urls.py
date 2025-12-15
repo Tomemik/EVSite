@@ -35,4 +35,6 @@ urlpatterns = [
     path("transactions/buy_box/", views.PurchaseBoxView.as_view(), name='buy-box'),
     path("transactions/buy_open_box/", views.PurchaseAndOpenBoxView.as_view(), name='buy-open-box'),
     path("transactions/open_box/", views.OpenBoxView.as_view(), name='open-box'),
+    path("upgrades/", views.UpgradeTreeView.as_view(), name='upgrade-tree'),
+    path("upgrades/labels/", views.UpgradeTreeListView.as_view(), name="upgrade-tree-list"),
 ]

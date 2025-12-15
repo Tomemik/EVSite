@@ -812,7 +812,7 @@ export default {
         await this.fetchTeamDetails();
         this.upgradeDetailsForSuccessDialog = {
           fromTank: this.selectedTank?.item.name,
-          toTank: this.upgradeOptions.find(u => u.upgrade_path_id === this.selectedUpgrade)?.to_tank,
+          toTank: this.selectedUpgradeDetails?.to_tank,
           newBalance: this.newBalance,
           newKits: this.newKits,
         };
@@ -857,7 +857,7 @@ export default {
         await this.fetchTeamDetails();
         this.upgradeDetailsForSuccessDialog = {
           fromTank: this.selectedTank?.item.name,
-          toTank: this.upgradeOptions.find(u => u.upgrade_path_id === this.selectedUpgrade)?.to_tank,
+          toTank: this.selectedUpgradeDetails?.to_tank,
           newBalance: this.newBalance,
           newKits: this.newKits,
         };

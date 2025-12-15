@@ -11,7 +11,7 @@ import heapq
 from functools import wraps
 from django.forms.models import model_to_dict
 import copy
-from collections import Counter
+from collections import Counter, deque
 
 ROUND_POINTS = {
     "1:0": 4,
@@ -836,7 +836,7 @@ class TeamBox(models.Model):
     box = models.ForeignKey(TankBox, on_delete=models.CASCADE)
 
     @transaction.atomic
-    def open_box(self):
+    def open_box(self, user):
         tank_box = self.box
 
         available_tanks = list(tank_box.tanks.all())
@@ -866,6 +866,7 @@ class UpgradePath(models.Model):
     to_tank = models.ForeignKey(Tank, related_name='upgrade_to', on_delete=models.CASCADE)
     required_kit_tier = models.CharField(max_length=50, blank=True, null=True)
     cost = models.IntegerField(default=0)
+    in_graph = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         self.calculate_cost()
@@ -891,6 +892,34 @@ class UpgradePath(models.Model):
     def __str__(self):
         return f"From {self.from_tank} to {self.to_tank} using {self.required_kit_tier} for {self.cost}"
 
+def get_upgrade_tree(start_tank_name):
+
+    visited = set()
+    upgrade_paths = []
+    queue = deque()
+
+    try:
+        start_tank = Tank.objects.get(name=start_tank_name)
+    except Tank.DoesNotExist:
+        return []
+
+    queue.append(start_tank)
+
+    while queue:
+        current_tank = queue.popleft()
+        if current_tank.id in visited:
+            continue
+        visited.add(current_tank.id)
+
+        direct_upgrades = UpgradePath.objects.filter(from_tank=current_tank).select_related('from_tank', 'to_tank')
+
+        for path in direct_upgrades:
+            upgrade_paths.append(path)
+            if path.to_tank.id not in visited:
+                queue.append(path.to_tank)
+
+    return upgrade_paths
+
 
 class TeamTank(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
@@ -905,6 +934,9 @@ class TeamTank(models.Model):
         if not self.pk and self.value == 0:
             self.value = self.tank.price
         super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.tank.name
 
 
 class Match(models.Model):
@@ -1176,8 +1208,15 @@ class MatchResult(models.Model):
                 side = 'team_1' if team_id in teams_on_side['team_1'] else 'team_2'
                 other_side = 'team_2' if side == 'team_1' else 'team_1'
 
-                loss_penalty = tank_price * 0.02 * quantity
-                gain_reward = tank_price * 0.03 * quantity
+                if self.match.money_rules == 'even_split':
+                    loss_penalty = tank_price * 0 * quantity
+                    gain_reward = tank_price * 0.0045 * quantity
+                elif self.match.money_rules == 'money_rule':
+                    loss_penalty = tank_price * 0 * quantity
+                    gain_reward = tank_price * 0.01 * quantity
+                else:
+                    loss_penalty = tank_price * 0.02 * quantity
+                    gain_reward = tank_price * 0.032 * quantity
 
                 if side == 'team_1':
                     total_loss_penalty_team_1 += loss_penalty
@@ -1536,12 +1575,12 @@ class MatchResult(models.Model):
             calc_score_difference = log.new_value.get('score', 0) - log.previous_value.get('score', 0)
             revert_score = current_score - calc_score_difference
 
-            kits_difference = {
-                kit: new_kits[kit]['quantity'] - previous_kits.get(kit, {}).get('quantity', 0)
-                for kit in new_kits
-            }
-            for kit, diff in kits_difference.items():
-                current_kits[kit]['quantity'] -= diff
+#            kits_difference = {
+#                kit: new_kits.get([kit, {}]).get('quantity', 0) - previous_kits.get(kit, {}).get('quantity', 0)
+#                for kit in new_kits
+#            }
+#            for kit, diff in kits_difference.items():
+#                current_kits[kit]['quantity'] -= diff
 
             prev_booster = log.previous_value.get('booster')
             new_booster = log.new_value.get('booster')
@@ -1718,3 +1757,11 @@ class ImportCriteria(models.Model):
         if self.tank_type:
             filters['type'] = self.tank_type
         return filters
+
+
+class UpgradeTree(models.Model):
+    label = models.CharField(max_length=100)
+    value = models.ForeignKey(Tank, related_name='TreeTank', on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.label
