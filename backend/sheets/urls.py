@@ -37,4 +37,6 @@ urlpatterns = [
     path("transactions/open_box/", views.OpenBoxView.as_view(), name='open-box'),
     path("upgrades/", views.UpgradeTreeView.as_view(), name='upgrade-tree'),
     path("upgrades/labels/", views.UpgradeTreeListView.as_view(), name="upgrade-tree-list"),
+    path('interchanges/labels/', views.InterchangeListView.as_view(), name='interchange-labels'),
+    path('interchanges/', views.InterchangeDetailView.as_view(), name='interchange-detail'),
 ]

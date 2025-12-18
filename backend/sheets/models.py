@@ -334,46 +334,53 @@ class Team(models.Model):
         )
 
         if active_matches.exists():
-            teamtank.is_ghost = True
-            teamtank.save()
-        else:
-            teamtank.delete()
+            match_info = ", ".join([f"ID {m.id} ({m.datetime.date()})" for m in active_matches])
+            raise ValidationError(
+                f"Cannot sell {teamtank.tank.name}. It is currently assigned to upcoming matches: {match_info}. "
+                "Please remove it from the match lineup first."
+            )
 
         if teamtank.value != 0:
             price = teamtank.value
         else:
             price = Tank.objects.get(name=teamtank.tank.name).price
 
+        tank_name = teamtank.tank.name
+
+        teamtank.delete()
+
         self.balance += price * 0.6
         self.save()
-        return f"Tank {teamtank.tank.name} sold successfully. New balance: {self.balance}"
+        return f"Tank {tank_name} sold successfully. New balance: {self.balance}"
 
-    @log_team_changes
     def sell_tank(self, tank, *, user):
-        try:
-            teamtank = TeamTank.objects.filter(team=self, tank=tank, is_trad=False, from_auctions=False).first()
-        except TeamTank.DoesNotExist:
-            raise ValidationError("You do not own this tank.")
-
-        active_matches = Match.objects.filter(
-            teammatch__tanks=teamtank,
-            was_played=False
+        candidates = TeamTank.objects.filter(
+            team=self,
+            tank=tank,
+            is_trad=False,
+            from_auctions=False
         )
 
-        if active_matches.exists():
-            teamtank.is_ghost = True
-            teamtank.save()
-        else:
-            teamtank.delete()
+        if not candidates.exists():
+            raise ValidationError("You do not own this tank.")
 
-        if teamtank.value != 0:
-            price = teamtank.value
-        else:
-            price = Tank.objects.get(name=teamtank.tank.name).price
+        busy_tank_ids = TeamMatch.objects.filter(
+            match__was_played=False,
+            tanks__in=candidates
+        ).values_list('tanks__id', flat=True)
 
-        self.balance += price * 0.6
-        self.save()
-        return f"Tank {teamtank.tank.name} sold successfully. New balance: {self.balance}"
+        free_tank = candidates.exclude(id__in=busy_tank_ids).first()
+
+        if not free_tank:
+            if candidates.exists():
+                raise ValidationError(
+                    f"Cannot sell {tank.name}. All copies of this tank are currently assigned to upcoming matches. "
+                    "Remove one from a match lineup to proceed."
+                )
+            else:
+                raise ValidationError("You do not own this tank.")
+
+        return self.sell_teamtank(free_tank, user=user)
 
     @log_team_changes
     def add_upgrade_kit(self, tier, quantity=1, *, user,):
@@ -407,13 +414,24 @@ class Team(models.Model):
         return self.upgrade_kits.get(tier, {"price": 0})["price"]
 
     @log_team_changes
-    def upgrade_or_downgrade_tank(self, tank, to_tank, extra_upgrade_kit_tiers=[], *, user,):
+    def upgrade_or_downgrade_tank(self, tank, to_tank, extra_upgrade_kit_tiers=[], *, user, ):
         from_tank = tank.tank
         if not tank.is_upgradable:
             raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
 
-        possible_upgrades = self.get_possible_upgrades(tank)
+        active_matches = Match.objects.filter(
+            teammatch__tanks=tank,
+            was_played=False
+        )
 
+        if active_matches.exists():
+            match_info = ", ".join([f"ID {m.id}" for m in active_matches])
+            raise ValidationError(
+                f"Cannot upgrade {from_tank.name}. It is assigned to upcoming matches: {match_info}. "
+                "Remove it from the match lineup to proceed."
+            )
+
+        possible_upgrades = self.get_possible_upgrades(tank)
         upgrade_path = next((path for path in possible_upgrades if path['to_tank'] == to_tank.name), None)
 
         if not upgrade_path:
@@ -424,12 +442,11 @@ class Team(models.Model):
         else:
             cost = upgrade_path['total_cost']
 
-        required_kits = upgrade_path['required_kits'] if not self.manufacturers.filter(id__in=to_tank.manufacturers.all()).exists() else (
-        {
-            'T1': 0,
-            'T2': 0,
-            'T3': 0
-        })
+        required_kits = upgrade_path['required_kits'] if not self.manufacturers.filter(
+            id__in=to_tank.manufacturers.all()).exists() else (
+            {
+                'T1': 0, 'T2': 0, 'T3': 0
+            })
 
         total_extra_discount = sum(
             self.get_upgrade_kit_discount(tier) for tier in extra_upgrade_kit_tiers if tier in self.UPGRADE_KITS
@@ -453,18 +470,9 @@ class Team(models.Model):
         for tier, count in required_kits.items():
             self.upgrade_kits[tier]['quantity'] -= count
 
-        active_matches = Match.objects.filter(
-            teammatch__tanks=tank,
-            was_played=False
-        )
+        self.tanks.through.objects.filter(team=self, id=tank.id, is_upgradable=True).delete()
 
         self.tanks.through.objects.create(team=self, tank=to_tank)
-
-        if active_matches.exists():
-            tank.is_ghost = True
-            tank.save()
-        else:
-            self.tanks.through.objects.filter(team=self, id=tank.id, is_upgradable=True).delete()
 
         self.save()
 
@@ -525,7 +533,6 @@ class Team(models.Model):
         self.tanks.through.objects.create(team=self, tank=to_tank)
 
         if active_matches.exists():
-            tank.is_ghost = True
             tank.save()
         else:
             self.tanks.through.objects.filter(team=self, id=tank.id, is_upgradable=True).delete()
@@ -928,7 +935,6 @@ class TeamTank(models.Model):
     is_upgradable = models.BooleanField(default=True)
     value = models.IntegerField(default=0)
     from_auctions = models.BooleanField(default=False)
-    is_ghost = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if not self.pk and self.value == 0:
@@ -1536,19 +1542,6 @@ class MatchResult(models.Model):
 
         rewards_summary["total_rewards"] = sum(team_rewards.values())
 
-        ghost_tanks_in_match = TeamTank.objects.filter(
-            team_matches__match=self.match,
-            is_ghost=True
-        ).distinct()
-
-        for ghost_tank in ghost_tanks_in_match:
-            other_matches = TeamMatch.objects.filter(
-                tanks=ghost_tank
-            ).exclude(match=self.match).exclude(match__match_result__is_calced=True)
-
-            if not other_matches.exists():
-                ghost_tank.delete()
-
         return rewards_summary
 
 
@@ -1765,3 +1758,60 @@ class UpgradeTree(models.Model):
 
     def __str__(self):
         return self.label
+
+
+class InterchangeGroup(models.Model):
+    label = models.CharField(max_length=100)
+    root_tank = models.ForeignKey(Tank, related_name='interchange_group_root', on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.label
+
+class Interchange(models.Model):
+    from_tank = models.ForeignKey(Tank, related_name='interchanges_from', on_delete=models.CASCADE)
+    to_tank = models.ForeignKey(Tank, related_name='interchanges_to', on_delete=models.CASCADE)
+    is_bidirectional = models.BooleanField(default=True)
+
+    def __str__(self):
+        arrow = "<->" if self.is_bidirectional else "->"
+        return f"{self.from_tank} {arrow} {self.to_tank}"
+
+
+def get_interchange_graph(start_tank_name):
+    try:
+        start_tank = Tank.objects.get(name=start_tank_name)
+    except Tank.DoesNotExist:
+        return []
+
+    visited_tank_ids = set()
+    collected_edges = set()
+    results = []
+
+    queue = deque([start_tank])
+    visited_tank_ids.add(start_tank.id)
+
+    while queue:
+        current_tank = queue.popleft()
+
+        outgoing = Interchange.objects.filter(from_tank=current_tank)
+        incoming = Interchange.objects.filter(to_tank=current_tank)
+
+        for edge in outgoing:
+            if edge.id not in collected_edges:
+                collected_edges.add(edge.id)
+                results.append(edge)
+
+            if edge.to_tank.id not in visited_tank_ids:
+                visited_tank_ids.add(edge.to_tank.id)
+                queue.append(edge.to_tank)
+
+        for edge in incoming:
+            if edge.id not in collected_edges:
+                collected_edges.add(edge.id)
+                results.append(edge)
+
+            if edge.from_tank.id not in visited_tank_ids:
+                visited_tank_ids.add(edge.from_tank.id)
+                queue.append(edge.from_tank)
+
+    return results

@@ -22,6 +22,7 @@ class Command(BaseCommand):
         criteria = ImportCriteria.objects.get(is_active=True)
         filters = criteria.get_filters()
         available_tanks = Tank.objects.filter(**filters)
+        available_tanks = available_tanks.exclude(name__contains=['{'])
 
         one_week_ago = timezone.now() - timedelta(days=7)
         recent_tank_ids = ImportTank.objects.filter(

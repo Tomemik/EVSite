@@ -4,7 +4,7 @@ from django.db.models.functions import Coalesce
 
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, default_upgrade_kits, \
     MatchResult, Substitute, TankLost, TeamResult, TeamLog, TankBox, TeamBox, ImportTank, ImportCriteria, Booster, \
-    UpgradeTree
+    UpgradeTree, Interchange, InterchangeGroup
 
 
 class ManufacturerAdmin(admin.ModelAdmin):
@@ -76,7 +76,7 @@ class UpgradePathAdmin(admin.ModelAdmin):
 
 
 class TeamTankAdmin(admin.ModelAdmin):
-    list_display = ('team', 'tank', 'is_upgradable', 'is_trad', 'is_ghost')
+    list_display = ('team', 'tank', 'is_upgradable', 'is_trad')
     search_fields = ('team__name', 'tank__name')
     autocomplete_fields = ('tank',)
     list_filter = ('is_upgradable',)
@@ -154,6 +154,17 @@ class UpgradeTreeAdmin(admin.ModelAdmin):
     list_display = ('label', 'value')
     autocomplete_fields = ('value',)
 
+class InterchangeAdmin(admin.ModelAdmin):
+    list_display = ('from_tank', 'to_tank', 'is_bidirectional')
+    search_fields = ('from_tank__name', 'to_tank__name')
+    autocomplete_fields = ('from_tank', 'to_tank')
+    list_filter = ('is_bidirectional',)
+
+
+class InterchangeTreeAdmin(admin.ModelAdmin):
+    list_display = ('label', 'root_tank')
+    autocomplete_fields = ('root_tank',)
+
 
 admin.site.register(Booster, BoosterAdmin)
 admin.site.register(MatchResult, MatchResultAdmin)
@@ -170,4 +181,6 @@ admin.site.register(TeamBox, TeamBoxAdmin)
 admin.site.register(ImportTank, ImportTankAdmin)
 admin.site.register(ImportCriteria, ImportCriteriaAdmin)
 admin.site.register(UpgradeTree, UpgradeTreeAdmin)
+admin.site.register(InterchangeGroup, InterchangeTreeAdmin)
+admin.site.register(Interchange, InterchangeAdmin)
 

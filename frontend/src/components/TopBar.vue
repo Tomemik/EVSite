@@ -101,6 +101,7 @@ const drawerItems = ref([
   { title: 'Tanks', path: '/tanks' },
   { title: 'Manufacturers', path: '/manufacturers' },
   { title: 'Upgrade Charts', path: '/upgrades' },
+  { title: 'Interchangeability Charts', path: '/interchangeability' },
 ]);
 
 watch(

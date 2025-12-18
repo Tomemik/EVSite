@@ -14,11 +14,12 @@ from django.db.models.functions import RowNumber
 from .discord import format_match_message, format_match_result_message, format_match_calc_message
 from .filters import TeamLogFilter, MatchFilter
 from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch, TeamLog, ImportTank, \
-    ImportCriteria, TeamBox, TeamTank, UpgradePath, get_upgrade_tree, UpgradeTree
+    ImportCriteria, TeamBox, TeamTank, UpgradePath, get_upgrade_tree, UpgradeTree, InterchangeGroup, \
+    get_interchange_graph, Interchange
 from .serializers import TeamSerializer, ManufacturerSerializer, TankSerializer, MatchSerializer, SlimMatchSerializer, \
     MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer, \
     TeamLogSerializer, SlimTeamSerializerWithTanks, ImportTankSerializer, ImportCriteriaSerializer, \
-    UpgradePathSerializer, UpgradeTreeSerializer
+    UpgradePathSerializer, UpgradeTreeSerializer, InterchangeGroupSerializer, InterchangeSerializer
 
 
 class AllTeamsView(APIView):
@@ -798,3 +799,23 @@ class UpgradeTreeListView(APIView):
         trees = UpgradeTree.objects.all()
         serializer = UpgradeTreeSerializer(trees, many=True)
         return Response(serializer.data)
+
+
+class InterchangeListView(APIView):
+    def get(self, request):
+        groups = InterchangeGroup.objects.all()
+        serializer = InterchangeGroupSerializer(groups, many=True)
+        return Response(serializer.data)
+
+
+class InterchangeDetailView(APIView):
+    def get(self, request):
+        tank_name = request.headers.get('tank')
+
+        if tank_name:
+            graph_edges = get_interchange_graph(start_tank_name=tank_name)
+        else:
+            graph_edges = Interchange.objects.all()
+
+        serializer = InterchangeSerializer(graph_edges, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

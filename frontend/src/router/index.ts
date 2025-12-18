@@ -13,6 +13,7 @@ import Imports from "../views/Imports.vue";
 import Boxes from "../views/Boxes.vue";
 import TeamTanks from "../views/TeamTanks.vue";
 import TankUpgradeGraph from "@/views/TankUpgradeGraph.vue";
+import TankInterchangeabilityGraph from "@/views/TankInterchangabilityGraph.vue";
 
 const routes = [
     { path: '/home', name: 'Home', component: Home },
@@ -29,6 +30,7 @@ const routes = [
     { path: '/boxes', name: 'boxes', component: Boxes},
     { path: '/teamtanks', name: 'teamtanks', component: TeamTanks},
     { path: '/upgrades', name: 'upgrades', component: TankUpgradeGraph },
+    { path: '/Interchangeability', name: 'Interchangeability', component: TankInterchangeabilityGraph}
 ];
 
 const router = createRouter({

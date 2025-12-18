@@ -2,7 +2,8 @@ from django.db.models import Avg, Q, Max
 from django.utils import timezone
 from rest_framework import serializers
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, Substitute, MatchResult, \
-    TankLost, TeamResult, TankBox, TeamBox, TeamLog, ImportTank, ImportCriteria, UpgradeTree
+    TankLost, TeamResult, TankBox, TeamBox, TeamLog, ImportTank, ImportCriteria, UpgradeTree, InterchangeGroup, \
+    Interchange
 
 
 class TankSerializerSlim(serializers.ModelSerializer):
@@ -107,7 +108,7 @@ class TeamTankSerializer(serializers.ModelSerializer):
         fields = ['id', 'tank', 'team', 'is_trad', 'available', 'from_auctions', 'value']
 
     def get_available(self, obj):
-        team_tanks = TeamTank.objects.filter(team=obj.team, is_ghost=False)
+        team_tanks = TeamTank.objects.filter(team=obj.team)
 
         non_trad_tanks = team_tanks.filter(is_trad=False)
         highest_non_trad_rank = non_trad_tanks.aggregate(max_rank=Max('tank__rank', default=0))['max_rank']
@@ -128,7 +129,7 @@ class TeamSerializer(serializers.ModelSerializer):
         depth = 1
 
     def get_tanks(self, obj):
-        team_tanks = obj.teamtank_set.filter(is_ghost=False)
+        team_tanks = obj.teamtank_set.filter()
         return TeamTankSerializer(team_tanks, many=True).data
 
 
@@ -282,7 +283,7 @@ class SlimTeamSerializerWithTanks(serializers.ModelSerializer):
         fields = ['id', 'name', 'color', 'balance', 'tanks']
 
     def get_tanks(self, obj):
-        team_tanks = obj.teamtank_set.filter(is_ghost=False)
+        team_tanks = obj.teamtank_set.filter()
         return TeamTankSerializer(team_tanks, many=True).data
 
 
@@ -448,3 +449,18 @@ class UpgradeTreeSerializer(serializers.ModelSerializer):
     class Meta:
         model = UpgradeTree
         fields = ['label', 'value']
+
+class InterchangeGroupSerializer(serializers.ModelSerializer):
+    value = serializers.CharField(source='root_tank.name')
+
+    class Meta:
+        model = InterchangeGroup
+        fields = ['label', 'value']
+
+class InterchangeSerializer(serializers.ModelSerializer):
+    from_tank = serializers.CharField(source="from_tank.name")
+    to_tank = serializers.CharField(source="to_tank.name")
+
+    class Meta:
+        model = Interchange
+        fields = ['from_tank', 'to_tank', 'is_bidirectional']
