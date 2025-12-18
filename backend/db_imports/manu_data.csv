@@ -125,7 +125,7 @@ Factory No. 174 + No. 185 + GAZ,T-50
 Factory No. 174 + No. 185 + GAZ,SU-57B
 Factory No. 174 + No. 185 + GAZ,T-126
 Factory No. 174 + No. 185 + GAZ,SU-100Y
-Lendliz,"MK-II ""Matilda"""
+Lendliz,"MK-II ""Matilda""" {UU}
 Krupp + Alkett + Vomag,Pz.IV C
 Krupp + Alkett + Vomag,Pz.IV E
 Krupp + Alkett + Vomag,Pz.IV F1
@@ -170,7 +170,7 @@ Daimler-Benz + Skoda,StuH 42 G
 Daimler-Benz + Skoda,StuG III F
 Daimler-Benz + Skoda,StuG III G
 Daimler-Benz + Skoda,Jagdpanzer 38 (t)
-Daimler-Benz + Skoda,M41A1
+Daimler-Benz + Skoda,M41A1 {UU}
 Daimler-Benz + Skoda,M47
 Daimler-Benz + Skoda,M48A2 C
 MAN AG + Rheinmetall,Pz. Neubaufahrzeug
@@ -181,8 +181,8 @@ MAN AG + Rheinmetall,Panther G
 MAN AG + Rheinmetall,Panther F
 MAN AG + Rheinmetall,JPz. V 'Jagdpanther'
 MAN AG + Rheinmetall,"Pz. V ""Panther"" II"
-Beutepanzer,T 34 747 (r)
-Beutepanzer,KW I C 756 (r)
+Beutepanzer,T 34 747 (r) {UU}
+Beutepanzer,KW I C 756 (r) {UU}
 Nuffield + Leyland,A13 Mk. I
 Nuffield + Leyland,A13 Mk. II
 Nuffield + Leyland,A13 Mk. II (1939)
@@ -324,7 +324,7 @@ Travaux d'armement francais,M4A4 (SA50)
 Travaux d'armement francais,M4A3E2
 Travaux d'armement francais,M4A3 (76) W
 Travaux d'armement francais,M36B2
-Travaux d'armement francais,Panther G
+Travaux d'armement francais,Panther G {Dauphine}
 Travaux d'armement francais,T26E1-1
 Travaux d'armement francais,M26
 RDE,Pz.38 (t) F
@@ -526,8 +526,8 @@ Ludowa Fabryka Pojazdow Pancernych,IS-3
 Ludowa Fabryka Pojazdow Pancernych,SU-122-54
 Ludowa Fabryka Pojazdow Pancernych,T-54 (1949)
 Ludowa Fabryka Pojazdow Pancernych,T-54 (1951)
-CAPTURED TANKS,Jagdpanzer 38 (t)
-CAPTURED TANKS,Panther G
+CAPTURED TANKS,Jagdpanzer 38 (t) {Chwat}
+CAPTURED TANKS,Panther G {UU}
 Suomalaiset panssariteokset,Ha-Go
 Suomalaiset panssariteokset,M2A2
 Suomalaiset panssariteokset,L3/33 CC
@@ -553,7 +553,7 @@ Suomalaiset panssariteokset,ISU-152
 Suomalaiset panssariteokset,T-34-85 (D-5T)
 Suomalaiset panssariteokset,T-34-85
 Suomalaiset panssariteokset,Comet
-Suomalaiset panssariteokset,Panther G
+Suomalaiset panssariteokset,Panther G {UU}
 Suomalaiset panssariteokset,SU-100
 Suomalaiset panssariteokset,Charioteer
 Suomalaiset panssariteokset,Pz. VI B 'Tiger II' (H)
@@ -787,7 +787,7 @@ UN Supplies,Panther G
 UN Supplies,Centurion Mk.1
 UN Supplies,T28 GMC
 UN Supplies,JPz. V 'Jagdpanther'
-UN Supplies,Sturmtiger
+UN Supplies,Sturmtiger {Karl}
 UN Supplies,T95 GMC
 UN Supplies,T32
 CKD-I,Pz.35 (t)
@@ -816,7 +816,7 @@ CSTB,IS-3
 CSOB,Crusader Mk. II
 CSOB,Valentine Mk. XI
 CSOB,Cromwell V
-CSOB,Sherman VC
+CSOB,Sherman VC {UU}
 CSOB,A30 Challenger
 CSOB,Pz.III E
 CSOB,Pz.III F
@@ -896,12 +896,12 @@ Kawasaki + Kobe,Ho-Ri Production
 Osaka + Hino Mtrs + Hitachi Ltd,Ke-Ni
 Osaka + Hino Mtrs + Hitachi Ltd,Ro-Go
 Osaka + Hino Mtrs + Hitachi Ltd,Ho-Ni III
-Osaka + Hino Mtrs + Hitachi Ltd,Pz.III J1
+Osaka + Hino Mtrs + Hitachi Ltd,Pz.III J1 {MT. No. III}
 Osaka + Hino Mtrs + Hitachi Ltd,M24
 Osaka + Hino Mtrs + Hitachi Ltd,M4A4
 Osaka + Hino Mtrs + Hitachi Ltd,M4A3 (76) W
-Osaka + Hino Mtrs + Hitachi Ltd,Panther D
-CHT Extra,SMK
+Osaka + Hino Mtrs + Hitachi Ltd,Panther D {MT. No. V}
+CHT Extra,SMK {O-I}
 CHT Extra,HT. No. VI
 CHT Extra,M36B2
 CHT Extra,ST-A1
