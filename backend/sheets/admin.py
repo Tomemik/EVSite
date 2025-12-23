@@ -4,7 +4,7 @@ from django.db.models.functions import Coalesce
 
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, default_upgrade_kits, \
     MatchResult, Substitute, TankLost, TeamResult, TeamLog, TankBox, TeamBox, ImportTank, ImportCriteria, Booster, \
-    UpgradeTree, Interchange, InterchangeGroup
+    UpgradeTree, Interchange, InterchangeGroup, Alliance, Bounty, BountyTier
 
 
 class ManufacturerAdmin(admin.ModelAdmin):
@@ -18,9 +18,10 @@ class BoosterAdmin (admin.ModelAdmin):
 
 class TeamAdmin(admin.ModelAdmin):
     list_display = ('name', 'balance', 'score', 'total_money_earned', 'total_money_spent',
-                     'winrate_display')
+                     'winrate_display', 'alliance', 'get_current_bounty')
     search_fields = ('name',)
     autocomplete_fields = ('manufacturers',)
+    readonly_fields = ('get_current_bounty', 'get_users')
 
     def winrate_display(self, obj):
         return f"{obj.winrate:.2f}%"
@@ -33,6 +34,14 @@ class TeamAdmin(admin.ModelAdmin):
 
     def get_users(self, obj):
         return ", ".join([user.username for user in obj.members.all()])
+
+    def get_current_bounty(self, obj):
+        active_bounty = obj.bounties.filter(is_active=True).first()
+        if active_bounty:
+            return f"{active_bounty.value}"
+        return "-"
+
+    get_current_bounty.short_description = 'Active Bounty'
 
     get_users.short_description = 'Users'
 
@@ -94,7 +103,7 @@ class MatchAdmin(admin.ModelAdmin):
     list_display = ('datetime', 'mode', 'gamemode', 'best_of_number', 'map_selection')
     search_fields = ('mode', 'gamemode', 'map_selection')
     inlines = [TeamMatchInline]
-    list_filter = ('mode', 'gamemode', 'datetime')
+    list_filter = ('mode', 'gamemode', 'datetime', 'money_rules', 'best_of_number')
 
 
 class TeamMatchAdmin(admin.ModelAdmin):
@@ -166,6 +175,25 @@ class InterchangeTreeAdmin(admin.ModelAdmin):
     autocomplete_fields = ('root_tank',)
 
 
+class AllianceAdmin(admin.ModelAdmin):
+    list_display = ('name', 'color')
+
+
+class BountyAdmin(admin.ModelAdmin):
+    list_display = ('team', 'value', 'is_active', 'created_at')
+    list_editable = ('value', 'is_active')
+    list_filter = ('is_active', 'created_at')
+    search_fields = ('team__name',)
+
+class BountyTierAdmin(admin.ModelAdmin):
+    list_display = ('rank', 'bounty_value')
+    list_editable = ('bounty_value',)
+    ordering = ('rank',)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 admin.site.register(Booster, BoosterAdmin)
 admin.site.register(MatchResult, MatchResultAdmin)
 admin.site.register(Manufacturer, ManufacturerAdmin)
@@ -183,4 +211,7 @@ admin.site.register(ImportCriteria, ImportCriteriaAdmin)
 admin.site.register(UpgradeTree, UpgradeTreeAdmin)
 admin.site.register(InterchangeGroup, InterchangeTreeAdmin)
 admin.site.register(Interchange, InterchangeAdmin)
+admin.site.register(Alliance, AllianceAdmin)
+admin.site.register(Bounty, BountyAdmin)
+admin.site.register(BountyTier, BountyTierAdmin)
 

@@ -1,1 +1,2 @@
 0 0 * * 3 export $(cat /code/.env | xargs) && export DJANGO_SETTINGS_MODULE=evsite.settings && /usr/local/bin/python /code/manage.py create_imports >> /var/log/cron.log
+0 0 1 * * export $(cat /code/.env | xargs) && export DJANGO_SETTINGS_MODULE=evsite.settings && /usr/local/bin/python /code/manage.py assign_bounties >> /var/log/cron.log

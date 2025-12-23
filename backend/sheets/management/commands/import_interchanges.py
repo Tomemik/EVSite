@@ -11,7 +11,7 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         csv_file = kwargs['csv_file']
 
-        with open(csv_file, newline='', encoding='utf-8-sig') as file:
+        with open(csv_file, newline='') as file:
             reader = csv.DictReader(file)
 
             count_created = 0
@@ -19,8 +19,10 @@ class Command(BaseCommand):
 
             for row in reader:
                 if row:
+                    print(row)
                     try:
                         from_tank = Tank.objects.get(name=row['From Tank'].strip())
+                        print(from_tank)
                     except Tank.DoesNotExist:
                         self.stdout.write(self.style.ERROR(f'Skipping row: Tank "{row["From Tank"]}" does not exist'))
                         continue
@@ -30,6 +32,8 @@ class Command(BaseCommand):
                     except Tank.DoesNotExist:
                         self.stdout.write(self.style.ERROR(f'Skipping row: Tank "{row["To Tank"]}" does not exist'))
                         continue
+
+                    print(from_tank, to_tank)
 
                     raw_bi = row.get('Bidirectional', 'true').lower().strip()
                     is_bidirectional = raw_bi in ['true', '1', 'yes', 't', 'y']

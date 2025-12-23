@@ -15,11 +15,11 @@ from .discord import format_match_message, format_match_result_message, format_m
 from .filters import TeamLogFilter, MatchFilter
 from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch, TeamLog, ImportTank, \
     ImportCriteria, TeamBox, TeamTank, UpgradePath, get_upgrade_tree, UpgradeTree, InterchangeGroup, \
-    get_interchange_graph, Interchange
+    get_interchange_graph, Interchange, Alliance
 from .serializers import TeamSerializer, ManufacturerSerializer, TankSerializer, MatchSerializer, SlimMatchSerializer, \
     MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer, \
     TeamLogSerializer, SlimTeamSerializerWithTanks, ImportTankSerializer, ImportCriteriaSerializer, \
-    UpgradePathSerializer, UpgradeTreeSerializer, InterchangeGroupSerializer, InterchangeSerializer
+    UpgradePathSerializer, UpgradeTreeSerializer, InterchangeGroupSerializer, InterchangeSerializer, AllianceSerializer
 
 
 class AllTeamsView(APIView):
@@ -117,17 +117,29 @@ class PurchaseTankView(APIView):
         user = request.user
         team_name = request.data['team']
         if not (
-            user.has_perm('user.admin_permissions') or
-            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+                user.has_perm('user.admin_permissions') or
+                (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
         ):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         tanks = request.data.get('tanks', [])
-        team = Team.objects.get(name=team_name)
-        for tank in tanks:
-            tank = Tank.objects.get(name=tank)
-            team.purchase_tank(tank, user=request.user)
-        return Response(data={'new_balance': team.balance, 'new_tanks': [tank for tank in tanks]}, status=status.HTTP_200_OK)
+
+        try:
+            team = Team.objects.get(name=team_name)
+            for tank_name in tanks:
+                tank = Tank.objects.get(name=tank_name)
+                team.purchase_tank(tank, user=request.user)
+
+            return Response(
+                data={'new_balance': team.balance, 'new_tanks': tanks},
+                status=status.HTTP_200_OK
+            )
+
+        except ValidationError as e:
+            error_msg = e.detail[0] if hasattr(e, 'detail') and isinstance(e.detail, list) else str(e)
+            return Response({'error': str(error_msg)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class SellTankView(APIView):
@@ -135,19 +147,32 @@ class SellTankView(APIView):
         user = request.user
         team_name = request.data['team']
         if not (
-            user.has_perm('user.admin_permissions') or
-            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+                user.has_perm('user.admin_permissions') or
+                (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
         ):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         tanks = request.data.get('tanks', [])
-        team = Team.objects.get(name=team_name)
-        sold = []
-        for tank in tanks:
-            tank = TeamTank.objects.get(pk=tank)
-            sold.append(Tank.objects.get(name=tank.tank.name).name)
-            team.sell_teamtank(tank, user=request.user)
-        return Response(data={'new_balance': team.balance, 'sold_tanks': sold}, status=status.HTTP_200_OK)
+
+        try:
+            team = Team.objects.get(name=team_name)
+            sold = []
+            for tank_id in tanks:
+                t = TeamTank.objects.get(pk=tank_id)
+                sold.append(t.tank.name)
+                tanka = Tank.objects.get(name=t.tank.name)
+                team.sell_tank(tanka, user=request.user)
+
+            return Response(
+                data={'new_balance': team.balance, 'sold_tanks': sold},
+                status=status.HTTP_200_OK
+            )
+
+        except ValidationError as e:
+            error_msg = e.detail[0] if hasattr(e, 'detail') and isinstance(e.detail, list) else str(e)
+            return Response({'error': str(error_msg)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class SellTanksView(APIView):
     def post(self, request):
@@ -159,14 +184,19 @@ class SellTanksView(APIView):
         ):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
-        tanks = request.data.get('tanks', [])
-        team = Team.objects.get(name=team_name)
-        for tank in tanks:
-            for i in range(tank['quantity']):
-                tanka = Tank.objects.get(name=tank['name'])
-                team.sell_tank(tanka, user=request.user)
-        return Response(data={'new_balance': team.balance, 'sold_tanks': [tank for tank in tanks]}, status=status.HTTP_200_OK)
-
+        try:
+            tanks = request.data.get('tanks', [])
+            team = Team.objects.get(name=team_name)
+            for tank in tanks:
+                for i in range(tank['quantity']):
+                    tanka = Tank.objects.get(name=tank['name'])
+                    team.sell_tank(tanka, user=request.user)
+            return Response(data={'new_balance': team.balance, 'sold_tanks': [tank for tank in tanks]}, status=status.HTTP_200_OK)
+        except ValidationError as e:
+            error_msg = e.detail[0] if hasattr(e, 'detail') and isinstance(e.detail, list) else str(e)
+            return Response({'error': str(error_msg)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class TransferMoneyView(APIView):
     def post(self, request):
@@ -187,6 +217,53 @@ class TransferMoneyView(APIView):
         return Response(data={'new_balance': from_team.balance}, status=status.HTTP_200_OK)
 
 
+class AllianceTransferKitView(APIView):
+    def post(self, request):
+        user = request.user
+        team_name = request.data.get('team')
+
+        if not (
+                user.has_perm('user.admin_permissions') or
+                (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+        ):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        target_team_name = request.data.get('target_team')
+        amount = request.data.get('amount', 1)
+
+        try:
+            sender = Team.objects.get(name=team_name)
+            receiver = Team.objects.get(name=target_team_name)
+
+            sender.transfer_alliance_kit(receiver, amount, user.username)
+
+            return Response({
+                'status': 'success',
+                'new_balance': sender.upgrade_kits
+            }, status=status.HTTP_200_OK)
+
+        except Team.DoesNotExist:
+            return Response({'error': 'Team not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        except ValidationError as e:
+            if hasattr(e, 'detail'):
+                if isinstance(e.detail, list) and e.detail:
+                    error_msg = str(e.detail[0])
+                elif isinstance(e.detail, dict) and e.detail:
+                    key = next(iter(e.detail))
+                    val = e.detail[key]
+                    error_msg = str(val[0]) if isinstance(val, list) else str(val)
+                else:
+                    error_msg = str(e.detail)
+            else:
+                error_msg = str(e)
+
+            return Response({'error': error_msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class MergeSplitKitView(APIView):
     def post(self, request):
         user = request.user
@@ -200,16 +277,17 @@ class MergeSplitKitView(APIView):
         action = request.data.get('action')
         kit_type = request.data.get('kit_type')
         kit_amount = request.data.get('kit_amount')
-        if action not in ['merge', 'split']:
-            return Response({'success': False, 'message': "Invalid action. Use 'merge' or 'split'."}, status=status.HTTP_400_BAD_REQUEST)
-        if kit_type not in ['T1', 'T2', 'T3']:
-            return Response({'success': False, 'message': "Invalid kit type. Use 'T1', 'T2', or 'T3'."}, status=status.HTTP_400_BAD_REQUEST)
-        team = Team.objects.get(name=team_name)
-        success = team.split_merge_kit(action=action, kit_type=kit_type, kit_amount=kit_amount)
-        if success:
+
+        try:
+            team = Team.objects.get(name=team_name)
+            team.split_merge_kit(action=action, kit_type=kit_type, kit_amount=kit_amount)
             return Response(status=status.HTTP_200_OK)
-        else:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        except ValidationError as e:
+            error_msg = e.detail[0] if hasattr(e, 'detail') and isinstance(e.detail, list) else str(e)
+            return Response({'error': str(error_msg)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class AllUpgradesView(APIView):
@@ -818,4 +896,11 @@ class InterchangeDetailView(APIView):
             graph_edges = Interchange.objects.all()
 
         serializer = InterchangeSerializer(graph_edges, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class AllianceListView(APIView):
+    def get(self, request):
+        alliances = Alliance.objects.all()
+        serializer = AllianceSerializer(alliances, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)

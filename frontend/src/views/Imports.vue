@@ -193,6 +193,7 @@ const currentCriteria = ref<Criteria | null>(null);
 const isExpanded = ref(false);
 const maxVisibleTanks = 3;
 
+//@ts-ignore
 const groupList = computed(() => Object.entries(importGroups.value).map(([date, group]) => ({ date, ...group })));
 
 const isBeforeAvailableFrom = (tank: Tank): boolean => {

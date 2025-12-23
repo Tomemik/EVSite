@@ -166,6 +166,14 @@ class Manufacturer(models.Model):
         return self.name
 
 
+class Alliance(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    color = models.CharField(default='#FFFFFF', max_length=7)
+
+    def __str__(self):
+        return self.name
+
+
 class Team(models.Model):
 
     UPGRADE_KITS = default_upgrade_kits()
@@ -181,6 +189,7 @@ class Team(models.Model):
     total_money_earned = models.IntegerField(default=0)
     total_money_spent = models.IntegerField(default=0)
     discord_role_id = models.CharField(max_length=255, null=True, blank=True)
+    alliance = models.ForeignKey(Alliance, related_name='teams', on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
         return self.name
@@ -202,8 +211,24 @@ class Team(models.Model):
     def winrate(self):
         played = self.matches_played
         if played == 0:
-            return 0  # Unikamy dzielenia przez 0
+            return 0
         return (self.matches_won / played) * 100
+
+    @property
+    def has_active_bounty(self):
+        return self.bounties.filter(is_active=True).exists()
+
+    def can_challenge_bounty(self, target_team):
+        if not target_team.has_active_bounty:
+            return True, None
+
+        if self.has_active_bounty:
+            return False, "Teams with active bounties cannot challenge other bounty holders."
+
+        if self.alliance and target_team.alliance and self.alliance == target_team.alliance:
+            return False, "Cannot challenge a member of your own alliance."
+
+        return True, None
 
 
     def split_merge_kit(self, action, kit_type, kit_amount):
@@ -293,6 +318,85 @@ class Team(models.Model):
             method_name=opposite_method_name,
         )
 
+    def transfer_alliance_kit(self, target_team, amount, user):
+        try:
+            amount = int(amount)
+        except ValueError:
+            raise ValidationError("Amount must be a number.")
+
+        if amount <= 0:
+            raise ValidationError("Amount must be positive.")
+
+        t1_data = self.upgrade_kits.get('T1', {})
+        current_quantity_str = t1_data.get('quantity', 0)
+        current_quantity = int(current_quantity_str)
+
+        if current_quantity < amount:
+            raise ValidationError(f"Insufficient T1 Upgrade Kits. You have {current_quantity}.")
+
+        if not self.alliance:
+            raise ValidationError("You must be in an alliance to use this feature.")
+        if self.alliance != target_team.alliance:
+            raise ValidationError("Target team is not in your alliance.")
+        if self == target_team:
+            raise ValidationError("Cannot transfer kits to yourself.")
+
+        start_of_week = now() - timedelta(days=now().weekday())
+
+        weekly_logs = TeamLog.objects.filter(
+            team=self,
+            method_name='alliance_kit_transfer',
+            timestamp__gte=start_of_week
+        )
+
+        kits_sent_this_week = 0
+        for log in weekly_logs:
+            try:
+                match = re.search(r'Transferred (\d+) T1', log.description)
+                if match:
+                    kits_sent_this_week += int(match.group(1))
+            except:
+                pass
+
+        if kits_sent_this_week + amount > 2:
+            raise ValidationError(
+                f"Weekly limit reached. You have sent {kits_sent_this_week}/2 T1 kits this week."
+            )
+
+        self.upgrade_kits['T1']['quantity'] = current_quantity - amount
+
+        if 'T1' not in target_team.upgrade_kits:
+            target_team.upgrade_kits['T1'] = {'quantity': 0, 'price': 25000}
+
+        target_current_str = target_team.upgrade_kits['T1'].get('quantity', 0)
+        target_current = int(target_current_str)
+        target_team.upgrade_kits['T1']['quantity'] = target_current + amount
+
+        self.save()
+        target_team.save()
+
+        TeamLog.objects.create(
+            team=self,
+            user=user,
+            field_name='upgrade_kits',
+            previous_value={'quantity': current_quantity},
+            new_value={'quantity': self.upgrade_kits['T1']['quantity']},
+            description=f"Transferred {amount} T1 kits to {target_team.name} (Alliance)",
+            method_name='money_transfer_out'
+        )
+
+        TeamLog.objects.create(
+            team=target_team,
+            user=user,
+            field_name='upgrade_kits',
+            previous_value={'quantity': target_current},
+            new_value={'quantity': target_team.upgrade_kits['T1']['quantity']},
+            description=f"Received {amount} T1 kits from {self.name} (Alliance)",
+            method_name='money_transfer_in'
+        )
+
+        return True
+
     def matches_for_week(self, date):
         start_of_week = date - timedelta(days=date.weekday())
         end_of_week = start_of_week + timedelta(days=6)
@@ -335,6 +439,7 @@ class Team(models.Model):
 
         if active_matches.exists():
             match_info = ", ".join([f"ID {m.id} ({m.datetime.date()})" for m in active_matches])
+            print(match_info,flush=True)
             raise ValidationError(
                 f"Cannot sell {teamtank.tank.name}. It is currently assigned to upcoming matches: {match_info}. "
                 "Please remove it from the match lineup first."
@@ -513,7 +618,7 @@ class Team(models.Model):
                 required_kits[kit] += 1
 
         missing_kits = [tier for tier, count in required_kits.items() if
-                        self.upgrade_kits.get(tier, {}).get('quantity', 0) < count]
+                        int(self.upgrade_kits.get(tier, {}).get('quantity', 0)) < count]
         if missing_kits:
             raise ValidationError(f"Missing upgrade kits: {', '.join(missing_kits)}")
 
@@ -740,6 +845,28 @@ class Team(models.Model):
                     self.tanks.through.objects.create(team=self, tank=tank_to_add)
 
             self.save()
+
+
+class Bounty(models.Model):
+    team = models.ForeignKey(Team, related_name='bounties', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+    value = models.IntegerField(default=0, help_text="The money reward for defeating this team.")
+
+    def __str__(self):
+        return f"Bounty on {self.team.name}"
+
+class BountyTier(models.Model):
+    rank = models.IntegerField(unique=True, choices=[(1, '1st Place'), (2, '2nd Place'), (3, '3rd Place'), (4, '4th Place')])
+    bounty_value = models.IntegerField(default=50000, help_text="The bounty amount assigned to the team at this rank.")
+
+    class Meta:
+        ordering = ['rank']
+        verbose_name = "Monthly Bounty Setting"
+        verbose_name_plural = "Monthly Bounty Settings"
+
+    def __str__(self):
+        return f"Rank {self.rank}: ${self.bounty_value:,}"
 
 
 class Booster(models.Model):
@@ -973,6 +1100,7 @@ class Match(models.Model):
     special_rules = models.TextField(blank=True, null=True)
     teams = models.ManyToManyField(Team, through='TeamMatch', related_name='matches')
     was_played = models.BooleanField(default=False)
+    is_bounty = models.BooleanField(default=False, help_text="If True, this is a Bounty Challenge match.")
     webhook_id_schedule = models.CharField(max_length=255, blank=True, null=True)
     webhook_id_result = models.CharField(max_length=255, blank=True, null=True)
     webhook_id_calc = models.CharField(max_length=255, blank=True, null=True)
@@ -1340,16 +1468,27 @@ class MatchResult(models.Model):
             if team_result.penalties:
                 team_rewards[team_id] -= 10000 * average_rank * team_result.penalties
 
-        for team in winning_teams:
-            for sub in self.substitutes.all():
-                if sub.team_played_for.id == team:
-                    team_rewards[sub.team.id] += team_rewards[team] * (sub.activity * 0.05) if team_rewards[team] > 0 else 0
-                    team_rewards[team] -= team_rewards[team] * (sub.activity * 0.05) if team_rewards[team] > 0 else 0
-        for team in losing_teams:
-            for sub in self.substitutes.all():
-                if sub.team_played_for.id == team:
-                    team_rewards[sub.team.id] += team_rewards[team] * (sub.activity * 0.05) if team_rewards[team] > 0 else 0
-                    team_rewards[team] -= team_rewards[team] * (sub.activity * 0.05) if team_rewards[team] > 0 else 0
+        for team_id in playing_teams:
+            team_subs = [s for s in self.substitutes.all() if s.team_played_for.id == team_id]
+
+            for sub in team_subs:
+                played_for_team = Team.objects.get(id=team_id)
+                sub_team = sub.team
+
+                is_alliance_sub = (
+                        played_for_team.alliance is not None and
+                        sub_team.alliance is not None and
+                        played_for_team.alliance.id == sub_team.alliance.id
+                )
+
+                if is_alliance_sub:
+                    pass
+                else:
+                    reward_pool = team_rewards[team_id]
+                    if reward_pool > 0:
+                        cut_amount = reward_pool * (sub.activity * 0.05)
+                        team_rewards[sub.team.id] += cut_amount
+                        team_rewards[team_id] -= cut_amount
 
         combined_rewards = winner_base_reward + loser_base_reward
         if self.tanks_lost.all().count() >= 12:

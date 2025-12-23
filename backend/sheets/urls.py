@@ -31,6 +31,7 @@ urlpatterns = [
     path("transactions/money_log/", views.TeamLogFilteredView.as_view(), name='money-log'),
     path("transactions/merge_split_kit/", views.MergeSplitKitView.as_view(), name='merge-split-kit'),
     path("transactions/transfer/", views.TransferMoneyView.as_view(), name='transfer'),
+    path('transactions/transfer-kit/', views.AllianceTransferKitView.as_view(), name='transfer-kit'),
     path("transactions/buy_imports/", views.PurchaseImportTankView.as_view(), name='buy-imports'),
     path("transactions/buy_box/", views.PurchaseBoxView.as_view(), name='buy-box'),
     path("transactions/buy_open_box/", views.PurchaseAndOpenBoxView.as_view(), name='buy-open-box'),
@@ -39,4 +40,5 @@ urlpatterns = [
     path("upgrades/labels/", views.UpgradeTreeListView.as_view(), name="upgrade-tree-list"),
     path('interchanges/labels/', views.InterchangeListView.as_view(), name='interchange-labels'),
     path('interchanges/', views.InterchangeDetailView.as_view(), name='interchange-detail'),
+    path('alliances/', views.AllianceListView.as_view(), name='alliance-list'),
 ]
