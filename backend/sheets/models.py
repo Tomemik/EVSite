@@ -177,6 +177,7 @@ class Alliance(models.Model):
 class Team(models.Model):
 
     UPGRADE_KITS = default_upgrade_kits()
+    MAX_PER_TANK = 63
 
     name = models.CharField(max_length=50)
     color = models.CharField(default='#000000', max_length=7)
@@ -193,6 +194,11 @@ class Team(models.Model):
 
     def __str__(self):
         return self.name
+
+    def check_tank_limit(self, tank):
+        current_count = TeamTank.objects.filter(team=self, tank=tank).count()
+        if current_count >= self.MAX_PER_TANK:
+            raise ValidationError(f"Limit reached: You cannot own more than {self.MAX_PER_TANK} of {tank.name}.")
 
     @property
     def matches_played(self):
@@ -227,6 +233,19 @@ class Team(models.Model):
 
         if self.alliance and target_team.alliance and self.alliance == target_team.alliance:
             return False, "Cannot challenge a member of your own alliance."
+
+        start_of_month = now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        has_challenged = Match.objects.filter(
+            datetime__gte=start_of_month,
+            is_bounty=True,
+            teammatch__team=self
+        ).filter(
+            teammatch__team=target_team
+        ).exists()
+
+        if has_challenged:
+            return False, f"You have already challenged {target_team.name} for a bounty this month."
 
         return True, None
 
@@ -420,6 +439,7 @@ class Team(models.Model):
 
     @log_team_changes
     def purchase_tank(self, tank, *, user):
+        self.check_tank_limit(tank)
         if tank.price > self.balance:
             raise ValidationError("Insufficient balance to purchase this tank.")
         if not self.manufacturers.filter(id__in=tank.manufacturers.all()).exists():
@@ -520,6 +540,8 @@ class Team(models.Model):
 
     @log_team_changes
     def upgrade_or_downgrade_tank(self, tank, to_tank, extra_upgrade_kit_tiers=[], *, user, ):
+        self.check_tank_limit(to_tank)
+
         from_tank = tank.tank
         if not tank.is_upgradable:
             raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
@@ -585,6 +607,7 @@ class Team(models.Model):
 
     @log_team_changes(custom_method_name="upgrade_or_downgrade_tank")
     def do_direct_upgrade(self, tank, to_tank, extra_upgrade_kit_tiers=[], *, user,):
+        self.check_tank_limit(to_tank)
         from_tank = tank.tank
         if not tank.is_upgradable:
             raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
@@ -1529,6 +1552,24 @@ class MatchResult(models.Model):
         start_of_week = today - timedelta(days=today.weekday())
         end_of_week = start_of_week + timedelta(days=6)
 
+        if self.match.is_bounty:
+            target_team = None
+            challenger_team = None
+
+            for team_id in playing_teams:
+                t = Team.objects.get(id=team_id)
+                if t.has_active_bounty:
+                    target_team = t
+                else:
+                    challenger_team = t
+
+            if target_team and challenger_team:
+                if challenger_team.id in winning_teams:
+                    active_bounty = target_team.bounties.filter(is_active=True).first()
+                    if active_bounty:
+                        bounty_amount = active_bounty.value
+                        team_rewards[challenger_team.id] += bounty_amount
+
         for team_id, reward in team_rewards.items():
             reversed_score = ":".join(self.round_score.split(':')[::-1])
             if team_id in winning_teams:
@@ -1584,6 +1625,19 @@ class MatchResult(models.Model):
                 previous_booster = None
                 new_booster = None
 
+            bounty_line = ""
+            if self.match.is_bounty and team_id in winning_teams:
+                print(self.match.is_bounty, flush=True)
+                if not team.has_active_bounty:
+                    print('aaa')
+                    for loser_id in losing_teams:
+                        loser_team = Team.objects.get(id=loser_id)
+                        active_bounty = loser_team.bounties.filter(is_active=True).first()
+                        print(active_bounty)
+                        if active_bounty:
+                            bounty_line = f"Bounty Claimed from {loser_team.name}: {active_bounty.value}\n"
+                            break
+
             if log_method == 'calc_rewards':
                 TeamLog.objects.create(
                     team=team,
@@ -1603,6 +1657,7 @@ class MatchResult(models.Model):
                     },
                     description=f"Balance Changed by: {reward}\n"
                                 f"Kits changed by: {compare_upgrade_kits(kits, team.upgrade_kits)}\n"
+                                f"{bounty_line}"
                                 f"Match: {self.match.__str__()}\n"
                                 f"Match ID: {self.match.id}\n"
                                 f"Booster: {booster_log_data if booster_log_data else 'None'}",
@@ -1622,6 +1677,7 @@ class MatchResult(models.Model):
                         'booster': new_booster
                     },
                     description=f"Balance Changed by: {reward}\n"
+                                f"{bounty_line}"
                                 f"Match: {self.match.__str__()}\n"
                                 f"Match ID: {self.match.id}\n"
                                 f"Booster: {booster_log_data if booster_log_data else 'None'}",
@@ -1811,6 +1867,8 @@ class ImportTank(models.Model):
     def purchase_from_imports(self, team, user):
         import_tank = ImportTank.objects.select_for_update().get(pk=self.pk)
         team = Team.objects.select_for_update().get(pk=team.pk)
+
+        team.check_tank_limit(import_tank.tank)
 
         if import_tank.is_purchased:
             raise ValidationError("This tank has already been purchased.")

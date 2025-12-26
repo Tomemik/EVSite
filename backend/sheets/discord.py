@@ -1,6 +1,6 @@
 import pytz
 import datetime
-from .models import TeamMatch, TeamTank, Match, Substitute, MatchResult
+from .models import TeamMatch, TeamTank, Match, Substitute, MatchResult, Team
 from django.conf import settings
 
 
@@ -11,8 +11,8 @@ def discord_message_url(channel_id, message_id):
     base = "https://discord.com/channels"
     return f"{base}/{guild_id}/{channel_id}/{message_id}"
 
-def format_match_message(match):
 
+def format_match_message(match):
     teams_by_side = {
         'team_1': [],
         'team_2': [],
@@ -28,20 +28,40 @@ def format_match_message(match):
         'team_2': [],
     }
 
-
     team_matches = TeamMatch.objects.filter(match=match)
+
+    # Bounty Logic
+    bounty_info = ""
+    if match.is_bounty:
+        target_team = None
+        bounty_value = 0
+        for tm in team_matches:
+            # Check for active bounty on this team
+            active_bounty = tm.team.bounties.filter(is_active=True).first()
+            if active_bounty:
+                target_team = tm.team
+                bounty_value = active_bounty.value
+                break
+
+        if target_team:
+            bounty_info = f"**Bounty on {target_team.name}: ${bounty_value:,}**\n"
+
     for team_match in team_matches:
-        teams_by_side[team_match.side].append(f"**{team_match.team.name}**")
+        # Check if this team is the bounty target for visual flair
+        team_display_name = f"**{team_match.team.name}**"
+        if match.is_bounty and team_match.team.has_active_bounty:
+            team_display_name += " **(Target)**"
+
+        teams_by_side[team_match.side].append(team_display_name)
         team_mentions[team_match.side].append(f"<@&{team_match.team.discord_role_id}>")
 
         tanks = TeamTank.objects.filter(team_matches=team_match).order_by('-tank__battle_rating')
-        tanks_by_side[team_match.side].append([tank.tank.name for tank in tanks])  # Store list of tank names
+        tanks_by_side[team_match.side].append([tank.tank.name for tank in tanks])
 
     team_1_names = ", ".join(teams_by_side['team_1'])
     team_2_names = ", ".join(teams_by_side['team_2'])
     team_1_mentions = " ".join(team_mentions['team_1'])
     team_2_mentions = " ".join(team_mentions['team_2'])
-
 
     team_1_tanks = ""
     for idx, team_name in enumerate(teams_by_side['team_1']):
@@ -53,22 +73,25 @@ def format_match_message(match):
         team_2_tanks += f"{team_name}:\n"
         team_2_tanks += "\n".join(tanks_by_side['team_2'][idx]) + "\n\n"
 
-    match_date_utc = match.datetime  # Assuming 'datetime' is UTC or can be converted
+    match_date_utc = match.datetime
     formatted_utc_date = match_date_utc.strftime('%A, %d.%m.%Y - %H:%M UTC')
 
-    utc_timestamp = int(match_date_utc.timestamp())  # Absolute timestamp in seconds (for Discord)
-    local_timestamp = int(match_date_utc.timestamp())  # Local absolute timestamp for Discord
+    utc_timestamp = int(match_date_utc.timestamp())
+    local_timestamp = int(match_date_utc.timestamp())
 
     utc_time = f"<t:{utc_timestamp}>"
     local_time = f"<t:{local_timestamp}>"
-    time_remaining = f"<t:{local_timestamp}:R>"  # Relative timestamp (e.g., "in 6 hours")
+    time_remaining = f"<t:{local_timestamp}:R>"
 
     match_mode = dict(Match.MODE_CHOICES).get(match.mode, "Unknown Mode")
     gamemode = dict(Match.GAMEMODE_CHOICES).get(match.gamemode, "Unknown Game Mode")
     money_rules = dict(Match.MONEY_RULES).get(match.money_rules, "None")
 
+    # Bounty Header
+    header = "**BOUNTY MATCH**\n" if match.is_bounty else ""
+
     message = f"""
-{team_1_mentions} vs {team_2_mentions}
+{header}{bounty_info}{team_1_mentions} vs {team_2_mentions}
 {formatted_utc_date} - {local_time} ; {time_remaining}
 {match_mode}, {gamemode} - Bo{match.best_of_number} {match.map_selection}
 {money_rules}
@@ -83,7 +106,6 @@ def format_match_message(match):
 
 
 def format_match_result_message(match):
-    # Retrieve the MatchResult via reverse query
     match_result = getattr(match, 'match_result', None)
     if not match_result:
         return "No results found for this match."
@@ -138,6 +160,22 @@ def format_match_result_message(match):
     substitutes = match_result.substitutes.all()
 
     team_matches = TeamMatch.objects.filter(match=match)
+
+    # Bounty Logic
+    bounty_info = ""
+    if match.is_bounty:
+        target_team = None
+        bounty_value = 0
+        for tm in team_matches:
+            active_bounty = tm.team.bounties.filter(is_active=True).first()
+            if active_bounty:
+                target_team = tm.team
+                bounty_value = active_bounty.value
+                break
+
+        if target_team:
+            bounty_info = f"**Bounty on {target_team.name}: ${bounty_value:,}**\n"
+
     for team_match in team_matches:
         side = team_match.side
         teams_by_side[side].append(f"**{team_match.team.name}**")
@@ -184,8 +222,11 @@ def format_match_result_message(match):
 
     winning_side_names = ", ".join(winning_side_teams) if winning_side_teams else "Unknown"
 
+    # Bounty Header
+    header = "**BOUNTY MATCH**\n" if match.is_bounty else ""
+
     message = f"""
-{formatted_utc_date}
+{header}{bounty_info}{formatted_utc_date}
 {gamemode}, {match_mode}, Bo{best_of_number}, {map_selection}
 {money_rules}
 {special_rules}
@@ -223,13 +264,32 @@ def format_match_calc_message(match, rewards_summary):
     }
 
     team_matches = TeamMatch.objects.filter(match=match)
+
+    # Bounty Logic
+    bounty_info = ""
+    if match.is_bounty:
+        target_team = None
+        bounty_value = 0
+        for tm in team_matches:
+            active_bounty = tm.team.bounties.filter(is_active=True).first()
+            if active_bounty:
+                target_team = tm.team
+                bounty_value = active_bounty.value
+                break
+
+        if target_team:
+            bounty_info = f"**Bounty on {target_team.name}: ${bounty_value:,}**\n"
+
     for team_match in team_matches:
         teams_by_side[team_match.side].append(f"**{team_match.team.name}**")
         team_1_names = ", ".join(teams_by_side['team_1'])
         team_2_names = ", ".join(teams_by_side['team_2'])
 
+    # Bounty Header
+    header = "**BOUNTY MATCH**\n" if match.is_bounty else ""
+
     message = f"""
-{team_1_names} Vs. {team_2_names}
+{header}{bounty_info}{team_1_names} Vs. {team_2_names}
 {formatted_utc_date}
 {gamemode}, {match_mode}, Bo{best_of_number}, {map_selection}
 {money_rules}
@@ -261,5 +321,56 @@ def format_match_calc_message(match, rewards_summary):
 
     message += f"\n{schedule_link} | {result_link}"
 
-
     return message
+
+import requests
+
+def send_transaction_log(team_name, action_type, details, amount, new_balance):
+    webhook_url = getattr(settings, 'DISCORD_WEBHOOK_URL_TRANSACTIONS', None)
+    print(team_name, action_type, details, amount, new_balance, flush=True)
+    print(webhook_url, flush=True)
+    if not webhook_url:
+        return
+
+    config = {
+        'Purchase': {'emoji': '🛒', 'color': 3066993},
+        'Sale': {'emoji': '💰', 'color': 15105570},
+        'Upgrade': {'emoji': '🔧', 'color': 3447003},
+        'Import': {'emoji': '🚢', 'color': 10181046},
+        'Gambling': {'emoji': '🎲', 'color': 15844367},
+    }
+
+    cfg = config.get(action_type, {'emoji': '📝', 'color': 0})
+
+    if amount > 0:
+        amount_str = f"-{amount:,}"
+    elif amount < 0:
+        amount_str = f"+{abs(amount):,}"
+    else:
+        amount_str = "0"
+
+    embed = {
+        "title": f"{cfg['emoji']} {action_type} - {team_name}",
+        "description": details,
+        "color": cfg['color'],
+        "fields": [
+            {
+                "name": "Transaction Value",
+                "value": amount_str,
+                "inline": True
+            },
+            {
+                "name": "New Balance",
+                "value": f"{new_balance:,}",
+                "inline": True
+            }
+        ],
+        "footer": {
+            "text": f"League Transaction Log • {datetime.datetime.now().strftime('%H:%M UTC')}"
+        }
+    }
+
+    try:
+        requests.post(webhook_url, json={"embeds": [embed]})
+    except Exception as e:
+        print(f"Error sending transaction webhook: {e}")

@@ -196,6 +196,7 @@ class MatchSerializer(serializers.ModelSerializer):
         team_matches_data = data.get('teammatch_set', [])
         match_date = data.get('datetime', timezone.now()).date()
         is_bounty_match = data.get('is_bounty', False)
+        all_participating_teams = [tm['team'] for tm in team_matches_data]
 
         existing_team_ids = (
             self.instance.teammatch_set.values_list('team_id', flat=True)
@@ -217,11 +218,12 @@ class MatchSerializer(serializers.ModelSerializer):
             participating_teams.append(team)
 
         if is_bounty_match:
-            if len(participating_teams) != 2:
+            if len(all_participating_teams) != 2:
                 raise serializers.ValidationError(
-                    "Invalid Challenge: Bounty match can only be a 1v1")
+                    f"Invalid Challenge: Bounty match must be 1v1. Found {len(all_participating_teams)} teams."
+                )
 
-            bounty_holders = [t for t in participating_teams if t.has_active_bounty]
+            bounty_holders = [t for t in all_participating_teams if t.has_active_bounty]
 
             if len(bounty_holders) == 0:
                 raise serializers.ValidationError(
@@ -232,7 +234,12 @@ class MatchSerializer(serializers.ModelSerializer):
                     "Invalid Challenge: Both teams hold active bounties. Bounty holders cannot challenge each other.")
 
             target_team = bounty_holders[0]
-            challenger_team = next(t for t in participating_teams if t != target_team)
+            challenger_team = next(t for t in all_participating_teams if t != target_team)
+
+            if not challenger_team.can_challenge_bounty(target_team)[0]:
+                raise serializers.ValidationError(
+                    f"Invalid Challenge: {challenger_team.name} cannot challenge {target_team.name} because: {challenger_team.can_challenge_bounty(target_team)[1]}."
+                )
 
             if (target_team.alliance and challenger_team.alliance and
                     target_team.alliance == challenger_team.alliance):
@@ -280,6 +287,7 @@ class MatchSerializer(serializers.ModelSerializer):
         instance.map_selection = validated_data.get('map_selection', instance.map_selection)
         instance.money_rules = validated_data.get('money_rules', instance.money_rules)
         instance.special_rules = validated_data.get('special_rules', instance.special_rules)
+        instance.is_bounty = validated_data.get('is_bounty', instance.is_bounty)
         instance.save()
 
         # Clear existing team matches
@@ -320,14 +328,20 @@ class SlimTeamSerializer(serializers.ModelSerializer):
 
 class SlimTeamSerializerWithTanks(serializers.ModelSerializer):
     tanks = serializers.SerializerMethodField()
+    bounty_value = serializers.SerializerMethodField()
+
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'color', 'balance', 'tanks']
+        fields = ['id', 'name', 'color', 'balance', 'tanks', 'bounty_value']
 
     def get_tanks(self, obj):
         team_tanks = obj.teamtank_set.filter()
         return TeamTankSerializer(team_tanks, many=True).data
+
+    def get_bounty_value(self, obj):
+        active_bounty = obj.bounties.filter(is_active=True).first()
+        return active_bounty.value if active_bounty else None
 
 class AllianceSerializer(serializers.ModelSerializer):
     teams = SlimTeamSerializer(many=True, read_only=True)

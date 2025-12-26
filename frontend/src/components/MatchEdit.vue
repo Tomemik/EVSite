@@ -14,6 +14,29 @@
 
       <v-card-text class="pa-6">
         <v-form>
+          <v-row dense class="mb-2">
+            <v-col cols="12">
+              <v-checkbox
+                v-model="editForm.is_bounty"
+                :disabled="!canBeBountyMatch"
+                @update:model-value="onBountyChange"
+                color="error"
+                density="compact"
+                hide-details
+              >
+                <template v-slot:label>
+                  <span style="margin-bottom: 1px" class="font-weight-bold" :class="editForm.is_bounty ? 'text-error' : ''">
+                    <v-icon icon="mdi-target" class="mr-1" size="small"></v-icon>
+                    Bounty Match
+                  </span>
+                  <span v-if="!canBeBountyMatch" class="text-caption text-grey ml-2 font-italic">
+                    (Requires 1v1 & exactly one active bounty target)
+                  </span>
+                </template>
+              </v-checkbox>
+            </v-col>
+          </v-row>
+
           <v-row dense>
             <v-col cols="12">
               <v-text-field
@@ -36,6 +59,7 @@
                 prepend-inner-icon="mdi-controller"
                 variant="outlined"
                 density="compact"
+                :readonly="editForm.is_bounty"
               ></v-select>
             </v-col>
             <v-col cols="12" md="6">
@@ -46,6 +70,7 @@
                 prepend-inner-icon="mdi-controller-classic"
                 variant="outlined"
                 density="compact"
+                :readonly="editForm.is_bounty"
               ></v-select>
             </v-col>
           </v-row>
@@ -59,6 +84,7 @@
                 prepend-inner-icon="mdi-cash"
                 variant="outlined"
                 density="compact"
+                :readonly="editForm.is_bounty"
               ></v-select>
             </v-col>
             <v-col cols="12" md="4">
@@ -69,6 +95,7 @@
                 prepend-inner-icon="mdi-trophy-outline"
                 variant="outlined"
                 density="compact"
+                :readonly="editForm.is_bounty"
               ></v-select>
             </v-col>
             <v-col cols="12" md="4">
@@ -78,6 +105,7 @@
                 prepend-inner-icon="mdi-map-marker"
                 variant="outlined"
                 density="compact"
+                :readonly="editForm.is_bounty"
               ></v-text-field>
             </v-col>
           </v-row>
@@ -116,8 +144,17 @@
                         class="font-weight-bold"
                         @update:model-value="onTeamSelect('team_1', teamIndex)"
                       >
+                        <template v-slot:item="{ props, item }">
+                          <v-list-item v-bind="props" :title="item.raw.title">
+                            <template v-slot:append v-if="item.raw.has_bounty">
+                               <v-icon color="error" size="small">mdi-target</v-icon>
+                            </template>
+                          </v-list-item>
+                        </template>
+
                         <template v-slot:selection="{ item }">
-                          <span class="text-primary">{{ item.title }}</span>
+                          <span class="text-primary mr-2">{{ item.title }}</span>
+                          <v-icon v-if="teamHasBounty(item.title)" color="error" size="x-small">mdi-target</v-icon>
                         </template>
                       </v-autocomplete>
                       <v-btn
@@ -193,8 +230,17 @@
                         class="font-weight-bold"
                         @update:model-value="onTeamSelect('team_2', teamIndex)"
                       >
+                        <template v-slot:item="{ props, item }">
+                          <v-list-item v-bind="props" :title="item.raw.title">
+                            <template v-slot:append v-if="item.raw.has_bounty">
+                               <v-icon color="error" size="small">mdi-target</v-icon>
+                            </template>
+                          </v-list-item>
+                        </template>
+
                         <template v-slot:selection="{ item }">
-                          <span class="text-error">{{ item.title }}</span>
+                          <span class="text-error mr-2">{{ item.title }}</span>
+                          <v-icon v-if="teamHasBounty(item.title)" color="error" size="x-small">mdi-target</v-icon>
                         </template>
                       </v-autocomplete>
                       <v-btn
@@ -262,7 +308,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 
 const props = defineProps({
   detailedMatch: Object,
@@ -274,7 +320,6 @@ const emit = defineEmits(['update:showEditDialog', 'updateMatch']);
 const localShowEditDialog = ref(props.showEditDialog);
 const teamOptions = ref([]);
 
-// Structure: tanks is now an array of objects { id: number | null }
 const editForm = ref({
   id: '',
   datetime: '',
@@ -284,6 +329,7 @@ const editForm = ref({
   best_of_number: '',
   money_rules: '',
   special_rules: '',
+  is_bounty: false, // New Field
   teammatch_set: {
     team_1: [{ team: '', tanks: [{ id: null }] }],
     team_2: [{ team: '', tanks: [{ id: null }] }],
@@ -313,11 +359,51 @@ const moneyRulesOptions = [
   { value: 'none', title: 'None' }
 ];
 
+// --- Helpers ---
+
+const teamHasBounty = (teamName) => {
+  const t = props.allTeamDetails?.find(x => x.name === teamName);
+  // Assuming the API returns `bounty_value` > 0 if they have a bounty
+  return t && t.bounty_value && t.bounty_value > 0;
+};
+
+// Check if current configuration is valid for Bounty Mode
+const canBeBountyMatch = computed(() => {
+  const t1 = editForm.value.teammatch_set.team_1;
+  const t2 = editForm.value.teammatch_set.team_2;
+
+  // Rule 1: Must be 1v1 teams
+  if (t1.length !== 1 || t2.length !== 1) return false;
+
+  const name1 = t1[0].team;
+  const name2 = t2[0].team;
+
+  if (!name1 || !name2) return false;
+
+  // Rule 2: Exactly ONE team must have a bounty
+  const b1 = teamHasBounty(name1) ? 1 : 0;
+  const b2 = teamHasBounty(name2) ? 1 : 0;
+
+  return (b1 + b2) === 1;
+});
+
+const onBountyChange = (val) => {
+  if (val) {
+    // Auto-set rules for Bounty Match
+    editForm.value.mode = 'advanced';
+    editForm.value.gamemode = 'annihilation';
+    editForm.value.money_rules = 'none';
+    editForm.value.best_of_number = '3';
+    editForm.value.map_selection = 'JLL';
+  }
+};
+
 const updateTeamOptions = () => {
   if (!props.allTeamDetails) return;
   teamOptions.value = props.allTeamDetails.map(team => ({
     title: team.name,
     id: team.id,
+    has_bounty: team.bounty_value > 0
   }));
 };
 
@@ -330,12 +416,18 @@ const updateAvailableTeams = () => {
   ];
 
   teamOptions.value = props.allTeamDetails
-    .filter(team => !allTeams.includes(team.name)) // Only filter if you want to prevent duplicate teams
+    .filter(team => !allTeams.includes(team.name))
     .map(team => ({
       title: team.name,
       id: team.id,
+      has_bounty: team.bounty_value > 0
     }))
     .sort((a, b) => a.title.localeCompare(b.title));
+
+  // If team lineup changes invalidates bounty, uncheck it
+  if (!canBeBountyMatch.value && editForm.value.is_bounty) {
+      editForm.value.is_bounty = false;
+  }
 };
 
 // --- Watchers ---
@@ -354,7 +446,6 @@ watch(() => props.allTeamDetails, (newData) => {
   }
 }, { immediate: true });
 
-// Initialize form when detailedMatch changes
 watch(() => props.detailedMatch, (newVal) => {
   if (newVal) {
     editForm.value = {
@@ -366,15 +457,14 @@ watch(() => props.detailedMatch, (newVal) => {
       best_of_number: newVal.best_of_number,
       money_rules: newVal.money_rules,
       special_rules: newVal.special_rules,
+      is_bounty: newVal.is_bounty || false, // Load existing state
       teammatch_set: {
         team_1: newVal.sides.team_1.map(team => ({
           team: team.team,
-          // Convert IDs to objects and append one empty slot
           tanks: [...team.tanks.map(tank => ({ id: tank.id })), { id: null }]
         })),
         team_2: newVal.sides.team_2.map(team => ({
           team: team.team,
-          // Convert IDs to objects and append one empty slot
           tanks: [...team.tanks.map(tank => ({ id: tank.id })), { id: null }]
         })),
       },
@@ -386,14 +476,12 @@ watch(() => props.detailedMatch, (newVal) => {
 // --- Form Logic ---
 
 const onTeamSelect = (side, index) => {
-  // When team changes, reset tanks to one empty slot
   editForm.value.teammatch_set[side][index].tanks = [{ id: null }];
   updateAvailableTeams();
 };
 
 const onTankChange = (side, teamIndex, tankIndex) => {
   const currentTeam = editForm.value.teammatch_set[side][teamIndex];
-  // If we just edited the last row, add a new empty row
   if (tankIndex === currentTeam.tanks.length - 1 && currentTeam.tanks[tankIndex].id) {
     currentTeam.tanks.push({ id: null });
   }
@@ -401,17 +489,17 @@ const onTankChange = (side, teamIndex, tankIndex) => {
 
 const removeTank = (side, teamIndex, tankIndex) => {
   const currentTeam = editForm.value.teammatch_set[side][teamIndex];
-  // Allow removing unless it's the only one (optional, keeping 1 empty is usually good UX)
   if (currentTeam.tanks.length > 1) {
     currentTeam.tanks.splice(tankIndex, 1);
   } else {
-    // If it's the last one, just clear the value
     currentTeam.tanks[0].id = null;
   }
 };
 
 const addTeam = (side) => {
   editForm.value.teammatch_set[side].push({ team: '', tanks: [{ id: null }] });
+  // Adding a team likely invalidates bounty match (makes it 2v1 or 2v2)
+  if (editForm.value.is_bounty) editForm.value.is_bounty = false;
 };
 
 const removeTeam = (side, index) => {
@@ -419,7 +507,6 @@ const removeTeam = (side, index) => {
     editForm.value.teammatch_set[side].splice(index, 1);
     updateAvailableTeams();
   } else {
-    // Optional: alert user they can't have 0 teams on a side
     alert("At least one team is required per side.");
   }
 };
@@ -488,6 +575,7 @@ const saveChanges = () => {
     best_of_number: editForm.value.best_of_number,
     money_rules: editForm.value.money_rules,
     special_rules: editForm.value.special_rules,
+    is_bounty: editForm.value.is_bounty,
 
     teammatch_set: Object.keys(editForm.value.teammatch_set).map(side => {
       return editForm.value.teammatch_set[side].map(team => {
@@ -523,6 +611,8 @@ const saveChanges = () => {
     }).flat()
   };
 
+  console.log("Updated Match:", updatedMatch);
+
   console.log("Saving Updated Match:", updatedMatch);
   emit('updateMatch', updatedMatch);
   close();
@@ -536,5 +626,8 @@ const close = () => {
 <style scoped>
 .border-grey {
   border-color: #BDBDBD !important;
+}
+.text-error {
+  color: rgb(var(--v-theme-error)) !important;
 }
 </style>

@@ -6,6 +6,12 @@
           <v-icon start icon="mdi-calendar-clock"></v-icon>
           {{ detailedMatch ? formatDateTime(detailedMatch.datetime) : 'Match Details' }}
         </v-toolbar-title>
+
+        <v-chip v-if="detailedMatch?.is_bounty" color="error" class="ml-2 font-weight-black" size="small" variant="elevated">
+          <v-icon start icon="mdi-target"></v-icon>
+          BOUNTY MATCH
+        </v-chip>
+
         <v-spacer></v-spacer>
         <v-btn icon @click="close">
           <v-icon>mdi-close</v-icon>
@@ -77,8 +83,16 @@
             <div v-for="team in detailedMatch.sides.team_1" :key="team.team" class="mb-4">
               <v-card variant="outlined" class="h-100 border-grey">
                 <v-card-item class="bg-grey-lighten-1 py-2">
-                  <div class="text-subtitle-1 font-weight-bold text-center text-primary">
-                    {{ team.team }}
+                  <div class="d-flex justify-center align-center">
+                    <div class="text-subtitle-1 font-weight-bold text-primary">
+                      {{ team.team }}
+                    </div>
+                    <v-icon
+                      v-if="hasBounty(team.team)"
+                      color="error"
+                      class="ml-2"
+                      title="Bounty Target"
+                    >mdi-target</v-icon>
                   </div>
                 </v-card-item>
                 <v-divider></v-divider>
@@ -102,8 +116,16 @@
             <div v-for="team in detailedMatch.sides.team_2" :key="team.team" class="mb-4">
               <v-card variant="outlined" class="h-100 border-grey">
                 <v-card-item class="bg-grey-lighten-1 py-2">
-                  <div class="text-subtitle-1 font-weight-bold text-center text-error">
-                    {{ team.team }}
+                  <div class="d-flex justify-center align-center">
+                    <div class="text-subtitle-1 font-weight-bold text-center text-error">
+                      {{ team.team }}
+                    </div>
+                    <v-icon
+                      v-if="hasBounty(team.team)"
+                      color="error"
+                      class="ml-2"
+                      title="Bounty Target"
+                    >mdi-target</v-icon>
                   </div>
                 </v-card-item>
                 <v-divider></v-divider>
@@ -145,12 +167,13 @@
       </v-card-text>
       <v-card-actions>
         <v-spacer></v-spacer>
-        <v-btn color="error" @click="deleteMatch">Delete</v-btn>
-        <v-btn color="primary" @click="showDeleteConfirmation = false">Cancel</v-btn>
+        <v-btn color="error" variant="text" @click="deleteMatch">Delete</v-btn>
+        <v-btn color="primary" variant="text" @click="showDeleteConfirmation = false">Cancel</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
-</template>
+
+  </template>
 
 <script setup>
 import {ref, watch} from 'vue';
@@ -158,11 +181,14 @@ import {useUserStore} from "../config/store.ts";
 
 const userStore = useUserStore()
 
-const props = defineProps(['detailedMatch', 'showDetailsDialog']);
+// Props need 'allTeamDetails' passed in so we can lookup who has a bounty!
+const props = defineProps(['detailedMatch', 'showDetailsDialog', 'allTeamDetails']);
 const emit = defineEmits(['update:showDetailsDialog', 'deleteMatch', 'editMode', 'resultView']);
 
 const localShowDetailsDialog = ref(props.showDetailsDialog);
 const showDeleteConfirmation = ref(false);
+
+// ... [Existing Watchers and Update Methods] ...
 
 watch(() => props.showDetailsDialog, (newValue) => {
   localShowDetailsDialog.value = newValue;
@@ -217,6 +243,16 @@ const getTitleByValue = (options, value) => {
   return option ? option.title : value;
 };
 
+// --- NEW HELPER ---
+const hasBounty = (teamName) => {
+  if (!props.allTeamDetails) return false;
+  const team = props.allTeamDetails.find(t => t.name === teamName);
+  // Check if team exists and has bounty > 0
+  return team && team.bounty_value && team.bounty_value > 0;
+}
+
+// ... [Existing Action Methods] ...
+
 const openResultView = () => {
   emit('resultView');
 }
@@ -229,16 +265,13 @@ const close = () => {
   updateShowDetailsDialog(false);
 }
 
-// ... COPY FUNCTIONALITY (UNCHANGED) ...
+// ... [Copy Logic - Unchanged] ...
 const formatDateTimeForCopy = (datetime) => {
   const date = new Date(datetime);
-
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const dayName = days[date.getUTCDay()];
-
   const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const monthName = months[date.getUTCMonth()];
-
   const day = date.getUTCDate();
   const ordinal = (n) => {
     const s = ['th', 'st', 'nd', 'rd'];
@@ -246,12 +279,9 @@ const formatDateTimeForCopy = (datetime) => {
     return s[(v - 20) % 10] || s[v] || s[0];
   };
   const dayWithOrdinal = `${day}${ordinal(day)}`;
-
   const year = date.getUTCFullYear();
-
   const hours = String(date.getUTCHours()).padStart(2, '0');
   const minutes = String(date.getUTCMinutes()).padStart(2, '0');
-
   return `${dayName}, ${monthName} ${dayWithOrdinal}, ${year} - ${hours}:${minutes} UTC`;
 };
 
@@ -266,8 +296,10 @@ const getDiscordTimestampFull = (datetime) => {
 };
 
 const copyDetails = () => {
+  const bountyPrefix = props.detailedMatch.is_bounty ? "**[BOUNTY MATCH]**\n" : "";
+
   const matchDetails = `
-${formatDateTimeForCopy(props.detailedMatch.datetime)} - ${getDiscordTimestampFull(props.detailedMatch.datetime)} - ${getDiscordTimestampRelative(props.detailedMatch.datetime)}
+${bountyPrefix}${formatDateTimeForCopy(props.detailedMatch.datetime)} - ${getDiscordTimestampFull(props.detailedMatch.datetime)} - ${getDiscordTimestampRelative(props.detailedMatch.datetime)}
 ${getTitleByValue(gamemodeOptions, props.detailedMatch.gamemode)}, ${getTitleByValue(modeOptions, props.detailedMatch.mode)}, Bo${props.detailedMatch.best_of_number}, ${props.detailedMatch.map_selection}
 ${getTitleByValue(moneyRulesOptions, props.detailedMatch.money_rules)}
 ${props.detailedMatch.special_rules || 'None'}
@@ -292,7 +324,6 @@ ${team.tanks.map(tank => tank.tank.name).join('\n')}
   });
 };
 </script>
-
 
 <style scoped>
 .border-grey {

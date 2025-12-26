@@ -1,3 +1,5 @@
+import copy
+
 from django.conf import settings
 from django.shortcuts import render, get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -11,7 +13,7 @@ import requests
 from django.db.models import F, Window
 from django.db.models.functions import RowNumber
 
-from .discord import format_match_message, format_match_result_message, format_match_calc_message
+from .discord import format_match_message, format_match_result_message, format_match_calc_message, send_transaction_log
 from .filters import TeamLogFilter, MatchFilter
 from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch, TeamLog, ImportTank, \
     ImportCriteria, TeamBox, TeamTank, UpgradePath, get_upgrade_tree, UpgradeTree, InterchangeGroup, \
@@ -126,9 +128,23 @@ class PurchaseTankView(APIView):
 
         try:
             team = Team.objects.get(name=team_name)
+            initial_balance = team.balance
             for tank_name in tanks:
                 tank = Tank.objects.get(name=tank_name)
                 team.purchase_tank(tank, user=request.user)
+
+            purchased_names = []
+            for tank_name in tanks:
+                tank = Tank.objects.get(name=tank_name)
+                team.purchase_tank(tank, user=request.user)
+                purchased_names.append(tank.name)
+
+            team.refresh_from_db()
+            cost = initial_balance - team.balance
+
+            if cost > 0:
+                details = f"**Purchased {len(purchased_names)} Tank(s):**\n" + ", ".join(purchased_names)
+                send_transaction_log(team.name, 'Purchase', details, cost, team.balance)
 
             return Response(
                 data={'new_balance': team.balance, 'new_tanks': tanks},
@@ -156,15 +172,25 @@ class SellTankView(APIView):
 
         try:
             team = Team.objects.get(name=team_name)
-            sold = []
+            initial_balance = team.balance
+            sold_names = []
+
             for tank_id in tanks:
                 t = TeamTank.objects.get(pk=tank_id)
-                sold.append(t.tank.name)
-                tanka = Tank.objects.get(name=t.tank.name)
-                team.sell_tank(tanka, user=request.user)
+                sold_names.append(t.tank.name)
+                team.sell_teamtank(t, user=request.user)
+
+            # Calculate gain and log
+            team.refresh_from_db()
+            gain = team.balance - initial_balance  # Positive number
+
+            if gain > 0:
+                details = f"**Sold {len(sold_names)} Tank(s):**\n" + ", ".join(sold_names)
+                # Pass negative amount to indicate gain in our helper
+                send_transaction_log(team.name, 'Sale', details, -gain, team.balance)
 
             return Response(
-                data={'new_balance': team.balance, 'sold_tanks': sold},
+                data={'new_balance': team.balance, 'sold_tanks': sold_names},
                 status=status.HTTP_200_OK
             )
 
@@ -187,10 +213,21 @@ class SellTanksView(APIView):
         try:
             tanks = request.data.get('tanks', [])
             team = Team.objects.get(name=team_name)
+            initial_balance = team.balance
+            sold_summary = []
+
             for tank in tanks:
                 for i in range(tank['quantity']):
                     tanka = Tank.objects.get(name=tank['name'])
                     team.sell_tank(tanka, user=request.user)
+                sold_summary.append(f"{tank['quantity']}x {tank['name']}")
+
+            team.refresh_from_db()
+            gain = team.balance - initial_balance
+
+            if gain > 0:
+                details = "**Bulk Sale:**\n" + "\n".join(sold_summary)
+                send_transaction_log(team.name, 'Sale', details, -gain, team.balance)
             return Response(data={'new_balance': team.balance, 'sold_tanks': [tank for tank in tanks]}, status=status.HTTP_200_OK)
         except ValidationError as e:
             error_msg = e.detail[0] if hasattr(e, 'detail') and isinstance(e.detail, list) else str(e)
@@ -325,65 +362,125 @@ class AllDirectUpgradesView(APIView):
 class DirectUpgradeTankView(APIView):
     def post(self, request):
         user = request.user
-        team = request.data.get('team', None)
+        team_name = request.data.get('team', None)
         if not (
-            user.has_perm('user.admin_permissions') or
-            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team)
+                user.has_perm('user.admin_permissions') or
+                (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
         ):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
-        team = request.data.get('team', None)
-        from_tank = request.data.get('from_tank', None)
-        to_tank = request.data.get('to_tank', None)
+        team_name = request.data.get('team', None)
+        from_tank_id = request.data.get('from_tank', None)
+        to_tank_name = request.data.get('to_tank', None)
         kits = request.data.get('kits', [])
 
-        team = Team.objects.get(name=team)
-        from_tank = TeamTank.objects.get(id=from_tank)
-        to_tank = Tank.objects.get(name=to_tank)
-        extra_kits = []
-        for key, val in kits.items():
-            if key == 'T1':
-                extra_kits += ['T1'] * val
-            if key == 'T2':
-                extra_kits += ['T2'] * val
-            if key == 'T3':
-                extra_kits += ['T3'] * val
+        try:
+            team = Team.objects.get(name=team_name)
+            initial_balance = team.balance
+            # Capture initial kit state
+            initial_kits = copy.deepcopy(team.upgrade_kits)
 
-        all_upgrades = team.do_direct_upgrade(from_tank, to_tank, extra_kits, user=request.user)
+            from_tank = TeamTank.objects.get(id=from_tank_id)
+            from_tank_name = from_tank.tank.name
+            to_tank = Tank.objects.get(name=to_tank_name)
 
-        return Response(data={'new_balance': team.balance, 'new_kits': team.upgrade_kits}, status=status.HTTP_200_OK)
+            extra_kits = []
+            for key, val in kits.items():
+                if val > 0:
+                    if key == 'T1': extra_kits += ['T1'] * val
+                    if key == 'T2': extra_kits += ['T2'] * val
+                    if key == 'T3': extra_kits += ['T3'] * val
+
+            team.do_direct_upgrade(from_tank, to_tank, extra_kits, user=request.user)
+
+            team.refresh_from_db()
+            cost = initial_balance - team.balance
+
+            used_kits_summary = []
+            for tier in ['T1', 'T2', 'T3']:
+                start_qty = int(initial_kits.get(tier, {}).get('quantity', 0))
+                end_qty = int(team.upgrade_kits.get(tier, {}).get('quantity', 0))
+                diff = start_qty - end_qty
+
+                if diff > 0:
+                    used_kits_summary.append(f"{diff}x {tier}")
+
+            details = f"**{from_tank_name}** ➡ **{to_tank.name}**"
+            if used_kits_summary:
+                details += f"\nKits Used: {', '.join(used_kits_summary)}"
+
+            send_transaction_log(team.name, 'Upgrade', details, cost, team.balance)
+
+            return Response(data={'new_balance': team.balance, 'new_kits': team.upgrade_kits},
+                            status=status.HTTP_200_OK)
+
+        except ValidationError as e:
+            error_msg = e.detail[0] if hasattr(e, 'detail') and isinstance(e.detail, list) else str(e)
+            return Response({'error': str(error_msg)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UpgradeTankView(APIView):
     def post(self, request):
         user = request.user
-        team = request.data.get('team', None)
+        team_name = request.data.get('team', None)
         if not (
-            user.has_perm('user.admin_permissions') or
-            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team)
+                user.has_perm('user.admin_permissions') or
+                (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
         ):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
-        team = request.data.get('team', None)
-        from_tank = request.data.get('from_tank', None)
-        to_tank = request.data.get('to_tank', None)
+        team_name = request.data.get('team', None)
+        from_tank_id = request.data.get('from_tank', None)
+        to_tank_name = request.data.get('to_tank', None)
         kits = request.data.get('kits', [])
 
-        team = Team.objects.get(name=team)
-        from_tank = TeamTank.objects.get(id=from_tank)
-        to_tank = Tank.objects.get(name=to_tank)
-        extra_kits = []
-        for key, val in kits.items():
-            if key == 'T1':
-                extra_kits += ['T1'] * val
-            if key == 'T2':
-                extra_kits += ['T2'] * val
-            if key == 'T3':
-                extra_kits += ['T3'] * val
+        try:
+            team = Team.objects.get(name=team_name)
+            initial_balance = team.balance
+            # Capture initial kit state to compare later
+            initial_kits = copy.deepcopy(team.upgrade_kits)
 
-        all_upgrades = team.upgrade_or_downgrade_tank(from_tank, to_tank, extra_kits, user=request.user)
+            from_tank = TeamTank.objects.get(id=from_tank_id)
+            from_tank_name = from_tank.tank.name
+            to_tank = Tank.objects.get(name=to_tank_name)
 
-        return Response(data={'new_balance': team.balance, 'new_kits': team.upgrade_kits}, status=status.HTTP_200_OK)
+            extra_kits = []
+            for key, val in kits.items():
+                if val > 0:
+                    if key == 'T1': extra_kits += ['T1'] * val
+                    if key == 'T2': extra_kits += ['T2'] * val
+                    if key == 'T3': extra_kits += ['T3'] * val
+
+            team.upgrade_or_downgrade_tank(from_tank, to_tank, extra_kits, user=request.user)
+
+            team.refresh_from_db()
+            cost = initial_balance - team.balance
+
+            used_kits_summary = []
+            for tier in ['T1', 'T2', 'T3']:
+                start_qty = int(initial_kits.get(tier, {}).get('quantity', 0))
+                end_qty = int(team.upgrade_kits.get(tier, {}).get('quantity', 0))
+                diff = start_qty - end_qty
+
+                if diff > 0:
+                    used_kits_summary.append(f"{diff}x {tier}")
+
+            details = f"**{from_tank_name}** ➡ **{to_tank.name}**"
+            if used_kits_summary:
+                details += f"\nKits Used: {', '.join(used_kits_summary)}"
+
+            send_transaction_log(team.name, 'Upgrade', details, cost, team.balance)
+
+            return Response(data={'new_balance': team.balance, 'new_kits': team.upgrade_kits},
+                            status=status.HTTP_200_OK)
+
+        except ValidationError as e:
+            error_msg = e.detail[0] if hasattr(e, 'detail') and isinstance(e.detail, list) else str(e)
+            return Response({'error': str(error_msg)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PurchaseBoxView(APIView):
@@ -423,6 +520,14 @@ class PurchaseAndOpenBoxView(APIView):
             result = box.purchase(team, request.user)
             new_box = TeamBox.objects.get(id=result['id'])
             tank = new_box.open_box(request.user)
+            box_name = box.box.name
+            box_tier = box.box.tier
+
+            result_tank_name = box.open_box(request.user)
+
+            team.refresh_from_db()
+            details = f"Opened **{box_name} (Tier {box_tier})**\nObtained: **{result_tank_name}**"
+            send_transaction_log(team.name, 'Lootbox', details, 0, team.balance)
         else:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         return Response(data=str(tank), status=status.HTTP_200_OK)
@@ -430,21 +535,35 @@ class PurchaseAndOpenBoxView(APIView):
 
 class OpenBoxView(APIView):
     def post(self, request):
+        # ... [Permissions Check] ...
         user = request.user
         team_name = request.data['team']
         if not (
-            user.has_perm('user.admin_permissions') or
-            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+                user.has_perm('user.admin_permissions') or
+                (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
         ):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         box_id = request.data.get('box_id', None)
-        if box_id is not None:
-            box = TeamBox.objects.get(id=box_id)
-            result = box.open_box(request.user)
-        else:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        return Response(data=result, status=status.HTTP_200_OK)
+
+        try:
+            team = Team.objects.get(name=team_name)
+            if box_id is not None:
+                box = TeamBox.objects.get(id=box_id)
+                box_name = box.box.name
+                box_tier = box.box.tier
+
+                result_tank_name = box.open_box(request.user)
+
+                team.refresh_from_db()
+                details = f"Opened **{box_name} (Tier {box_tier})**\nObtained: **{result_tank_name}**"
+                send_transaction_log(team.name, 'Lootbox', details, 0, team.balance)
+
+                return Response(data=result_tank_name, status=status.HTTP_200_OK)
+            else:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ManufacturerDetailView(APIView):
@@ -857,19 +976,37 @@ class PurchaseImportTankView(APIView):
         user = request.user
         team_name = user.team.name
         if not (
-            user.has_perm('user.admin_permissions') or
-            (user.has_perm('user.commander_permissions'))
+                user.has_perm('user.admin_permissions') or
+                (user.has_perm('user.commander_permissions'))
         ):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         import_id = request.data.get('import_id', None)
-        team = Team.objects.get(name=team_name)
 
-        if import_id is not None:
-            tank = ImportTank.objects.get(pk=import_id)
-            tank.purchase_from_imports(team, request.user)
-            return Response(data={'new_balance': team.balance, 'new_tanks': [tank.tank.name]}, status=status.HTTP_200_OK)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+        try:
+            team = Team.objects.get(name=team_name)
+            initial_balance = team.balance
+
+            if import_id is not None:
+                tank = ImportTank.objects.get(pk=import_id)
+                tank_name = tank.tank.name
+
+                tank.purchase_from_imports(team, request.user)
+
+                team.refresh_from_db()
+                cost = initial_balance - team.balance
+
+                details = f"Imported **{tank_name}**"
+                send_transaction_log(team.name, 'Import', details, cost, team.balance)
+
+                return Response(data={'new_balance': team.balance, 'new_tanks': [tank.tank.name]},
+                                status=status.HTTP_200_OK)
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        except ValidationError as e:
+            error_msg = e.detail[0] if hasattr(e, 'detail') and isinstance(e.detail, list) else str(e)
+            return Response({'error': str(error_msg)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UpgradeTreeListView(APIView):

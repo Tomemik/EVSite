@@ -72,6 +72,7 @@
     <MatchDetails
       :detailedMatch="detailedMatch"
       :showDetailsDialog="showDetailsDialog"
+      :allTeamDetails="allTeamsDetails"
       @update:showDetailsDialog="showDetailsDialog = false"
       @deleteMatch="deleteMatch"
       @editMode="toggleEdit"
@@ -169,6 +170,7 @@ const openCreateMatchDialog = () => {
     best_of_number: 3,
     money_rules: '',
     special_rules: '',
+    is_bounty: false,
     sides: {
       team_1: [{ team: '', tanks: [] }],
       team_2: [{ team: '', tanks: [] }],
@@ -270,6 +272,7 @@ const fetchMatchDetails = async (match) => {
       best_of_number: data.best_of_number,
       money_rules: data.money_rules,
       special_rules: data.special_rules,
+      is_bounty: data.is_bounty,
       sides: {
         team_1: data.teammatch_set
           .filter(team => team.side === 'team_1')
@@ -296,6 +299,7 @@ const fetchMatchDetails = async (match) => {
 
 const updateMatch = async (updatedMatch) => {
   try {
+    console.log(updatedMatch)
     const response = await fetch('/api/league/matches/' + (isNewMatch.value ? 'detailed/' : updatedMatch.id + '/'), {
       method: isNewMatch.value ? 'POST' : 'PATCH',
       headers: {
@@ -305,7 +309,10 @@ const updateMatch = async (updatedMatch) => {
       },
       body: JSON.stringify(updatedMatch),
     });
-    if (!response.ok) throw new Error('Failed to update match details');
+    if (!response.ok){
+      const error = await response.json();
+      throw new Error(error.detail.non_field_errors || 'Failed to update match details');
+    }
     const data = await response.json();
 
     detailedMatch.value = {
@@ -317,6 +324,7 @@ const updateMatch = async (updatedMatch) => {
       mode: data.mode,
       money_rules: data.money_rules,
       special_rules: data.special_rules,
+      is_bounty: data.is_bounty,
       sides: {
         team_1: data.teammatch_set.filter(team => team.side === 'team_1'),
         team_2: data.teammatch_set.filter(team => team.side === 'team_2')
@@ -328,12 +336,12 @@ const updateMatch = async (updatedMatch) => {
     isNewMatch.value = false; // Reset the flag
     fetchMatches(); // Refresh match list after creation or update
   } catch (error) {
+    alert(error)
     console.error('Error updating match:', error);
   }
 };
 
 const postResults = async (resultData) => {
-  console.log(resultData);
   try {
     const response = await fetch('/api/league/matches/' + resultData.match_id + '/results/', {
         method: 'POST',

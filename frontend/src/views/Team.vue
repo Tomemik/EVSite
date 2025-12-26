@@ -332,7 +332,7 @@
           >
           </v-autocomplete>
 
-          <div class="caption mb-1 ml-1 font-weight-bold grey--text text--darken-1">Apply Upgrade Kits</div>
+          <div class="caption mb-1 ml-1 font-weight-bold grey--text text--darken-1">Apply EXTRA Upgrade Kits</div>
           <v-row dense>
             <v-col cols="4">
               <v-text-field
