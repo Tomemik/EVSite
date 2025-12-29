@@ -129,9 +129,6 @@ class PurchaseTankView(APIView):
         try:
             team = Team.objects.get(name=team_name)
             initial_balance = team.balance
-            for tank_name in tanks:
-                tank = Tank.objects.get(name=tank_name)
-                team.purchase_tank(tank, user=request.user)
 
             purchased_names = []
             for tank_name in tanks:
