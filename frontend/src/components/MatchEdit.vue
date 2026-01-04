@@ -451,13 +451,13 @@ watch(() => props.detailedMatch, (newVal) => {
     editForm.value = {
       id: newVal.id,
       datetime: new Date(newVal.datetime).toISOString().slice(0, 16),
-      gamemode: newVal.gamemode,
-      map_selection: newVal.map_selection,
-      mode: newVal.mode,
+      gamemode: newVal.gamemode || 'annihilation',
+      map_selection: newVal.map_selection || 'JLL',
+      mode: newVal.mode || 'advanced',
       best_of_number: newVal.best_of_number,
-      money_rules: newVal.money_rules,
+      money_rules: newVal.money_rules || 'none',
       special_rules: newVal.special_rules,
-      is_bounty: newVal.is_bounty || false, // Load existing state
+      is_bounty: newVal.is_bounty || false,
       teammatch_set: {
         team_1: newVal.sides.team_1.map(team => ({
           team: team.team,

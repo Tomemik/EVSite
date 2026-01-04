@@ -1164,6 +1164,7 @@ class MatchResult(models.Model):
     match = models.OneToOneField(Match, on_delete=models.SET_NULL, null=True, related_name='match_result')
     winning_side = models.CharField(max_length=10, choices=TeamMatch.SIDE_CHOICES)
     judge = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='judged_matches')
+    judge_is_test = models.BooleanField(default=False)
     is_calced = models.BooleanField(default=False)
     round_score = models.CharField(max_length=5, null=True, blank=True, help_text="Enter the score as 'X:Y' (e.g., 2:1)")
 
@@ -1524,7 +1525,11 @@ class MatchResult(models.Model):
             judge_reward = max(judge_reward, 5000)
 
         if self.judge:
-            team_rewards[self.judge.id] += judge_reward
+            if self.judge_is_test:
+                team_rewards[self.judge.id] += judge_reward / 2
+            else:
+                team_rewards[self.judge.id] += judge_reward
+
 
         winning_teams = teams_on_side[self.winning_side]
         losing_teams = teams_on_side['team_1' if self.winning_side == 'team_2' else 'team_2']
@@ -1593,13 +1598,14 @@ class MatchResult(models.Model):
             team.score += total_points
             team.total_money_earned += reward
             kits = copy.deepcopy(team.upgrade_kits)
-            if (
-                    (self.match.mode == "traditional" or self.match.gamemode == 'domination') and
-                    team_1_tanks >= 3 and
-                    team_2_tanks >= 3 and
-                    team.trad_dom_matches_for_week(self.match.datetime) <= 2
-            ):
-                team.upgrade_kits['T1']['quantity'] += 1
+            if team_id in playing_teams:
+                if (
+                        (self.match.mode == "traditional" or self.match.gamemode == 'domination') and
+                        team_1_tanks >= 3 and
+                        team_2_tanks >= 3 and
+                        team.trad_dom_matches_for_week(self.match.datetime) <= 2
+                ):
+                    team.upgrade_kits['T1']['quantity'] += 1
             team.save()
 
             if team_id in playing_teams:
@@ -1763,12 +1769,12 @@ class MatchResult(models.Model):
             calc_score_difference = log.new_value.get('score', 0) - log.previous_value.get('score', 0)
             revert_score = current_score - calc_score_difference
 
-#            kits_difference = {
-#                kit: new_kits.get([kit, {}]).get('quantity', 0) - previous_kits.get(kit, {}).get('quantity', 0)
-#                for kit in new_kits
-#            }
-#            for kit, diff in kits_difference.items():
-#                current_kits[kit]['quantity'] -= diff
+            kits_difference = {
+                kit: new_kits.get([kit, {}]).get('quantity', 0) - previous_kits.get(kit, {}).get('quantity', 0)
+                for kit in new_kits
+            }
+            for kit, diff in kits_difference.items():
+                current_kits[kit]['quantity'] -= diff
 
             prev_booster = log.previous_value.get('booster')
             new_booster = log.new_value.get('booster')

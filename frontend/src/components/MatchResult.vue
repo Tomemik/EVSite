@@ -25,6 +25,14 @@
                 variant="outlined"
                 density="compact"
               ></v-select>
+
+              <v-checkbox
+                v-model="judgeIsTest"
+                label="Test Judge"
+                density="compact"
+                hide-details
+                class="mt-1"
+              ></v-checkbox>
             </v-col>
 
             <v-col cols="12" md="4">
@@ -406,6 +414,7 @@ watch(() => props.allTeamDetails, (newValue) => {
 
 
 const judgeName = ref('');
+const judgeIsTest = ref(false);
 const winningSide = ref('');
 const teamResults = ref({});
 const tanksLost = ref({});
@@ -502,6 +511,7 @@ watch(() => props.results, (newResults) => {
   }
 
   console.log(teamResults)
+  judgeIsTest.value = props.results?.judge_is_test || false;
   winningSide.value = props.results?.winning_side || '';
   judgeName.value = props.results?.judge || '';
   roundScore.value = props.results?.round_score || '';
@@ -529,6 +539,7 @@ const submitResults = () => {
     match_id: props.detailedMatch.id,
     winning_side: winningSide.value,
     judge_name: judgeName.value || '',
+    judge_is_test: judgeIsTest.value,
     round_score: roundScore.value,
     team_results: Object.keys(teamResults.value).flatMap((side) =>
       teamResults.value[side].map((result, index) => ({
@@ -570,6 +581,7 @@ const prepResults = () => {
     match_id: props.detailedMatch.id,
     winning_side: winningSide.value,
     judge_name: judgeName.value || '',
+    judge_is_test: judgeIsTest.value,
     round_score: roundScore.value,
     team_results: Object.keys(teamResults.value).flatMap((side) =>
       teamResults.value[side].map((result, index) => ({
