@@ -1597,8 +1597,8 @@ class MatchResult(models.Model):
             team.balance += reward
             team.score += total_points
             team.total_money_earned += reward
-            kits = copy.deepcopy(team.upgrade_kits)
             if team_id in playing_teams:
+                kits = copy.deepcopy(team.upgrade_kits)
                 if (
                         (self.match.mode == "traditional" or self.match.gamemode == 'domination') and
                         team_1_tanks >= 3 and
@@ -1606,6 +1606,8 @@ class MatchResult(models.Model):
                         team.trad_dom_matches_for_week(self.match.datetime) <= 2
                 ):
                     team.upgrade_kits['T1']['quantity'] += 1
+                print(Team.objects.filter(id=team_id),flush=True)
+                print(kits,flush=True)
             team.save()
 
             if team_id in playing_teams:
@@ -1766,15 +1768,14 @@ class MatchResult(models.Model):
             previous_kits = log.previous_value.get('upgrade_kits', {})
             new_kits = log.new_value.get('upgrade_kits', {})
 
+            print(previous_kits, flush=True)
+            print(new_kits, flush=True)
+
             calc_score_difference = log.new_value.get('score', 0) - log.previous_value.get('score', 0)
             revert_score = current_score - calc_score_difference
 
-            kits_difference = {
-                kit: new_kits.get([kit, {}]).get('quantity', 0) - previous_kits.get(kit, {}).get('quantity', 0)
-                for kit in new_kits
-            }
-            for kit, diff in kits_difference.items():
-                current_kits[kit]['quantity'] -= diff
+            kits_difference = new_kits.get('T1', {}).get('quantity', 0) - previous_kits.get('T1',{}).get('quantity', 0)
+            current_kits['T1']['quantity'] -= kits_difference
 
             prev_booster = log.previous_value.get('booster')
             new_booster = log.new_value.get('booster')
@@ -1787,6 +1788,7 @@ class MatchResult(models.Model):
                     pass
 
             team.balance = revert_balance
+            print(current_kits, flush=True)
             team.upgrade_kits = current_kits
             team.score = revert_score
             team.total_money_earned -= calc_difference

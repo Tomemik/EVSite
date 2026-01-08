@@ -3,7 +3,6 @@
     <v-card class="mb-6 elevation-2" shaped>
       <v-card-title class="d-flex justify-space-between align-center primary white--text py-4">
         <div class="d-flex align-center">
-          <v-icon large color="white" class="mr-3">mdi-tank</v-icon>
           <div>
             <span class="text-h5 font-weight-bold">{{ team.name }}</span>
             <div class="subtitle-2 white--text opacity-70">
@@ -50,8 +49,7 @@
 
     <v-card class="mb-6 elevation-2">
       <v-card-title class="grey lighten-4 py-2">
-        <v-icon left color="primary">mdi-tank-turret</v-icon>
-        Active Tanks
+        <v-icon left color="primary">mdi-tank</v-icon> Current Tanks
       </v-card-title>
       <v-data-table
         :headers="regularHeaders"
@@ -91,6 +89,7 @@
             dense
             hide-default-footer
             class="team-table"
+            items-per-page="25"
           >
             <template v-slot:[`item.available`]="{ item }">
               <v-icon small :color="item.aval ? 'success' : 'error'">

@@ -20,6 +20,9 @@
       :items-per-page="15"
       :search="search"
     >
+      <template v-slot:[`item.battle_rating`]="{ item }">
+        <span>{{ Number(item.battle_rating).toFixed(1) }}</span>
+      </template>
       <template v-slot:[`item.price`]="{ item }">
         <span>{{ item.price.toLocaleString() }}</span>
       </template>
@@ -192,7 +195,10 @@ export default {
         const response = await fetch('/api/league/tanks/');
         if (!response.ok) throw new Error('Network response was not ok');
         const data = await response.json();
-        this.tanks = data;
+        this.tanks = data.map(tank => ({
+          ...tank,
+          battle_rating: Number(tank.battle_rating).toFixed(1)
+        }));
       } catch (error) {
         console.error('Error fetching tanks:', error);
       }
