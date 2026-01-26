@@ -973,7 +973,7 @@ export default {
             kits: this.kitQuantities
           })
         });
-        if (!response.ok) { const res = await response.json(); alert(`Error upgrading tank: ${res}`); }
+        if (!response.ok) { const res = await response.json(); alert(`Error upgrading tank: ${res.error}`); }
         const responseData = await response.json();
         this.newKits = responseData.new_kits;
         this.newBalance = responseData.new_balance;
@@ -1006,7 +1006,7 @@ export default {
             kits: this.kitQuantities
           })
         });
-        if (!response.ok) { const res = await response.json(); alert(`Error upgrading tank: ${res}`); }
+        if (!response.ok) { const res = await response.json(); alert(`Error upgrading tank: ${res.error}`); }
         const responseData = await response.json();
         this.newKits = responseData.new_kits;
         this.newBalance = responseData.new_balance;

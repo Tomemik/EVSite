@@ -459,7 +459,6 @@ class Team(models.Model):
 
         if active_matches.exists():
             match_info = ", ".join([f"ID {m.id} ({m.datetime.date()})" for m in active_matches])
-            print(match_info,flush=True)
             raise ValidationError(
                 f"Cannot sell {teamtank.tank.name}. It is currently assigned to upcoming matches: {match_info}. "
                 "Please remove it from the match lineup first."
@@ -598,7 +597,6 @@ class Team(models.Model):
             self.upgrade_kits[tier]['quantity'] -= count
 
         self.tanks.through.objects.filter(team=self, id=tank.id, is_upgradable=True).delete()
-
         self.tanks.through.objects.create(team=self, tank=to_tank)
 
         self.save()
@@ -611,6 +609,18 @@ class Team(models.Model):
         from_tank = tank.tank
         if not tank.is_upgradable:
             raise ValidationError(f"The team does not own the tank or its not upgradable: {from_tank.name}.")
+
+        active_matches = Match.objects.filter(
+            teammatch__tanks=tank,
+            was_played=False
+        )
+
+        if active_matches.exists():
+            match_info = ", ".join([f"ID {m.id}" for m in active_matches])
+            raise ValidationError(
+                f"Cannot upgrade {from_tank.name}. It is assigned to upcoming matches: {match_info}. "
+                "Remove it from the match lineup to proceed."
+            )
 
         possible_upgrades = self.get_direct_upgrades(tank)
 
@@ -653,17 +663,8 @@ class Team(models.Model):
         for tier, count in required_kits.items():
             self.upgrade_kits[tier]['quantity'] -= count
 
-        active_matches = Match.objects.filter(
-            teammatch__tanks=tank,
-            was_played=False
-        )
-
+        self.tanks.through.objects.filter(team=self, id=tank.id, is_upgradable=True).delete()
         self.tanks.through.objects.create(team=self, tank=to_tank)
-
-        if active_matches.exists():
-            tank.save()
-        else:
-            self.tanks.through.objects.filter(team=self, id=tank.id, is_upgradable=True).delete()
 
         self.save()
 
@@ -1606,8 +1607,6 @@ class MatchResult(models.Model):
                         team.trad_dom_matches_for_week(self.match.datetime) <= 2
                 ):
                     team.upgrade_kits['T1']['quantity'] += 1
-                print(Team.objects.filter(id=team_id),flush=True)
-                print(kits,flush=True)
             team.save()
 
             if team_id in playing_teams:
@@ -1635,13 +1634,10 @@ class MatchResult(models.Model):
 
             bounty_line = ""
             if self.match.is_bounty and team_id in winning_teams:
-                print(self.match.is_bounty, flush=True)
                 if not team.has_active_bounty:
-                    print('aaa')
                     for loser_id in losing_teams:
                         loser_team = Team.objects.get(id=loser_id)
                         active_bounty = loser_team.bounties.filter(is_active=True).first()
-                        print(active_bounty)
                         if active_bounty:
                             bounty_line = f"Bounty Claimed from {loser_team.name}: {active_bounty.value}\n"
                             break
@@ -1768,9 +1764,6 @@ class MatchResult(models.Model):
             previous_kits = log.previous_value.get('upgrade_kits', {})
             new_kits = log.new_value.get('upgrade_kits', {})
 
-            print(previous_kits, flush=True)
-            print(new_kits, flush=True)
-
             calc_score_difference = log.new_value.get('score', 0) - log.previous_value.get('score', 0)
             revert_score = current_score - calc_score_difference
 
@@ -1788,7 +1781,6 @@ class MatchResult(models.Model):
                     pass
 
             team.balance = revert_balance
-            print(current_kits, flush=True)
             team.upgrade_kits = current_kits
             team.score = revert_score
             team.total_money_earned -= calc_difference
