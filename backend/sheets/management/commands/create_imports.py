@@ -14,10 +14,10 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS('Started import job'))
         current_time = timezone.now()
-        current_week_start = current_time - timedelta(days=current_time.weekday())
-        thursday_utc = current_week_start + timedelta(days=3)
-        thursday_utc = thursday_utc.replace(hour=17, minute=0, second=0, microsecond=0)
-        next_thursday_utc = thursday_utc + timedelta(days=7)
+        this_week_monday = current_time - timedelta(days=current_time.weekday())
+        monday_utc = this_week_monday + timedelta(days=7)
+        monday_utc = monday_utc.replace(hour=17, minute=0, second=0, microsecond=0)
+        next_monday_utc = monday_utc + timedelta(days=7)
 
         criteria = ImportCriteria.objects.get(is_active=True)
         filters = criteria.get_filters()
@@ -53,8 +53,8 @@ class Command(BaseCommand):
             ImportTank.objects.create(
                 tank=tank,
                 discount=discount,
-                available_from=thursday_utc,
-                available_until=next_thursday_utc,
+                available_from=monday_utc,
+                available_until=next_monday_utc,
                 criteria=criteria,
             )
         self.stdout.write(self.style.SUCCESS('Finished import job'))
