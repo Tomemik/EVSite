@@ -95,7 +95,6 @@
                 prepend-inner-icon="mdi-trophy-outline"
                 variant="outlined"
                 density="compact"
-                :readonly="editForm.is_bounty"
               ></v-select>
             </v-col>
             <v-col cols="12" md="4">
@@ -329,7 +328,7 @@ const editForm = ref({
   best_of_number: '',
   money_rules: '',
   special_rules: '',
-  is_bounty: false, // New Field
+  is_bounty: false,
   teammatch_set: {
     team_1: [{ team: '', tanks: [{ id: null }] }],
     team_2: [{ team: '', tanks: [{ id: null }] }],

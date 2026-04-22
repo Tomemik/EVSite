@@ -4,7 +4,7 @@ from django.db.models.functions import Coalesce
 
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, default_upgrade_kits, \
     MatchResult, Substitute, TankLost, TeamResult, TeamLog, TankBox, TeamBox, ImportTank, ImportCriteria, Booster, \
-    UpgradeTree, Interchange, InterchangeGroup, Alliance, Bounty, BountyTier
+    UpgradeTree, Interchange, InterchangeGroup, Alliance, Bounty, BountyTier, MatchRewardRates
 
 
 class ManufacturerAdmin(admin.ModelAdmin):
@@ -193,6 +193,9 @@ class BountyTierAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
+class MatchRewardRateAdmin(admin.ModelAdmin):
+    list_display = ('even_split_kill_reward', "even_split_repair_cost", 'money_rule_kill_reward', 'money_rule_repair_cost', 'no_rule_kill_reward', 'no_rule_repair_cost')
+
 
 admin.site.register(Booster, BoosterAdmin)
 admin.site.register(MatchResult, MatchResultAdmin)
@@ -214,4 +217,5 @@ admin.site.register(Interchange, InterchangeAdmin)
 admin.site.register(Alliance, AllianceAdmin)
 admin.site.register(Bounty, BountyAdmin)
 admin.site.register(BountyTier, BountyTierAdmin)
+admin.site.register(MatchRewardRates, MatchRewardRateAdmin)
 

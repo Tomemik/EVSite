@@ -55,7 +55,7 @@
                     <v-btn
                       color="success"
                       size="large"
-                      @click="purchaseTank(tank)"
+                      @click="initiatePurchase(tank)"
                       class="mt-1"
                       :disabled="!isCommander || isPurchased(tank) || isExpired(tank) || isBeforeAvailableFrom(tank) || !canAfford(tank)"
                     >
@@ -132,18 +132,52 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="showCaptchaDialog" max-width="400px" persistent>
+      <v-card>
+        <v-card-title class="text-h6">Verify Purchase</v-card-title>
+        <v-divider></v-divider>
+        <v-card-text>
+          <p class="mb-4">To prevent auto-clickers, please solve this quick math problem to confirm your purchase of <strong>{{ targetTank?.tank_name }}</strong>.</p>
+          <p class="text-h5 text-center font-weight-bold mb-4">{{ num1 }} + {{ num2 }} = ?</p>
+          <v-text-field
+            v-model="captchaInput"
+            label="Your Answer"
+            type="number"
+            variant="outlined"
+            density="compact"
+            autofocus
+            @keyup.enter="verifyAndPurchase"
+          ></v-text-field>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="error" variant="text" @click="showCaptchaDialog = false">Cancel</v-btn>
+          <v-btn
+            color="success"
+            variant="elevated"
+            :disabled="captchaInput !== expectedAnswer"
+            @click="verifyAndPurchase"
+          >
+            Confirm
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
   </v-container>
 </template>
 
 <script setup lang="ts">
-import {ref, onMounted, computed, inject} from "vue";
+import { ref, onMounted, onUnmounted, computed, inject } from "vue";
 import { useUserStore } from "@/config/store.ts";
-import {getAuthToken} from "@/config/api/user.ts";
+import { getAuthToken } from "@/config/api/user.ts";
 
 const $cookies = inject("$cookies");
 //@ts-ignore
 const csrfToken = $cookies.get('csrftoken');
 
+// ... (Your existing interfaces remain exactly the same) ...
 interface Tank {
   id: number;
   name: string;
@@ -189,24 +223,63 @@ const allTanks = ref<Tank[]>([]);
 
 const showCriteriaDialog = ref(false);
 const currentCriteria = ref<Criteria | null>(null);
+const currentTime = ref(Date.now());
+let timeInterval: ReturnType<typeof setInterval>;
 
 const isExpanded = ref(false);
 const maxVisibleTanks = 3;
 
-//@ts-ignore
-const groupList = computed(() => Object.entries(importGroups.value).map(([date, group]) => ({ date, ...group })));
+// --- CAPTCHA STATE ---
+const showCaptchaDialog = ref(false);
+const targetTank = ref<Tank | null>(null);
+const num1 = ref(0);
+const num2 = ref(0);
+const captchaInput = ref("");
+
+const expectedAnswer = computed(() => (num1.value + num2.value).toString());
+
+const initiatePurchase = (tank: Tank) => {
+  targetTank.value = tank;
+  num1.value = Math.floor(Math.random() * 20) + 1;
+  num2.value = Math.floor(Math.random() * 20) + 1;
+  captchaInput.value = "";
+  showCaptchaDialog.value = true;
+};
+
+const verifyAndPurchase = () => {
+  if (captchaInput.value === expectedAnswer.value && targetTank.value) {
+    purchaseTank(targetTank.value);
+    showCaptchaDialog.value = false;
+    targetTank.value = null;
+  }
+};
+// ---------------------
+
+const groupList = computed(() => {
+  return Object.entries(importGroups.value).map(([date, group]) => {
+    const sortedTanks = [...group.tanks].sort((a, b) => {
+      const priceA = calculatePrice(a);
+      const priceB = calculatePrice(b);
+      return priceA - priceB;
+    });
+
+    return {
+      ...group,
+      date,
+      tanks: sortedTanks
+    };
+  });
+});
 
 const isBeforeAvailableFrom = (tank: Tank): boolean => {
-  const now = new Date();
-  const availableFrom = new Date(tank.available_from);
-  return now < availableFrom;
+  const availableFrom = new Date(tank.available_from).getTime();
+  return currentTime.value < availableFrom;
 };
 
 const visibleGroups = computed(() => {
   const start = currentPage.value * pageSize;
   return groupList.value.slice(start, start + pageSize);
 });
-
 
 const visibleTanks = computed(() => {
   return currentCriteria?.value?.required_tanks
@@ -219,7 +292,6 @@ const hiddenTanks = computed(() => {
     ? currentCriteria.value.required_tanks.slice(maxVisibleTanks)
     : [];
 });
-
 
 const isLastPage = computed(() => {
   return (currentPage.value + 1) * pageSize >= groupList.value.length;
@@ -239,9 +311,8 @@ const prevPage = () => {
 };
 
 const isExpired = (tank: Tank): boolean => {
-  const now = new Date();
-  const availableUntil = new Date(tank.available_until);
-  return availableUntil < now;
+  const availableUntil = new Date(tank.available_until).getTime();
+  return availableUntil < currentTime.value;
 };
 
 const isPurchased = (tank: Tank): boolean => {
@@ -338,7 +409,6 @@ const fetchTeamDetails = async () => {
       throw new Error('Error fetching team details');
     }
     team.value = await response.json();
-    console.log(team.value)
   } catch (error) {
     console.error('Error fetching team details:', error);
   }
@@ -380,21 +450,19 @@ const formattedDate = (dateStr: string) => {
   }).format(date);
 };
 
-// Renamed from formattedTime
 const formattedTimeUTC = (isoString: string | undefined) => {
   if (!isoString) return "";
   const date = new Date(isoString);
   return date.toISOString().slice(11, 16) + " UTC";
 };
 
-// Added Local Time formatter
 const formattedTimeLocal = (isoString: string | undefined) => {
   if (!isoString) return "";
   const date = new Date(isoString);
   return date.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false // Set to true if you prefer AM/PM
+    hour12: false
   }) + " Local";
 };
 
@@ -402,6 +470,16 @@ onMounted(() => {
   fetchTeamDetails();
   fetchManufacturers();
   fetchImportGroups();
+
+  timeInterval = setInterval(() => {
+    currentTime.value = Date.now();
+  }, 100);
+});
+
+onUnmounted(() => {
+  if (timeInterval) {
+    clearInterval(timeInterval);
+  }
 });
 </script>
 

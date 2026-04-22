@@ -663,7 +663,7 @@ export default {
     },
     regularTanks() {
       const tankCounts = this.team.tanks.reduce((acc, tank) => {
-        const displayName = tank.from_auctions ? `{tank.tank.name}*` : tank.tank.name;
+        const displayName = tank.from_auctions ? `${tank.tank.name}*` : tank.tank.name;
         if (!tank.is_trad) {
           acc[displayName] = acc[displayName] ? acc[displayName] + 1 : 1;
         }
@@ -675,7 +675,7 @@ export default {
       const reg_tanks = this.team.tanks.reduce((acc, tank) => {
         if (tank.is_trad) return acc;
 
-        const displayName = tank.from_auctions ? `{tank.tank.name}*` : tank.tank.name;
+        const displayName = tank.from_auctions ? `${tank.tank.name}*` : tank.tank.name;
         const actualName = tank.tank.name;
 
         if (!uniqueTanks.has(displayName)) {
