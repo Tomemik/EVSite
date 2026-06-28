@@ -1,0 +1,144 @@
+{
+  "variants": {
+    "_Dom": {
+      "mode": "Domination",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        2048.0,
+        2048.0
+      ],
+      "grid_zero": [
+        470.0,
+        1553.0
+      ],
+      "grid_size": [
+        1060.0,
+        1060.0
+      ],
+      "grid_steps": [
+        150.0,
+        150.0
+      ]
+    },
+    "_Conq": {
+      "mode": "Conquest",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        2048.0,
+        2048.0
+      ],
+      "grid_zero": [
+        647.5205078125,
+        1626.349975585938
+      ],
+      "grid_size": [
+        736.958984375,
+        1040.0
+      ],
+      "grid_steps": [
+        140.0,
+        140.0
+      ]
+    },
+    "_Conq1": {
+      "mode": "Conquest #1",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        2048.0,
+        2048.0
+      ],
+      "grid_zero": [
+        470.0,
+        1553.0
+      ],
+      "grid_size": [
+        1060.0,
+        1060.0
+      ],
+      "grid_steps": [
+        150.0,
+        150.0
+      ]
+    },
+    "_Conq2": {
+      "mode": "Conquest #2",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        2048.0,
+        2048.0
+      ],
+      "grid_zero": [
+        470.0,
+        1553.0
+      ],
+      "grid_size": [
+        1060.0,
+        1060.0
+      ],
+      "grid_steps": [
+        150.0,
+        150.0
+      ]
+    },
+    "_Conq3": {
+      "mode": "Conquest #3",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        2048.0,
+        2048.0
+      ],
+      "grid_zero": [
+        470.0,
+        1553.0
+      ],
+      "grid_size": [
+        1060.0,
+        1060.0
+      ],
+      "grid_steps": [
+        150.0,
+        150.0
+      ]
+    },
+    "_Conq4": {
+      "mode": "Conquest #4",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        2048.0,
+        2048.0
+      ],
+      "grid_zero": [
+        470.0,
+        1553.0
+      ],
+      "grid_size": [
+        1060.0,
+        1060.0
+      ],
+      "grid_steps": [
+        150.0,
+        150.0
+      ]
+    }
+  },
+  "map_name": "Ash River",
+  "texture": "avg_ireland_tankmap.png"
+}

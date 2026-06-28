@@ -50,9 +50,6 @@
       color="primary"
       >
 
-
-
-
       <template #event="{ event }">
         <v-tooltip bottom>
           <template #activator="{ props }">
@@ -77,6 +74,7 @@
       @deleteMatch="deleteMatch"
       @editMode="toggleEdit"
       @resultView="showResults"
+      @openTelemetry="openTelemetryViewer"
     />
 
     <MatchResult
@@ -98,6 +96,12 @@
       @update:showEditDialog="showEditDialog = $event"
       @updateMatch="updateMatch"
       :isNewMatch="isNewMatch"
+    />
+
+    <MatchTelemetryDialog
+      :detailedMatch="detailedMatch"
+      :showDialog="showTelemetryDialog"
+      @update:showDialog="showTelemetryDialog = false"
     />
 
     <v-dialog v-model="showSuccessDialog" max-width="400">
@@ -126,6 +130,8 @@ import MatchResult from "../components/MatchResult.vue";
 import {useSettingsStore, useUserStore} from "../config/store.ts";
 import {getAuthToken} from "../config/api/user.ts";
 import {tr} from "vuetify/locale";
+import TelemetryViewer from "../components/TelemetryViewer.vue";
+import MatchTelemetryDialog from "@/components/MatchTelemetryDialog.vue"; // Add this import
 
 const $cookies = inject("$cookies");
 //@ts-ignore
@@ -133,6 +139,8 @@ const csrfToken = $cookies.get('csrftoken');
 const userStore = useUserStore()
 const settingsStore = useSettingsStore()
 
+
+const showTelemetryDialog = ref(false);
 const today = ref<Date>(new Date().toISOString());
 const showDetailsDialog = ref(false);
 const showEditDialog = ref(false);
@@ -150,6 +158,10 @@ const fetchedResults = ref()
 const successMsg = ref('')
 const showSuccessDialog = ref(false)
 const calcOverride = ref(false)
+
+const openTelemetryViewer = () => {
+  showTelemetryDialog.value = true;
+};
 
 const toggleEdit = () => {
   showEditDialog.value = true

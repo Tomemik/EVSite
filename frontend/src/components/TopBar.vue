@@ -103,6 +103,8 @@ const drawerItems = ref([
   { title: 'Manufacturers', path: '/manufacturers' },
   { title: 'Upgrade Charts', path: '/upgrades' },
   { title: 'Interchangeability Charts', path: '/interchangeability' },
+  { title: 'Replay Analysis', path: '/telemetry' },
+  { title: 'Statistics', path: '/stats' },
 ]);
 
 watch(

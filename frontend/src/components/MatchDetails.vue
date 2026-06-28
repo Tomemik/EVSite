@@ -148,6 +148,9 @@
       <v-card-actions class="pa-4">
         <v-btn variant="text" color="info" prepend-icon="mdi-content-copy" @click="copyDetails">Copy Discord Format</v-btn>
         <v-btn variant="tonal" color="success" prepend-icon="mdi-scoreboard" @click="openResultView">Result</v-btn>
+
+        <v-btn variant="tonal" color="deep-purple" prepend-icon="mdi-map-marker-path" @click="$emit('openTelemetry')">Telemetry</v-btn>
+
         <v-spacer></v-spacer>
 
         <template v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))">

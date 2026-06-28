@@ -1,0 +1,75 @@
+{
+  "map_name": "Port Novorossiysk",
+  "texture": "avg_port_novorossiysk_tankmap.png",
+  "variants": {
+    "_Conq1": {
+      "mode": "Conquest #1",
+      "map_min": [
+        28.0,
+        119.0
+      ],
+      "map_max": [
+        3228.0,
+        3319.0
+      ],
+      "grid_zero": [
+        761.5,
+        3039.89990234375
+      ],
+      "grid_size": [
+        1200.0,
+        1200.0
+      ],
+      "grid_steps": [
+        170.0,
+        170.0
+      ]
+    },
+    "_Conq2": {
+      "mode": "Conquest #2",
+      "map_min": [
+        28.0,
+        119.0
+      ],
+      "map_max": [
+        3228.0,
+        3319.0
+      ],
+      "grid_zero": [
+        1633.52001953125,
+        3352.68994140625
+      ],
+      "grid_size": [
+        1300.0,
+        1300.0
+      ],
+      "grid_steps": [
+        180.0,
+        180.0
+      ]
+    },
+    "_Conq3": {
+      "mode": "Conquest #3",
+      "map_min": [
+        28.0,
+        119.0
+      ],
+      "map_max": [
+        3228.0,
+        3319.0
+      ],
+      "grid_zero": [
+        564.5349731445312,
+        1481.405029296875
+      ],
+      "grid_size": [
+        1224.090087890625,
+        1224.090087890625
+      ],
+      "grid_steps": [
+        170.0,
+        170.0
+      ]
+    }
+  }
+}

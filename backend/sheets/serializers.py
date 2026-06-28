@@ -3,7 +3,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, Substitute, MatchResult, \
     TankLost, TeamResult, TankBox, TeamBox, TeamLog, ImportTank, ImportCriteria, UpgradeTree, InterchangeGroup, \
-    Interchange, Alliance
+    Interchange, Alliance, MatchKill, MatchRound, MatchCrit
 
 
 class TankSerializerSlim(serializers.ModelSerializer):
@@ -528,3 +528,35 @@ class InterchangeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Interchange
         fields = ['from_tank', 'to_tank', 'is_bidirectional']
+
+class MatchKillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MatchKill
+        fields = ['time_s', 'attacker', 'attacker_veh', 'weapon', 'victim', 'victim_veh']
+
+
+class MatchCritSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MatchCrit
+        fields = ['time_s', 'attacker', 'attacker_veh', 'victim', 'victim_veh']
+
+
+class MatchRoundSerializer(serializers.ModelSerializer):
+    kills = MatchKillSerializer(many=True, read_only=True)
+    crits = MatchCritSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = MatchRound
+        fields = [
+            'id', 'round_number', 'map_name', 'map_details', 'team_rosters', 'player_spawns',
+            'telemetry_data', 'kills', 'crits', 'is_verified',
+            'winning_team', 'win_reason', 'start_time_s', 'end_time_s',
+            'capture_zones', 'map_areas', 'chat_log'
+        ]
+
+
+class VerifyRoundPayloadSerializer(serializers.Serializer):
+    kills = MatchKillSerializer(many=True, required=False)
+    spawns = serializers.DictField(required=False)
+    winning_team = serializers.CharField(max_length=10, required=False, allow_null=True, allow_blank=True)
+    win_reason = serializers.CharField(max_length=100, required=False, allow_null=True, allow_blank=True)

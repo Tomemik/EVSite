@@ -105,17 +105,44 @@
           <v-card-title class="grey lighten-4 py-2 subtitle-1">
             <v-icon left small>mdi-package-variant</v-icon> Inventory
           </v-card-title>
+
+          <!-- Upgrade Kits Section -->
+          <v-card-subtitle class="pb-1 pt-3 font-weight-bold grey--text text--darken-2">
+            <v-icon small left color="amber darken-2">mdi-wrench</v-icon> Upgrade Kits
+          </v-card-subtitle>
           <v-data-table
             :headers="additionalInfoHeaders"
-            :items="combinedItems"
-            item-key="name"
+            :items="inventoryKits"
+            item-key="tier"
             dense
             hide-default-footer
             class="team-table"
             @click:row="handleInventoryClick"
           >
             <template v-slot:[`item.tier`]="{ item }">
-              <v-chip x-small :color="item.tier.startsWith('T') ? 'amber lighten-4' : 'grey lighten-3'">
+              <v-chip x-small color="amber lighten-4">
+                {{ item.tier }}
+              </v-chip>
+            </template>
+          </v-data-table>
+
+          <v-divider class="my-3"></v-divider>
+
+          <!-- Loot Boxes Section -->
+          <v-card-subtitle class="pb-1 font-weight-bold grey--text text--darken-2">
+            <v-icon small left color="primary">mdi-package-variant-closed</v-icon> Loot Boxes
+          </v-card-subtitle>
+          <v-data-table
+            :headers="additionalInfoHeaders"
+            :items="inventoryBoxes"
+            item-key="id"
+            dense
+            hide-default-footer
+            class="team-table"
+            @click:row="handleInventoryClick"
+          >
+            <template v-slot:[`item.tier`]="{ item }">
+              <v-chip x-small color="grey lighten-3">
                 {{ item.tier }}
               </v-chip>
             </template>
@@ -554,6 +581,13 @@
       </v-card>
     </v-dialog>
 
+    <LootboxRoulette
+      v-model="showRouletteDialog"
+      :box-name="selectedBox?.name"
+      :won-tank-name="wonTankName"
+      :possible-items="currentBoxContents"
+      @claimed="fetchTeamDetails"
+    />
   </v-container>
 </template>
 
@@ -562,9 +596,10 @@ import {inject, toRef} from "vue";
 import {useUserStore} from "../config/store.ts";
 import {getAuthToken} from "../config/api/user.ts";
 import Manufacturer from "./Manufacturer.vue";
+import LootboxRoulette from "@/components/LootboxRoulette.vue";
 
 export default {
-  components: { Manufacturer },
+  components: {LootboxRoulette, Manufacturer },
   data() {
     const $cookies = inject("$cookies");
     const csrfToken = $cookies.get('csrftoken');
@@ -635,10 +670,13 @@ export default {
       getAllUpgrades: false,
       upgradeDetailsForSuccessDialog: null,
 
-      // NEW PROPS FOR KIT TRANSFER
       showKitTransferDialog: false,
       selectedKitTransferTeam: null,
       kitTransferAmount: 1,
+      showRouletteDialog: false,
+      wonTankName: '',
+      allBoxes: [], // Store the template boxes here
+      currentBoxContents: [], // The contents for the animation
     };
   },
   computed: {
@@ -721,6 +759,21 @@ export default {
       }, []);
 
       return trad_tanks.sort((a, b) => a.tier - b.tier);
+    },
+    inventoryBoxes() {
+      return this.team.tank_boxes.map(box => ({
+        name: box.box_name,
+        tier: box.box_tier,
+        quantity: 1,
+        id: box.id,
+      }));
+    },
+    inventoryKits() {
+      return Object.keys(this.team.upgrade_kits).map(key => ({
+        name: `Upgrade Kit`,
+        tier: key,
+        quantity: this.team.upgrade_kits[key].quantity
+      }));
     },
     combinedItems() {
       const tankBoxes = this.team.tank_boxes.map(box => ({
@@ -1139,7 +1192,17 @@ export default {
         } else { alert(`Error: ${error.message}`); }
       } catch (error) { console.error('Error submitting transfer:', error); alert('There was an error processing your transfer.'); }
     },
-    async openBox () {
+    async fetchTankBoxes() {
+      try {
+        const response = await fetch('/api/league/boxes/');
+        this.allBoxes = await response.json();
+      } catch (error) {
+        console.error('Error fetching tank boxes:', error);
+      }
+    },
+
+    // 2. Update your openBox method
+    async openBox() {
       try {
         const response = await fetch('/api/league/transactions/open_box/', {
           method: 'POST',
@@ -1153,14 +1216,28 @@ export default {
             box_id: this.selectedBox.id,
           }),
         });
-        const data = await response.json();
-        this.showBoxDialog = false
-        console.log(response)
+
+        this.showBoxDialog = false;
+
         if (response.ok) {
-          await this.fetchTeamDetails();
-          alert(`Box opened: ${data}`);
-        } else { alert('Failed to open box.'); }
-      } catch (error) { console.error('Error opening box:', error); }
+          const wonTank = await response.json();
+          this.wonTankName = wonTank;
+
+          // Look up the box template to see what's inside it
+          const templateBox = this.allBoxes.find(b => b.name === this.selectedBox.name);
+          if (templateBox && templateBox.tanks) {
+            this.currentBoxContents = templateBox.tanks.map(t => t.name);
+          } else {
+            this.currentBoxContents = []; // Component will fallback gracefully
+          }
+
+          this.showRouletteDialog = true;
+        } else {
+          alert('Failed to open box.');
+        }
+      } catch (error) {
+        console.error('Error opening box:', error);
+      }
     },
     closeDialog() {
       this.showTransferSuccessDialog = false
@@ -1210,6 +1287,7 @@ export default {
   created() {
     this.fetchTeamDetails();
     this.fetchTeams();
+    this.fetchTankBoxes();
   },
 };
 </script>

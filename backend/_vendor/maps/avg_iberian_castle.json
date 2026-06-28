@@ -1,0 +1,121 @@
+{
+  "map_name": "Iberian Castle",
+  "texture": "avg_iberian_castle_tankmap.png",
+  "variants": {
+    "_Dom1": {
+      "mode": "Domination #1",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        1050.0,
+        2650.0
+      ],
+      "grid_size": [
+        1600.0,
+        1600.0
+      ],
+      "grid_steps": [
+        225.0,
+        225.0
+      ]
+    },
+    "_Conq1": {
+      "mode": "Conquest #1",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        1475.0,
+        2625.0
+      ],
+      "grid_size": [
+        1150.0,
+        1150.0
+      ],
+      "grid_steps": [
+        160.0,
+        160.0
+      ]
+    },
+    "_Conq2": {
+      "mode": "Conquest #2",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        1050.0,
+        2650.0
+      ],
+      "grid_size": [
+        1600.0,
+        1600.0
+      ],
+      "grid_steps": [
+        225.0,
+        225.0
+      ]
+    },
+    "_Conq3": {
+      "mode": "Conquest #3",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        902.0,
+        2167.300048828125
+      ],
+      "grid_size": [
+        1250.0,
+        1250.0
+      ],
+      "grid_steps": [
+        170.0,
+        170.0
+      ]
+    },
+    "_Conq4": {
+      "mode": "Conquest #4",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        1050.0,
+        2650.0
+      ],
+      "grid_size": [
+        1600.0,
+        1600.0
+      ],
+      "grid_steps": [
+        225.0,
+        225.0
+      ]
+    }
+  }
+}

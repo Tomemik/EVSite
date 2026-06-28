@@ -39,7 +39,6 @@ services:
         target: /code
     ports:
       - 5173:5173
-      - 5174:5174
     depends_on:
       backend:
         condition: service_started

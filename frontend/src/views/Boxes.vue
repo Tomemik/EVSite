@@ -94,6 +94,13 @@
         </v-card>
       </v-col>
     </v-row>
+    <LootboxRoulette
+      v-model="showRouletteDialog"
+      :box-name="boxName"
+      :won-tank-name="wonTankName"
+      :possible-items="currentBoxContents"
+      @claimed="fetchTeamDetails"
+    />
   </v-container>
 </template>
 
@@ -101,6 +108,7 @@
 import {ref, computed, onMounted, inject} from 'vue';
 import { useUserStore } from "@/config/store.ts";
 import { getAuthToken } from "@/config/api/user.ts";
+import LootboxRoulette from "@/components/LootboxRoulette.vue";
 
 const $cookies = inject("$cookies");
 const csrfToken = $cookies.get('csrftoken');
@@ -110,6 +118,9 @@ const boxes = ref([]);
 const team = ref({name: '', balance: 0});
 const currentPage = ref(0);
 const pageSize = 3;
+const showRouletteDialog = ref(false);
+const boxName = ref('');
+const wonTankName = ref('');
 
 const fetchTankBoxes = async () => {
   try {
@@ -195,7 +206,7 @@ const purchaseBox = async (tier) => {
     });
     const data = await response.json();
     if (response.ok) {
-      alert(`Box purchased: ${data}`);
+      alert(`Box purchased: ${data.box}`);
       await fetchTeamDetails();
     } else {
       alert('Failed to purchase box.');
@@ -205,6 +216,10 @@ const purchaseBox = async (tier) => {
   }
 };
 
+// Add a new ref to hold the contents of the currently selected box
+const currentBoxContents = ref([]);
+
+// Update the openBox function:
 const openBox = async (tier) => {
   try {
     const response = await fetch('/api/league/transactions/buy_open_box/', {
@@ -219,10 +234,19 @@ const openBox = async (tier) => {
         box_id: tier.id,
       }),
     });
-    const data = await response.json();
+
     if (response.ok) {
-      alert(`Box opened: ${data}`);
-      await fetchTeamDetails();
+      const wonTank = await response.json();
+
+      // 1. Set the Name
+      boxName.value = tier.name;
+
+      // 2. Extract the actual tank names from this specific box
+      currentBoxContents.value = tier.tanks.map(t => t.name);
+
+      // 3. Set the winner and trigger the animation
+      wonTankName.value = wonTank;
+      showRouletteDialog.value = true;
     } else {
       alert('Failed to open box.');
     }

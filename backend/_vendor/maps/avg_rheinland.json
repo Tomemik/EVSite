@@ -1,0 +1,121 @@
+{
+  "map_name": "Advance to the Rhine",
+  "texture": "avg_rheinland_tankmap.png",
+  "variants": {
+    "_Dom": {
+      "mode": "Domination",
+      "map_min": [
+        3040.0,
+        1591.0
+      ],
+      "map_max": [
+        4094.0,
+        2645.0
+      ],
+      "grid_zero": [
+        3040.0,
+        2645.0
+      ],
+      "grid_size": [
+        1054.0,
+        1054.0
+      ],
+      "grid_steps": [
+        150.0,
+        150.0
+      ]
+    },
+    "_Conq1": {
+      "mode": "Conquest #1",
+      "map_min": [
+        3040.0,
+        1591.0
+      ],
+      "map_max": [
+        4094.0,
+        2645.0
+      ],
+      "grid_zero": [
+        3040.0,
+        2645.0
+      ],
+      "grid_size": [
+        1054.0,
+        1054.0
+      ],
+      "grid_steps": [
+        150.0,
+        150.0
+      ]
+    },
+    "_Conq2": {
+      "mode": "Conquest #2",
+      "map_min": [
+        3040.0,
+        1591.0
+      ],
+      "map_max": [
+        4094.0,
+        2645.0
+      ],
+      "grid_zero": [
+        3040.0,
+        2645.0
+      ],
+      "grid_size": [
+        1054.0,
+        1054.0
+      ],
+      "grid_steps": [
+        150.0,
+        150.0
+      ]
+    },
+    "_Conq3": {
+      "mode": "Conquest #3",
+      "map_min": [
+        3040.0,
+        1591.0
+      ],
+      "map_max": [
+        4094.0,
+        2645.0
+      ],
+      "grid_zero": [
+        3040.0,
+        2645.0
+      ],
+      "grid_size": [
+        1054.0,
+        1054.0
+      ],
+      "grid_steps": [
+        150.0,
+        150.0
+      ]
+    },
+    "_Conq4": {
+      "mode": "Conquest #4",
+      "map_min": [
+        3040.0,
+        1591.0
+      ],
+      "map_max": [
+        4094.0,
+        2645.0
+      ],
+      "grid_zero": [
+        3040.0,
+        2645.0
+      ],
+      "grid_size": [
+        1054.0,
+        1054.0
+      ],
+      "grid_steps": [
+        150.0,
+        150.0
+      ]
+    }
+  }
+}

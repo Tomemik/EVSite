@@ -95,6 +95,13 @@ TEMPLATES = [
     },
 ]
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "cache_table",
+    }
+}
+
 WSGI_APPLICATION = 'evsite.wsgi.application'
 
 
@@ -112,6 +119,10 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+
+MEDIA_URL = '/media/'
+
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 AUTH_USER_MODEL = "user.User"
 API_HEADER = "api-auth"

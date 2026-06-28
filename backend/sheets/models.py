@@ -887,6 +887,9 @@ class Booster(models.Model):
     active = models.BooleanField(default=True)
     team = models.OneToOneField(Team, related_name='booster', on_delete=models.CASCADE, null=True, blank=True)
 
+    def __str__(self):
+        return f"{self.name} (Team: {self.team.name if self.team else 'None'})"
+
 
 class Tank(models.Model):
 
@@ -897,6 +900,7 @@ class Tank(models.Model):
     type = models.CharField(max_length=50, default='MT')
     upgrades = models.ManyToManyField('self', through='UpgradePath', symmetrical=False, related_name='downgrades')
     manufacturers = models.ManyToManyField(Manufacturer, related_name='tanks', blank=True)
+    internal_ids = models.JSONField(default=list, blank=True)
 
     def __str__(self):
         return f"{self.name}"
@@ -927,7 +931,7 @@ class TankBox(models.Model):
     is_national = models.BooleanField(default=True)
 
     def __str__(self):
-        return self.name + str(self.tier)
+        return f"{self.name} T{self.tier}"
 
     def save(self, *args, **kwargs):
         self.calculate_cost()
@@ -977,6 +981,9 @@ class TankBox(models.Model):
 class TeamBox(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
     box = models.ForeignKey(TankBox, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"{self.team.name} owns {self.box.name} T{self.box.tier}"
 
     @transaction.atomic
     def open_box(self, user):
@@ -1033,7 +1040,7 @@ class UpgradePath(models.Model):
             self.cost = rank_based_costs.get(rank, 0)
 
     def __str__(self):
-        return f"From {self.from_tank} to {self.to_tank} using {self.required_kit_tier} for {self.cost}"
+        return f"From {self.from_tank.name} to {self.to_tank.name} using {self.required_kit_tier} for {self.cost}"
 
 def get_upgrade_tree(start_tank_name):
 
@@ -1078,7 +1085,7 @@ class TeamTank(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return self.tank.name
+        return f"{self.tank.name} ({self.team.name})"
 
 
 class MatchRewardRates(models.Model):
@@ -1092,6 +1099,9 @@ class MatchRewardRates(models.Model):
     class Meta:
         verbose_name = "Match Reward Rate"
         verbose_name_plural = "Match Reward Rates"
+
+    def __str__(self):
+        return "Global Match Reward Rates"
 
     def save(self, *args, **kwargs):
         self.pk = 1
@@ -1168,7 +1178,7 @@ class TeamMatch(models.Model):
     side = models.CharField(max_length=10, choices=SIDE_CHOICES, default='team_1')
 
     def __str__(self):
-        return f"{self.team.name} in {self.match} with: \n {self.tanks.all()}"
+        return f"{self.team.name} in Match ID {self.match.id}"
 
 
 class MatchResult(models.Model):
@@ -1178,6 +1188,9 @@ class MatchResult(models.Model):
     judge_is_test = models.BooleanField(default=False)
     is_calced = models.BooleanField(default=False)
     round_score = models.CharField(max_length=5, null=True, blank=True, help_text="Enter the score as 'X:Y' (e.g., 2:1)")
+
+    def __str__(self):
+        return f"Result for Match {self.match_id if self.match else 'N/A'}"
 
     def calculate_average_rank(self):
         tanks_lost = TankLost.objects.filter(match_result__match=self.match)
@@ -1818,12 +1831,18 @@ class TeamResult(models.Model):
     penalties = models.FloatField(blank=True, null=True)
     was_present = models.BooleanField(default=True)
 
+    def __str__(self):
+        match_id = self.match_result.match_id if self.match_result else 'N/A'
+        return f"{self.team.name} Result (Match {match_id})"
+
 class TankLost(models.Model):
     match_result = models.ForeignKey(MatchResult, on_delete=models.CASCADE, related_name='tanks_lost')
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
     tank = models.ForeignKey(Tank, on_delete=models.CASCADE)
     quantity = models.IntegerField()
 
+    def __str__(self):
+        return f"{self.quantity}x {self.tank.name} lost by {self.team.name}"
 
 class Substitute(models.Model):
     SIDE_CHOICES = [
@@ -1838,7 +1857,7 @@ class Substitute(models.Model):
     team_played_for = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='assisted_by_substitutes', blank=True, null=True)
 
     def __str__(self):
-        return f"Substitute from {self.team.name} on {self.side} with activity level {self.activity}"
+        return f"Sub: {self.team.name} playing for {self.team_played_for.name if self.team_played_for else self.side}"
 
 
 class TeamLog(models.Model):
@@ -1985,7 +2004,7 @@ class Interchange(models.Model):
 
     def __str__(self):
         arrow = "<->" if self.is_bidirectional else "->"
-        return f"{self.from_tank} {arrow} {self.to_tank}"
+        return f"{self.from_tank.name} {arrow} {self.to_tank.name}"
 
 
 def get_interchange_graph(start_tank_name):
@@ -2026,3 +2045,69 @@ def get_interchange_graph(start_tank_name):
                 queue.append(edge.from_tank)
 
     return results
+
+
+class MatchRound(models.Model):
+    WINNER_CHOICES = [('team_1', 'Team 1'), ('team_2', 'Team 2'), ('draw', 'Draw')]
+    
+    match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name='parsed_rounds')
+    round_number = models.IntegerField(help_text="Round 1, 2, 3, etc.")
+    parsed_files = models.JSONField(default=list)
+    map_name = models.CharField(max_length=255, null=True, blank=True)
+    map_details = models.JSONField(default=dict, blank=True)
+    parsed_at = models.DateTimeField(auto_now=True)
+    is_verified = models.BooleanField(default=False, help_text="True when judge approves the parsed data.")
+    team_rosters = models.JSONField(default=dict)
+    player_spawns = models.JSONField(default=dict)
+    telemetry_data = models.JSONField(default=dict)
+    winning_team = models.CharField(max_length=10, choices=WINNER_CHOICES, null=True, blank=True)
+    win_reason = models.CharField(max_length=100, null=True, blank=True)
+    start_time_s = models.IntegerField(default=300, help_text="Start time in seconds")
+    end_time_s = models.IntegerField(default=0, help_text="End time in seconds")
+    map_areas = models.JSONField(default=list, blank=True, null=True)
+    capture_zones = models.JSONField(default=list, blank=True, null=True)
+    chat_log = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        unique_together = ('match', 'round_number')
+
+    def __str__(self):
+        return f"Match {self.match_id} - Round {self.round_number}"
+
+
+class MatchKill(models.Model):
+    match_round = models.ForeignKey(MatchRound, on_delete=models.CASCADE, related_name='kills')
+    time_s = models.FloatField()
+    attacker = models.CharField(max_length=100)
+    attacker_veh = models.CharField(max_length=100)
+    weapon = models.CharField(max_length=100)
+    victim = models.CharField(max_length=100)
+    victim_veh = models.CharField(max_length=100)
+
+    class Meta:
+        unique_together = ('match_round', 'time_s', 'attacker', 'victim')
+
+    def __str__(self):
+        return f"{self.time_s}s: {self.attacker} killed {self.victim}"
+
+
+class MatchCrit(models.Model):
+    match_round = models.ForeignKey(MatchRound, on_delete=models.CASCADE, related_name='crits')
+    time_s = models.FloatField()
+    attacker = models.CharField(max_length=100)
+    attacker_veh = models.CharField(max_length=100)
+    victim = models.CharField(max_length=100)
+    victim_veh = models.CharField(max_length=100)
+    is_fire = models.BooleanField(default=False)
+
+    class Meta:
+        indexes = [models.Index(fields=['match_round', 'time_s'])]
+
+
+class ReplayFile(models.Model):
+    match_round = models.ForeignKey(MatchRound, on_delete=models.CASCADE, related_name='replay_files')
+    file = models.FileField(upload_to='replays/%Y/%m/%d/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.file.name

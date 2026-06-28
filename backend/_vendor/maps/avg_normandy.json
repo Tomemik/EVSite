@@ -1,0 +1,121 @@
+{
+  "map_name": "Normandy",
+  "texture": "avg_normandy_tankmap.png",
+  "variants": {
+    "_Dom": {
+      "mode": "Domination",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        1585.0,
+        4080.0
+      ],
+      "grid_size": [
+        1400.0,
+        1400.0
+      ],
+      "grid_steps": [
+        200.0,
+        200.0
+      ]
+    },
+    "_Conq1": {
+      "mode": "Conquest #1",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        1585.0,
+        4075.58447265625
+      ],
+      "grid_size": [
+        1400.0,
+        930.369140625
+      ],
+      "grid_steps": [
+        200.0,
+        200.0
+      ]
+    },
+    "_Conq2": {
+      "mode": "Conquest #2",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        1585.0,
+        4080.0
+      ],
+      "grid_size": [
+        1400.0,
+        1400.0
+      ],
+      "grid_steps": [
+        200.0,
+        200.0
+      ]
+    },
+    "_Conq3": {
+      "mode": "Conquest #3",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        1585.0,
+        3643.859375
+      ],
+      "grid_size": [
+        1400.0,
+        960.31884765625
+      ],
+      "grid_steps": [
+        200.0,
+        200.0
+      ]
+    },
+    "_Conq4": {
+      "mode": "Conquest #4",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        1585.0,
+        4080.0
+      ],
+      "grid_size": [
+        1400.0,
+        1400.0
+      ],
+      "grid_steps": [
+        200.0,
+        200.0
+      ]
+    }
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "variants": {
+    "_Dom": {
+      "mode": "Domination",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        1267.860107421875,
+        2620.7099609375
+      ],
+      "grid_size": [
+        1700.0,
+        1700.0
+      ],
+      "grid_steps": [
+        225.0,
+        225.0
+      ]
+    },
+    "_Dom2": {
+      "mode": "Domination #2",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        1267.860107421875,
+        2620.7099609375
+      ],
+      "grid_size": [
+        1700.0,
+        1700.0
+      ],
+      "grid_steps": [
+        225.0,
+        225.0
+      ]
+    },
+    "_Conq2": {
+      "mode": "Conquest #2",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        990.25,
+        3453.10009765625
+      ],
+      "grid_size": [
+        2900.0,
+        2900.0
+      ],
+      "grid_steps": [
+        400.0,
+        400.0
+      ]
+    },
+    "_Conq3": {
+      "mode": "Conquest #3",
+      "map_min": [
+        0.0,
+        0.0
+      ],
+      "map_max": [
+        4096.0,
+        4096.0
+      ],
+      "grid_zero": [
+        685.85009765625,
+        3607.60009765625
+      ],
+      "grid_size": [
+        2900.0,
+        2900.0
+      ],
+      "grid_steps": [
+        400.0,
+        400.0
+      ]
+    }
+  },
+  "map_name": "Eastern Europe",
+  "texture": "avg_eastern_europe_tankmap.png"
+}

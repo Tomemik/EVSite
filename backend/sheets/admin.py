@@ -4,28 +4,30 @@ from django.db.models.functions import Coalesce
 
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, default_upgrade_kits, \
     MatchResult, Substitute, TankLost, TeamResult, TeamLog, TankBox, TeamBox, ImportTank, ImportCriteria, Booster, \
-    UpgradeTree, Interchange, InterchangeGroup, Alliance, Bounty, BountyTier, MatchRewardRates
+    UpgradeTree, Interchange, InterchangeGroup, Alliance, Bounty, BountyTier, MatchRewardRates, \
+    MatchRound, MatchKill, ReplayFile, MatchCrit
 
 
 class ManufacturerAdmin(admin.ModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
 
-class BoosterAdmin (admin.ModelAdmin):
+
+class BoosterAdmin(admin.ModelAdmin):
     list_display = ('name', 'multiplier', 'expires_at', 'matches_left', 'match_limited', 'active', 'team')
     search_fields = ('name', 'team')
     raw_id_fields = ('team',)
 
+
 class TeamAdmin(admin.ModelAdmin):
     list_display = ('name', 'balance', 'score', 'total_money_earned', 'total_money_spent',
-                     'winrate_display', 'alliance', 'get_current_bounty')
+                    'winrate_display', 'alliance', 'get_current_bounty')
     search_fields = ('name',)
     autocomplete_fields = ('manufacturers',)
     readonly_fields = ('get_current_bounty', 'get_users')
 
     def winrate_display(self, obj):
         return f"{obj.winrate:.2f}%"
-
 
     def save_model(self, request, obj, form, change):
         if not change and not obj.upgrade_kits:
@@ -42,7 +44,6 @@ class TeamAdmin(admin.ModelAdmin):
         return "-"
 
     get_current_bounty.short_description = 'Active Bounty'
-
     get_users.short_description = 'Users'
 
 
@@ -52,6 +53,7 @@ class BoxAdmin(admin.ModelAdmin):
 
     def get_tanks(self, obj):
         return ", ".join([tank.name for tank in obj.tanks.all()])
+
     get_tanks.short_description = 'Tanks'
 
     def save_model(self, request, obj, form, change):
@@ -68,14 +70,16 @@ class TeamBoxAdmin(admin.ModelAdmin):
 
     def box(self, obj):
         return obj.box.name
+
     box.short_description = 'Box Name'
 
 
 class TankAdmin(admin.ModelAdmin):
-    list_display = ('name', 'battle_rating', 'price', 'rank', 'type')
+    list_display = ('name', 'battle_rating', 'price', 'rank', 'type', 'internal_ids')
     search_fields = ('name', 'type')
     list_filter = ('type', 'rank')
     autocomplete_fields = ('manufacturers',)
+
 
 class UpgradePathAdmin(admin.ModelAdmin):
     list_display = ('from_tank', 'to_tank', 'required_kit_tier', 'cost')
@@ -99,10 +103,18 @@ class TeamMatchInline(admin.TabularInline):
     show_change_link = True
 
 
+class MatchRoundInline(admin.TabularInline):
+    model = MatchRound
+    extra = 0
+    fields = ('round_number', 'map_name', 'is_verified', 'parsed_at')
+    readonly_fields = ('parsed_at',)
+    show_change_link = True
+
+
 class MatchAdmin(admin.ModelAdmin):
     list_display = ('datetime', 'mode', 'gamemode', 'best_of_number', 'map_selection')
     search_fields = ('mode', 'gamemode', 'map_selection')
-    inlines = [TeamMatchInline]
+    inlines = [TeamMatchInline, MatchRoundInline]
     list_filter = ('mode', 'gamemode', 'datetime', 'money_rules', 'best_of_number')
 
 
@@ -142,7 +154,7 @@ class TeamLogAdmin(admin.ModelAdmin):
 
 class ImportTankAdmin(admin.ModelAdmin):
     list_display = ('tank', 'discount', 'available_from', 'available_until', 'is_purchased', 'criteria')
-    list_filter = ('is_purchased','available_from', 'available_until')
+    list_filter = ('is_purchased', 'available_from', 'available_until')
 
 
 class ImportCriteriaAdmin(admin.ModelAdmin):
@@ -162,6 +174,7 @@ class ImportCriteriaAdmin(admin.ModelAdmin):
 class UpgradeTreeAdmin(admin.ModelAdmin):
     list_display = ('label', 'value')
     autocomplete_fields = ('value',)
+
 
 class InterchangeAdmin(admin.ModelAdmin):
     list_display = ('from_tank', 'to_tank', 'is_bidirectional')
@@ -185,6 +198,7 @@ class BountyAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'created_at')
     search_fields = ('team__name',)
 
+
 class BountyTierAdmin(admin.ModelAdmin):
     list_display = ('rank', 'bounty_value')
     list_editable = ('bounty_value',)
@@ -193,8 +207,48 @@ class BountyTierAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
+
 class MatchRewardRateAdmin(admin.ModelAdmin):
-    list_display = ('even_split_kill_reward', "even_split_repair_cost", 'money_rule_kill_reward', 'money_rule_repair_cost', 'no_rule_kill_reward', 'no_rule_repair_cost')
+    list_display = ('even_split_kill_reward', "even_split_repair_cost", 'money_rule_kill_reward',
+                    'money_rule_repair_cost', 'no_rule_kill_reward', 'no_rule_repair_cost')
+
+
+# --- NEW REPLAY PARSER ADMIN VIEWS ---
+
+class ReplayFileInline(admin.TabularInline):
+    model = ReplayFile
+    extra = 0
+    readonly_fields = ('uploaded_at',)
+
+
+class MatchKillInline(admin.TabularInline):
+    model = MatchKill
+    extra = 0
+    # Make kills editable in case manual corrections are needed in the backend
+    fields = ('time_s', 'attacker', 'attacker_veh', 'weapon', 'victim', 'victim_veh')
+
+
+class MatchCritInLine(admin.TabularInline):
+    model = MatchCrit
+    extra = 0
+    # Make kills editable in case manual corrections are needed in the backend
+    fields = ('time_s', 'attacker', 'attacker_veh', 'victim', 'victim_veh')
+
+
+class MatchRoundAdmin(admin.ModelAdmin):
+    list_display = ('match', 'round_number', 'map_name', 'is_verified', 'parsed_at')
+    list_filter = ('is_verified', 'parsed_at')
+    search_fields = ('match__id', 'map_name')
+    inlines = [ReplayFileInline, MatchKillInline, MatchCritInLine]
+
+    # Hide the massive JSON blobs from being editable text-areas to prevent browser crashes
+    readonly_fields = ('team_rosters', 'player_spawns', 'telemetry_data')
+
+
+class MatchKillAdmin(admin.ModelAdmin):
+    list_display = ('match_round', 'attacker', 'attacker_veh' ,'victim', 'victim_veh')
+    search_fields = ('attacker', 'victim', 'weapon', 'attacker_veh', 'victim_veh')
+    list_filter = ('match_round__match',)
 
 
 admin.site.register(Booster, BoosterAdmin)
@@ -219,3 +273,6 @@ admin.site.register(Bounty, BountyAdmin)
 admin.site.register(BountyTier, BountyTierAdmin)
 admin.site.register(MatchRewardRates, MatchRewardRateAdmin)
 
+admin.site.register(MatchRound, MatchRoundAdmin)
+admin.site.register(MatchKill, MatchKillAdmin)
+admin.site.register(ReplayFile)

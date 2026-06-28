@@ -15,6 +15,8 @@ import TeamTanks from "../views/TeamTanks.vue";
 import TankUpgradeGraph from "@/views/TankUpgradeGraph.vue";
 import TankInterchangeabilityGraph from "@/views/TankInterchangabilityGraph.vue";
 import Alliances from "@/views/Alliances.vue";
+import Telemetry from "@/views/Telemetry.vue";
+import Stats from "@/views/Stats.vue";
 
 const routes = [
     { path: '/home', name: 'Home', component: Home },
@@ -33,6 +35,8 @@ const routes = [
     { path: '/upgrades', name: 'upgrades', component: TankUpgradeGraph },
     { path: '/Interchangeability', name: 'Interchangeability', component: TankInterchangeabilityGraph},
     { path: '/Alliances', name: 'Alliances', component: Alliances},
+    { path: '/telemetry', name: 'TelemetryAnalyzer', component: Telemetry },
+    { path: '/stats', name: 'Stats', component: Stats },
 ];
 
 const router = createRouter({

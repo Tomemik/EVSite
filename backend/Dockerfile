@@ -1,11 +1,11 @@
-FROM python:3.11.5-slim
+FROM python:3.13-slim
 ENV PYTHONBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
 ENV ENV=${ENV}
 
 RUN apt-get update && \
-    apt-get -y install libpq-dev gcc procps cron nano && \
+    apt-get -y install libpq-dev gcc procps cron nano libunwind-dev && \
     apt-get autoremove && rm -r /var/lib/apt/lists/*
 
 RUN mkdir /code

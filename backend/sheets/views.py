@@ -1,6 +1,15 @@
 import copy
+import json
+import math
+import os
+import re
+import tempfile
+from collections import deque, defaultdict
+from pathlib import Path
 
 from django.conf import settings
+from django.core.cache import cache
+from django.db import transaction
 from django.shortcuts import render, get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
@@ -17,12 +26,16 @@ from .discord import format_match_message, format_match_result_message, format_m
 from .filters import TeamLogFilter, MatchFilter
 from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch, TeamLog, ImportTank, \
     ImportCriteria, TeamBox, TeamTank, UpgradePath, get_upgrade_tree, UpgradeTree, InterchangeGroup, \
-    get_interchange_graph, Interchange, Alliance
+    get_interchange_graph, Interchange, Alliance, MatchKill, MatchRound, ReplayFile, MatchCrit
 from .serializers import TeamSerializer, ManufacturerSerializer, TankSerializer, MatchSerializer, SlimMatchSerializer, \
     MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer, \
     TeamLogSerializer, SlimTeamSerializerWithTanks, ImportTankSerializer, ImportCriteriaSerializer, \
-    UpgradePathSerializer, UpgradeTreeSerializer, InterchangeGroupSerializer, InterchangeSerializer, AllianceSerializer
+    UpgradePathSerializer, UpgradeTreeSerializer, InterchangeGroupSerializer, InterchangeSerializer, AllianceSerializer, \
+    MatchRoundSerializer, VerifyRoundPayloadSerializer, MatchKillSerializer
+from .services.replay_parser import execute_safe_worker
+from .services.stats import StatsService
 
+MAPS_DIR = Path(__file__).resolve().parent.parent / '_vendor' / 'maps'
 
 class AllTeamsView(APIView):
     def get(self, request):
@@ -505,29 +518,41 @@ class PurchaseAndOpenBoxView(APIView):
         user = request.user
         team_name = request.data['team']
         if not (
-            user.has_perm('user.admin_permissions') or
-            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+                user.has_perm('user.admin_permissions') or
+                (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
         ):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         box_id = request.data.get('box_id', None)
-        team = Team.objects.get(name=team_name)
-        if box_id is not None:
-            box = TankBox.objects.get(id=box_id)
-            result = box.purchase(team, request.user)
-            new_box = TeamBox.objects.get(id=result['id'])
-            tank = new_box.open_box(request.user)
-            box_name = box.box.name
-            box_tier = box.box.tier
-
-            result_tank_name = box.open_box(request.user)
-
-            team.refresh_from_db()
-            details = f"Opened **{box_name} (Tier {box_tier})**\nObtained: **{result_tank_name}**"
-            send_transaction_log(team.name, 'Lootbox', details, 0, team.balance)
-        else:
+        if box_id is None:
             return Response(status=status.HTTP_400_BAD_REQUEST)
-        return Response(data=str(tank), status=status.HTTP_200_OK)
+
+        try:
+            team = Team.objects.get(name=team_name)
+            initial_balance = team.balance
+
+            # 1. Purchase the box template (TankBox)
+            tank_box = TankBox.objects.get(id=box_id)
+            result = tank_box.purchase(team, request.user)
+
+            # 2. Get the newly generated inventory box (TeamBox) and open it
+            new_team_box = TeamBox.objects.get(id=result['id'])
+            result_tank_name = new_team_box.open_box(request.user)
+
+            # 3. Refresh team to calculate the cost dynamically
+            team.refresh_from_db()
+            cost = initial_balance - team.balance
+
+            # 4. Log to Discord (tank_box has .name, NOT .box.name)
+            details = f"Bought & Opened **{tank_box.name} (Tier {tank_box.tier})**\nObtained: **{result_tank_name}**"
+            send_transaction_log(team.name, 'Lootbox', details, cost, team.balance)
+
+            # Return the resulting tank name back to Vue for the alert popup
+            return Response(data=result_tank_name, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            # Catch errors so the frontend gets a readable message instead of crashing
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class OpenBoxView(APIView):
@@ -764,10 +789,14 @@ class MatchView(APIView):
 
 class MatchResultsView(APIView):
     def get(self, request, pk):
-        match = Match.objects.get(pk=pk)
-        matchResult = MatchResult.objects.get(match__pk=pk)
-        serializer = MatchResultSerializer(matchResult)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        try:
+            # Attempt to fetch the result
+            matchResult = MatchResult.objects.get(match__pk=pk)
+            serializer = MatchResultSerializer(matchResult)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except MatchResult.DoesNotExist:
+            # If no result exists yet (new match), return a clean 404 instead of a 500 crash
+            return Response({"detail": "Match result not found."}, status=status.HTTP_404_NOT_FOUND)
 
     def post(self, request, pk):
         user = request.user
@@ -1038,3 +1067,744 @@ class AllianceListView(APIView):
         alliances = Alliance.objects.all()
         serializer = AllianceSerializer(alliances, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+def sanitize_filename(name):
+    """Replaces spaces and invalid filesystem characters with underscores."""
+    return re.sub(r'(?u)[^-\w.]', '_', name.strip())
+
+
+class UploadReplayRoundView(APIView):
+    def post(self, request, pk):
+        user = request.user
+        if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.judge_permissions')]):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        round_number = request.data.get('round_number')
+        start_time_str = request.data.get('start_time', '5:00')
+        replay_files = request.FILES.getlist('replay_files')
+
+        if not round_number or not replay_files:
+            return Response({"error": "round_number and at least one replay_file are required."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        match = get_object_or_404(Match, id=pk)
+        match_round, created = MatchRound.objects.get_or_create(match=match, round_number=int(round_number))
+
+        try:
+            parts = str(start_time_str).split(':')
+            if len(parts) == 2:
+                start_s = int(parts[0]) * 60 + int(parts[1])
+            elif len(parts) == 1:
+                start_s = int(parts[0])
+            else:
+                start_s = 300
+        except ValueError:
+            start_s = 300
+
+        match_round.start_time_s = start_s
+
+        # --- FILENAME GENERATION ---
+        team_1_names = [sanitize_filename(tm.team.name) for tm in match.teammatch_set.filter(side='team_1')]
+        team_2_names = [sanitize_filename(tm.team.name) for tm in match.teammatch_set.filter(side='team_2')]
+
+        t1_str = "_".join(team_1_names) if team_1_names else "Team1"
+        t2_str = "_".join(team_2_names) if team_2_names else "Team2"
+        date_str = match.datetime.strftime("%Y-%m-%d")
+
+        base_filename = f"{t1_str}_vs_{t2_str}_{date_str}_round_{round_number}"
+        existing_file_count = match_round.replay_files.count()
+        saved_file_paths = []
+
+        for idx, f_obj in enumerate(replay_files, start=1):
+            part_number = existing_file_count + idx
+            new_name = f"{base_filename}_part_{part_number}.wrpl"
+            f_obj.name = new_name
+
+            replay_record = ReplayFile.objects.create(match_round=match_round, file=f_obj)
+            saved_file_paths.append(replay_record.file.path)
+
+        # Parse files
+        res = execute_safe_worker(saved_file_paths, start_time_str=start_time_str)
+        if res["status"] != "success":
+            return Response({"error": res["error"]}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        data = res["data"]
+
+        match_round.map_areas = data.get("areas", [])
+        match_round.capture_zones = data.get("zones", [])
+        raw_chat = data.get("chat", {})
+        match_round.chat_log = sorted(list(raw_chat.values()), key=lambda x: x["time"])
+
+        # --- MULTI-VARIANT RESOLUTION GRAPH ---
+        internal_id_to_tanks = defaultdict(list)
+        for tank in Tank.objects.all():
+            for int_id in tank.internal_ids:
+                internal_id_to_tanks[int_id].append(tank.name)
+
+        adj = defaultdict(list)
+        for edge in Interchange.objects.all():
+            adj[edge.from_tank.name].append(edge.to_tank.name)
+            if edge.is_bidirectional:
+                adj[edge.to_tank.name].append(edge.from_tank.name)
+
+        team_1_allowed = set(tt.tank.name for tm in match.teammatch_set.filter(side='team_1') for tt in tm.tanks.all())
+        team_2_allowed = set(tt.tank.name for tm in match.teammatch_set.filter(side='team_2') for tt in tm.tanks.all())
+
+        def resolve_vehicle(parsed_name, allowed_names):
+            if parsed_name in allowed_names:
+                return parsed_name
+            start_names = internal_id_to_tanks.get(parsed_name, [parsed_name])
+            for name in start_names:
+                if name in allowed_names:
+                    return name
+            queue = deque(start_names)
+            visited = set(start_names)
+            while queue:
+                curr = queue.popleft()
+                if curr in allowed_names:
+                    return curr
+                for neighbor in adj[curr]:
+                    if neighbor not in visited:
+                        visited.add(neighbor)
+                        queue.append(neighbor)
+            return start_names[0]
+
+        # --- PROCESS METADATA & FILTERING ---
+        if not match_round.map_name or match_round.map_name == "unknown":
+            match_round.map_name = data.get("map_context", {}).get("level_name", "unknown")
+
+        raw_level_name = data.get("map_context", {}).get("level_name", "unknown")
+        postfix = data.get("map_context", {}).get("postfix", "")
+        loc_name = data.get("map_context", {}).get("loc_name", "")
+
+        # --- MAP VARIANT ALIASING ---
+        # Intercept _02 locNames and remap the internal .bin name to the correct JSON file
+        if "_02" in loc_name:
+            map_aliases = {
+                "avg_egypt_sinai": "avg_sands_of_sinai",
+                "avg_poland": "avg_fields_of_poland",
+                "avg_poland_snow": "avg_fields_of_poland_snow",
+                "avg_normandy": "avg_fields_of_normandy",
+                "avg_eastern_europe": "avg_european_province",
+                "avg_volokolamsk": "avg_surroundings_of_volokolamsk",
+                "avg_arctic": "avg_arctic_02"
+            }
+            # Swap the raw_level_name to target the correct JSON
+            raw_level_name = map_aliases.get(raw_level_name, f"{raw_level_name}_02")
+
+        if "_01" in loc_name:
+            map_aliases = {
+                "avg_arctic": "avg_arctic_01"
+            }
+            # Swap the raw_level_name to target the correct JSON
+            raw_level_name = map_aliases.get(raw_level_name, f"{raw_level_name}_01")
+
+        map_details = {
+            "internal_name": raw_level_name,
+            "postfix": postfix,
+            "mode": "Unknown",
+        }
+        human_map_name = raw_level_name
+
+        if raw_level_name != "unknown":
+            map_json_path = MAPS_DIR / f"{raw_level_name}.json"
+            if map_json_path.exists():
+                try:
+                    import json
+                    with open(map_json_path, 'r', encoding='utf-8') as f:
+                        map_info = json.load(f)
+                        human_map_name = map_info.get("map_name", raw_level_name)
+
+                        variant_data = map_info.get("variants", {}).get(postfix, {})
+                        map_details.update({
+                            "human_name": human_map_name,
+                            "texture": map_info.get("texture", ""),
+                            "variant_data": variant_data,
+                            "mode": variant_data.get("mode", "Unknown")
+                        })
+                except Exception as e:
+                    print(f"Error loading map JSON for {raw_level_name}: {e}")
+
+        match_round.map_name = human_map_name
+        match_round.map_details = map_details
+
+        current_rosters = match_round.team_rosters
+
+        # 1. Map who actually spawned a valid vehicle
+        spawned_players = set()
+        for p_name, vehicles in data.get("spawns", {}).items():
+            if p_name.lower() != "unknown" and vehicles:
+                if vehicles[-1].lower() != "unknown":
+                    spawned_players.add(p_name)
+
+        # 2. Filter Rosters: Only append if they actually spawned
+        for team_id, players in data.get("teams", {}).items():
+            if str(team_id) not in current_rosters:
+                current_rosters[str(team_id)] = []
+            for p in players:
+                if p in spawned_players and p not in current_rosters[str(team_id)]:
+                    current_rosters[str(team_id)].append(p)
+
+        match_round.team_rosters = current_rosters
+
+        formatted_spawns = {"team_1": [], "team_2": []}
+        team_1_roster = current_rosters.get("1", []) + current_rosters.get("team_1", [])
+        team_2_roster = current_rosters.get("2", []) + current_rosters.get("team_2", [])
+
+        # --- PROCESS SPAWNS WITH RESOLVER ---
+        player_to_resolved_veh = {}
+        player_to_side = {}
+
+        for p_name, vehicles in data.get("spawns", {}).items():
+            if p_name not in spawned_players:
+                continue
+
+            v_name = vehicles[-1]
+
+            # Determine side and resolve vehicle
+            if p_name in team_2_roster:
+                resolved_veh = resolve_vehicle(v_name, team_2_allowed)
+                formatted_spawns["team_2"].append({"player": p_name, "vehicle": resolved_veh})
+                side = 'team_2'
+            else:
+                resolved_veh = resolve_vehicle(v_name, team_1_allowed)
+                formatted_spawns["team_1"].append({"player": p_name, "vehicle": resolved_veh})
+                side = 'team_1'
+
+            # Clean name for robust dictionary matching (lowercase & stripped)
+            clean_name = p_name.strip().lower()
+            player_to_resolved_veh[clean_name] = resolved_veh
+            player_to_side[clean_name] = side
+
+        match_round.player_spawns = formatted_spawns
+
+        # Process Telemetry
+        current_telemetry = match_round.telemetry_data
+
+        for p_name, veh_data in data.get("movement", {}).items():
+            clean_name = p_name.strip().lower()
+
+            # 1. Filter: Only process players who were confirmed to have spawned
+            if clean_name not in player_to_resolved_veh:
+                continue
+
+            # 2. Identify the target vehicle this player actually spawned (Ground Truth)
+            target_veh = player_to_resolved_veh[clean_name]
+
+            # Determine side for resolution context
+            side = player_to_side.get(clean_name, 'team_1')
+            allowed_names = team_1_allowed if side == 'team_1' else team_2_allowed
+
+            if p_name not in current_telemetry:
+                current_telemetry[p_name] = {}
+
+            # 3. Process each vehicle in telemetry
+            for v_name, points in veh_data.items():
+                # Map the telemetry vehicle name to DB name
+                resolved_veh = resolve_vehicle(v_name, allowed_names)
+
+                # Filter: Only keep telemetry if it matches the player's actual spawn vehicle
+                if resolved_veh == target_veh:
+                    current_telemetry[p_name][resolved_veh] = points
+
+        match_round.telemetry_data = current_telemetry
+
+        # --- AUTO-CALCULATE ANNIHILATION ---
+        team_1_players = set(p['player'] for p in formatted_spawns['team_1'])
+        team_2_players = set(p['player'] for p in formatted_spawns['team_2'])
+        team_1_deaths = set()
+        team_2_deaths = set()
+
+        for k in data.get("kills", []):
+            victim = k["victim"]
+            if victim in team_1_players:
+                team_1_deaths.add(victim)
+            elif victim in team_2_players:
+                team_2_deaths.add(victim)
+
+        if team_1_players and len(team_1_deaths) >= len(team_1_players):
+            match_round.winning_team = 'team_2'
+            match_round.win_reason = 'Annihilation'
+        elif team_2_players and len(team_2_deaths) >= len(team_2_players):
+            match_round.winning_team = 'team_1'
+            match_round.win_reason = 'Annihilation'
+
+        match_round.save()
+
+        # --- PROCESS KILLS WITH FUZZY RESOLVER ---
+        # Helper function to bypass clan tags and suffixes if a direct match fails
+        def fuzzy_lookup(mapping, raw_name, default_val):
+            clean = raw_name.strip().lower()
+            if clean in mapping: return mapping[clean]
+
+            # Try removing Clan Tags (e.g., "[-XYZ-] playername" -> "playername")
+            no_tag = re.sub(r'^\[.*?\]\s*|^=.*?=\s*', '', clean).strip()
+            if no_tag in mapping: return mapping[no_tag]
+
+            # Try removing platform suffixes (e.g., "playername@live" -> "playername")
+            no_suffix = clean.split('@')[0].strip()
+            if no_suffix in mapping: return mapping[no_suffix]
+
+            return default_val
+
+        # --- PROCESS CRITS WITH FUZZY RESOLVER ---
+        resolved_crits = []
+        crit_data = data.get("crits", [])
+
+        # If your worker returns a dict (instead of a list), use .values()
+        if isinstance(crit_data, dict):
+            crit_data = crit_data.values()
+
+        for c in crit_data:
+            # Now 'c' is the dictionary containing "attacker", "victim", etc.
+            raw_atk = c.get("attacker")
+            raw_vic = c.get("victim")
+
+            # Guard for ghost entities
+            if not raw_atk or not raw_vic or raw_atk.lower() == "unknown" or raw_vic.lower() == "unknown":
+                continue
+
+            # Fuzzy match side
+            atk_side = fuzzy_lookup(player_to_side, raw_atk, 'team_1')
+            vic_side = fuzzy_lookup(player_to_side, raw_vic, 'team_2')
+
+            atk_allowed = team_1_allowed if atk_side == 'team_1' else team_2_allowed
+            vic_allowed = team_1_allowed if vic_side == 'team_1' else team_2_allowed
+
+            # Resolve Vehicles
+            fallback_atk = resolve_vehicle(c["attacker_veh"], atk_allowed)
+            fallback_vic = resolve_vehicle(c["victim_veh"], vic_allowed)
+
+            final_atk_veh = fuzzy_lookup(player_to_resolved_veh, raw_atk, fallback_atk)
+            final_vic_veh = fuzzy_lookup(player_to_resolved_veh, raw_vic, fallback_vic)
+
+            resolved_crits.append(MatchCrit(
+                match_round=match_round,
+                time_s=c["time"],
+                attacker=raw_atk,
+                attacker_veh=final_atk_veh,
+                victim=raw_vic,
+                victim_veh=final_vic_veh,
+                is_fire=c["is_fire"],
+            ))
+
+        MatchCrit.objects.bulk_create(resolved_crits, ignore_conflicts=True)
+
+        resolved_kills = []
+        for k in data.get("kills", []):
+            raw_atk = k["attacker"]
+            raw_vic = k["victim"]
+
+            # Guard to drop bugged ghost entity kills
+            if raw_atk.lower() == "unknown" or raw_vic.lower() == "unknown":
+                continue
+
+            # Fuzzy match side
+            atk_side = fuzzy_lookup(player_to_side, raw_atk, 'team_1')
+            vic_side = fuzzy_lookup(player_to_side, raw_vic, 'team_2')
+
+            atk_allowed = team_1_allowed if atk_side == 'team_1' else team_2_allowed
+            vic_allowed = team_1_allowed if vic_side == 'team_1' else team_2_allowed
+
+            # Fuzzy match EXACT resolved spawn vehicle
+            fallback_atk = resolve_vehicle(k["attacker_veh"], atk_allowed)
+            fallback_vic = resolve_vehicle(k["victim_veh"], vic_allowed)
+
+            final_atk_veh = fuzzy_lookup(player_to_resolved_veh, raw_atk, fallback_atk)
+            final_vic_veh = fuzzy_lookup(player_to_resolved_veh, raw_vic, fallback_vic)
+
+            resolved_kills.append(MatchKill(
+                match_round=match_round,
+                time_s=k["time"],
+                attacker=raw_atk,
+                attacker_veh=final_atk_veh,
+                weapon=k["weapon"],
+                victim=raw_vic,
+                victim_veh=final_vic_veh
+            ))
+
+        MatchKill.objects.bulk_create(resolved_kills, ignore_conflicts=True)
+
+        if resolved_kills:
+            import math
+            last_kill_time = max(k.time_s for k in resolved_kills)
+            match_round.end_time_s = int(math.ceil(last_kill_time))
+            match_round.save()
+
+        serializer = MatchRoundSerializer(match_round)
+        return Response({
+            "message": f"Round {round_number} parsed. Merged and saved {len(saved_file_paths)} replays.",
+            "saved_filenames": [os.path.basename(path) for path in saved_file_paths],
+            "round_data": serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+
+class VerifyRoundView(APIView):
+    def post(self, request, pk, round_number):
+        user = request.user
+        if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.judge_permissions')]):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        match_round = get_object_or_404(MatchRound, match_id=pk, round_number=round_number)
+
+        serializer = VerifyRoundPayloadSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({"error": "Invalid payload format.", "details": serializer.errors},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        validated_data = serializer.validated_data
+        corrected_kills = validated_data.get('kills', [])
+        corrected_spawns = validated_data.get('spawns', {})
+
+        # Extract the new fields
+        winning_team = validated_data.get('winning_team')
+        win_reason = validated_data.get('win_reason')
+
+        with transaction.atomic():
+            # 1. Update Spawns & Winner
+            match_round.player_spawns = corrected_spawns
+            match_round.winning_team = winning_team
+            match_round.win_reason = win_reason
+            match_round.is_verified = True
+            match_round.save()
+
+            # 2. Overwrite Kills (Safest way is to wipe and rewrite for this specific round)
+            match_round.kills.all().delete()
+
+            new_kill_objects = [
+                MatchKill(
+                    match_round=match_round,
+                    time_s=k.get("time_s", 0),
+                    attacker=k.get("attacker", ""),
+                    attacker_veh=k.get("attacker_veh", ""),
+                    weapon=k.get("weapon", ""),
+                    victim=k.get("victim", ""),
+                    victim_veh=k.get("victim_veh", "")
+                ) for k in corrected_kills
+            ]
+            MatchKill.objects.bulk_create(new_kill_objects)
+
+        return Response({"message": f"Round {round_number} verified and saved."}, status=status.HTTP_200_OK)
+
+
+class MatchRoundListView(ListAPIView):
+    serializer_class = MatchRoundSerializer
+
+    def get_queryset(self):
+        match_id = self.kwargs['pk']
+        return MatchRound.objects.filter(match_id=match_id).order_by('round_number')
+
+
+class RoundTelemetryView(APIView):
+    def get(self, request, pk, round_number):
+        match_round = get_object_or_404(MatchRound, match_id=pk, round_number=round_number)
+
+        serializer = MatchRoundSerializer(match_round)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ParseTemporaryReplayView(APIView):
+    def post(self, request):
+        user = request.user
+        if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.judge_permissions')]):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        start_time_str = request.data.get('start_time', '5:00')
+        replay_files = request.FILES.getlist('replay_files')
+
+        if not replay_files:
+            return Response({"error": "At least one replay_file is required."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            saved_file_paths = []
+
+            for f_obj in replay_files:
+                temp_path = os.path.join(tmp_dir, f_obj.name)
+                with open(temp_path, 'wb+') as dest:
+                    for chunk in f_obj.chunks():
+                        dest.write(chunk)
+            saved_file_paths.append(temp_path)
+
+            # --- 1. PARSE FILES ---
+            res = execute_safe_worker(saved_file_paths, start_time_str=start_time_str)
+            if res["status"] != "success":
+                return Response({"error": res["error"]}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            data = res["data"]
+
+            # --- 2. MAP METADATA RESOLUTION ---
+            raw_level_name = data.get("map_context", {}).get("level_name", "unknown")
+            postfix = data.get("map_context", {}).get("postfix", "")
+            loc_name = data.get("map_context", {}).get("loc_name", "")
+
+            if "_02" in loc_name:
+                map_aliases = {
+                    "avg_egypt_sinai": "avg_sands_of_sinai",
+                    "avg_poland": "avg_fields_of_poland",
+                    "avg_normandy": "avg_fields_of_normandy",
+                    "avg_eastern_europe": "avg_european_province",
+                    "avg_volokolamsk": "avg_surroundings_of_volokolamsk"
+                }
+                raw_level_name = map_aliases.get(raw_level_name, f"{raw_level_name}_02")
+
+            map_details = {
+                "internal_name": raw_level_name,
+                "postfix": postfix,
+                "mode": "Unknown",
+            }
+
+            if raw_level_name != "unknown":
+                map_json_path = MAPS_DIR / f"{raw_level_name}.json"
+                if map_json_path.exists():
+                    try:
+                        with open(map_json_path, 'r', encoding='utf-8') as f:
+                            map_info = json.load(f)
+                            variant_data = map_info.get("variants", {}).get(postfix, {})
+                            map_details.update({
+                                "human_name": map_info.get("map_name", raw_level_name),
+                                "texture": map_info.get("texture", ""),
+                                "variant_data": variant_data,
+                                "mode": variant_data.get("mode", "Unknown")
+                            })
+                    except Exception as e:
+                        print(f"Error loading map JSON for {raw_level_name}: {e}")
+                else:
+                    print(f"WARNING: Map JSON not found at {map_json_path}")
+
+            # --- 3. DATABASE VEHICLE RESOLUTION ---
+            internal_id_to_tanks = defaultdict(list)
+            for tank in Tank.objects.all():
+                for int_id in tank.internal_ids:
+                    internal_id_to_tanks[int_id].append(tank.name)
+
+            def resolve_vehicle(parsed_name):
+                # Temporary parses have no predefined roster limits, so we grab the first match
+                start_names = internal_id_to_tanks.get(parsed_name, [])
+                if start_names:
+                    return start_names[0]
+                return parsed_name
+
+            # --- 4. FILTER SPAWNS & METADATA CACHING ---
+            spawned_players = set()
+            for p_name, vehicles in data.get("spawns", {}).items():
+                if p_name.lower() != "unknown" and vehicles and vehicles[-1].lower() != "unknown":
+                    spawned_players.add(p_name)
+
+            player_spawns = {"team_1": [], "team_2": []}
+            player_to_resolved_veh = {}
+            player_to_side = {}
+
+            for team_id in ["1", "2"]:
+                target_key = "team_1" if team_id == "1" else "team_2"
+                for p in data.get("teams", {}).get(team_id, []):
+                    if p in spawned_players:
+                        raw_veh = data["spawns"][p][-1]
+                        resolved_veh = resolve_vehicle(raw_veh)
+
+                        player_spawns[target_key].append({"player": p, "vehicle": resolved_veh})
+
+                        clean_name = p.strip().lower()
+                        player_to_resolved_veh[clean_name] = resolved_veh
+                        player_to_side[clean_name] = target_key
+
+            # --- 5. PROCESS TELEMETRY (Cleaned against active spawn) ---
+            telemetry_data = {}
+            for p_name, veh_data in data.get("movement", {}).items():
+                clean_name = p_name.strip().lower()
+                if clean_name not in player_to_resolved_veh:
+                    continue
+
+                target_veh = player_to_resolved_veh[clean_name]
+                telemetry_data[p_name] = {}
+
+                for v_name, points in veh_data.items():
+                    resolved_veh = resolve_vehicle(v_name)
+                    if resolved_veh == target_veh:
+                        telemetry_data[p_name][resolved_veh] = points
+
+            # --- 6. PROCESS CHAT ---
+            raw_chat = data.get("chat", {})
+            chat_log = sorted(list(raw_chat.values()), key=lambda x: x["time"])
+
+            # --- 7. FUZZY RESOLVER HELPER ---
+            def fuzzy_lookup(mapping, raw_name, default_val):
+                clean = raw_name.strip().lower()
+                if clean in mapping: return mapping[clean]
+                no_tag = re.sub(r'^\[.*?\]\s*|^=.*?=\s*', '', clean).strip()
+                if no_tag in mapping: return mapping[no_tag]
+                no_suffix = clean.split('@')[0].strip()
+                if no_suffix in mapping: return mapping[no_suffix]
+                return default_val
+
+            # --- 8. PROCESS KILLS & CRITS ---
+            kills = []
+            for k in data.get("kills", []):
+                raw_atk = k["attacker"]
+                raw_vic = k["victim"]
+
+                if raw_atk.lower() == "unknown" or raw_vic.lower() == "unknown":
+                    continue
+
+                fallback_atk = resolve_vehicle(k.get("attacker_veh", ""))
+                fallback_vic = resolve_vehicle(k.get("victim_veh", ""))
+
+                final_atk_veh = fuzzy_lookup(player_to_resolved_veh, raw_atk, fallback_atk)
+                final_vic_veh = fuzzy_lookup(player_to_resolved_veh, raw_vic, fallback_vic)
+
+                kills.append({
+                    "attacker": raw_atk,
+                    "attacker_veh": final_atk_veh,
+                    "victim": raw_vic,
+                    "victim_veh": final_vic_veh,
+                    "weapon": k.get("weapon", "Unknown"),
+                    "time_s": k["time"]
+                })
+
+            crits = []
+            crit_data = data.get("crits", [])
+            if isinstance(crit_data, dict):
+                crit_data = crit_data.values()
+
+            for c in crit_data:
+                raw_atk = c.get("attacker", "")
+                raw_vic = c.get("victim", "")
+
+                if not raw_atk or not raw_vic or raw_atk.lower() == "unknown" or raw_vic.lower() == "unknown":
+                    continue
+
+                fallback_atk = resolve_vehicle(c.get("attacker_veh", ""))
+                fallback_vic = resolve_vehicle(c.get("victim_veh", ""))
+
+                final_atk_veh = fuzzy_lookup(player_to_resolved_veh, raw_atk, fallback_atk)
+                final_vic_veh = fuzzy_lookup(player_to_resolved_veh, raw_vic, fallback_vic)
+
+                crits.append({
+                    "attacker": raw_atk,
+                    "attacker_veh": final_atk_veh,
+                    "victim": raw_vic,
+                    "victim_veh": final_vic_veh,
+                    "is_fire": c.get("is_fire", False),
+                    "time_s": c["time"]
+                })
+
+            # --- 9. CALCULATE TIMELINE ENDPOINTS ---
+            try:
+                parts = str(start_time_str).split(':')
+                if len(parts) == 2:
+                    start_s = int(parts[0]) * 60 + int(parts[1])
+                elif len(parts) == 1:
+                    start_s = int(parts[0])
+                else:
+                    start_s = 300
+            except ValueError:
+                start_s = 300
+
+            end_s = start_s + 1200
+            if kills:
+                end_s = int(math.ceil(max(k["time_s"] for k in kills)))
+
+            # --- 10. COMPILE FINAL PAYLOAD ---
+            frontend_payload = {
+                "map_details": map_details,
+                "telemetry_data": telemetry_data,
+                "player_spawns": player_spawns,
+                "chat_log": chat_log,
+                "kills": kills,
+                "crits": crits,
+                "map_areas": data.get("areas", []),
+                "capture_zones": data.get("zones", []),
+                "start_time_s": start_s,
+                "end_time_s": end_s,
+            }
+
+            return Response({
+                "message": "Temporary replays parsed successfully.",
+                "parsed_telemetry": frontend_payload
+            }, status=status.HTTP_200_OK)
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.core.cache import cache
+
+
+class ComprehensiveStatsView(APIView):
+    def get(self, request):
+        # Pagination & Query Params
+        tab = request.query_params.get('tab', 'vehicles')
+        page = int(request.query_params.get('page', 1))
+        limit = int(request.query_params.get('itemsPerPage', 25))
+        search = request.query_params.get('search', '').lower()
+
+        # Sorting Params
+        sort_key = request.query_params.get('sortBy', None)
+        sort_order = request.query_params.get('sortOrder', 'asc')
+
+        # Drill-down Dialog Params
+        filter_players = request.query_params.get('players', None)
+        filter_vehicle = request.query_params.get('vehicle', None)
+
+        # 1. Fetch or Generate Raw Data (Cached)
+        cache_key = "stats_comprehensive_raw_v1"
+        stats_data = cache.get(cache_key)
+
+        if not stats_data:
+            service = StatsService()
+            stats_data = service.get_filtered_stats()
+            cache.set(cache_key, stats_data, timeout=300)
+
+        # 2. Select the targeted dataset and convert dict to list
+        dataset = stats_data.get(tab, {})
+
+        if tab == 'combos':
+            items = [{'combo_id': k, **v} for k, v in dataset.items()]
+        else:
+            items = [{'name': k, **v} for k, v in dataset.items()]
+
+        # 3. Apply Drill-down Filters (Used by the Vehicle Dialog)
+        if filter_players:
+            player_list = filter_players.split(',')
+            if tab == 'combos':
+                items = [i for i in items if i.get('player') in player_list]
+            else:
+                items = [i for i in items if i.get('name') in player_list]
+
+        if filter_vehicle:
+            if tab == 'combos':
+                items = [i for i in items if i.get('vehicle') == filter_vehicle]
+            else:
+                items = [i for i in items if i.get('name') == filter_vehicle]
+
+        # 4. Apply Global Search
+        if search:
+            items = [
+                item for item in items
+                if search in str(item.get('name', '')).lower()
+                   or search in str(item.get('player', '')).lower()
+                   or search in str(item.get('vehicle', '')).lower()
+            ]
+
+        # 5. Apply Sorting
+        if sort_key:
+            reverse = (sort_order == 'desc')
+            items.sort(
+                key=lambda x: x.get(sort_key, 0) if x.get(sort_key) is not None else 0,
+                reverse=reverse
+            )
+
+        # 6. Apply Pagination
+        total_items = len(items)
+        if limit > 0:  # -1 is passed when we want to fetch "All" for the dialog
+            start = (page - 1) * limit
+            end = start + limit
+            paginated_items = items[start:end]
+        else:
+            paginated_items = items
+
+        return Response({
+            'items': paginated_items,
+            'total': total_items,
+        })

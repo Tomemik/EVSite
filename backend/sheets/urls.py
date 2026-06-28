@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from .views import MatchRoundListView, RoundTelemetryView, ParseTemporaryReplayView, ComprehensiveStatsView
 
 urlpatterns = [
     path("teams/", views.AllTeamsView.as_view(), name='teams'),
@@ -41,4 +42,10 @@ urlpatterns = [
     path('interchanges/labels/', views.InterchangeListView.as_view(), name='interchange-labels'),
     path('interchanges/', views.InterchangeDetailView.as_view(), name='interchange-detail'),
     path('alliances/', views.AllianceListView.as_view(), name='alliance-list'),
+    path('matches/<int:pk>/replays/', views.UploadReplayRoundView.as_view(), name='match-replays'),
+    path('matches/<int:pk>/replays/<int:round_number>/verify/', views.VerifyRoundView.as_view(), name='replay_verify'),
+    path('matches/<int:pk>/rounds/', MatchRoundListView.as_view(), name='match-round-list'),
+    path('matches/<int:pk>/replays/<int:round_number>/telemetry/', RoundTelemetryView.as_view(), name='round-telemetry'),
+    path('replays/parse-temp/', ParseTemporaryReplayView.as_view()),
+    path('stats/comprehensive/', ComprehensiveStatsView.as_view(), name='comprehensive-stats'),
 ]

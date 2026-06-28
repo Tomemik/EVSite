@@ -1,0 +1,121 @@
+{
+  "map_name": "Abandoned factory",
+  "texture": "avg_abandoned_factory_tankmap.png",
+  "variants": {
+    "_Dom": {
+      "mode": "Domination",
+      "map_min": [
+        1024.0,
+        1024.0
+      ],
+      "map_max": [
+        3072.0,
+        3072.0
+      ],
+      "grid_zero": [
+        1482.800048828125,
+        2539.0
+      ],
+      "grid_size": [
+        1200.0,
+        1200.0
+      ],
+      "grid_steps": [
+        170.0,
+        170.0
+      ]
+    },
+    "_Conq1": {
+      "mode": "Conquest #1",
+      "map_min": [
+        1024.0,
+        1024.0
+      ],
+      "map_max": [
+        3072.0,
+        3072.0
+      ],
+      "grid_zero": [
+        1482.800048828125,
+        2539.0
+      ],
+      "grid_size": [
+        1200.0,
+        1200.0
+      ],
+      "grid_steps": [
+        170.0,
+        170.0
+      ]
+    },
+    "_Conq2": {
+      "mode": "Conquest #2",
+      "map_min": [
+        1024.0,
+        1024.0
+      ],
+      "map_max": [
+        3072.0,
+        3072.0
+      ],
+      "grid_zero": [
+        1482.800048828125,
+        2539.0
+      ],
+      "grid_size": [
+        1200.0,
+        1200.0
+      ],
+      "grid_steps": [
+        170.0,
+        170.0
+      ]
+    },
+    "_Conq3": {
+      "mode": "Conquest #3",
+      "map_min": [
+        1024.0,
+        1024.0
+      ],
+      "map_max": [
+        3072.0,
+        3072.0
+      ],
+      "grid_zero": [
+        1482.800048828125,
+        2539.0
+      ],
+      "grid_size": [
+        1200.0,
+        1200.0
+      ],
+      "grid_steps": [
+        170.0,
+        170.0
+      ]
+    },
+    "_Conq4": {
+      "mode": "Conquest #4",
+      "map_min": [
+        1024.0,
+        1024.0
+      ],
+      "map_max": [
+        3072.0,
+        3072.0
+      ],
+      "grid_zero": [
+        1482.800048828125,
+        2539.0
+      ],
+      "grid_size": [
+        1200.0,
+        1200.0
+      ],
+      "grid_steps": [
+        170.0,
+        170.0
+      ]
+    }
+  }
+}
