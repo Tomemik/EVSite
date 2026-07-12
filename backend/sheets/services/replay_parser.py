@@ -214,74 +214,74 @@ def parse_merged_replays(file_paths, return_dict, start_time_str="0:00"):
                                 except Exception:
                                     pass
 
-            for msg in state.battle_messages:
-                msg_type = type(msg).__name__
+                for msg in state.battle_messages:
+                    msg_type = type(msg).__name__
 
-                if msg_type == "KillMessage":
-                    offender_name = resolve_name(msg.offender_pid, msg.offender_unit, pid_map, unit_map)
-                    victim_pid = getattr(msg, 'VictimPid', -1)
-                    victim_name = pid_map.get(victim_pid) or resolve_name(victim_pid, msg.offended_unit, pid_map,
-                                                                          unit_map)
+                    if msg_type == "KillMessage":
+                        offender_name = resolve_name(msg.offender_pid, msg.offender_unit, pid_map, unit_map)
+                        victim_pid = getattr(msg, 'VictimPid', -1)
+                        victim_name = pid_map.get(victim_pid) or resolve_name(victim_pid, msg.offended_unit, pid_map,
+                                                                              unit_map)
 
-                    kill_time_s = msg.time_ms / 1000.0
+                        kill_time_s = msg.time_ms / 1000.0
 
-                    # Proximity Deduplication: Prevent duplicate kills across rigid boundaries
-                    is_dup = False
-                    for existing_kill in master_kills.values():
-                        if existing_kill["attacker"] == offender_name and existing_kill["victim"] == victim_name:
-                            # If the same attacker kills the same victim within 15 seconds,
-                            # it is guaranteed to be a latency offset of the same event.
-                            if abs(existing_kill["time"] - kill_time_s) <= 15.0:
-                                is_dup = True
-                                break
+                        # Proximity Deduplication: Prevent duplicate kills across rigid boundaries
+                        is_dup = False
+                        for existing_kill in master_kills.values():
+                            if existing_kill["attacker"] == offender_name and existing_kill["victim"] == victim_name:
+                                # If the same attacker kills the same victim within 15 seconds,
+                                # it is guaranteed to be a latency offset of the same event.
+                                if abs(existing_kill["time"] - kill_time_s) <= 15.0:
+                                    is_dup = True
+                                    break
 
-                    if not is_dup:
-                        # Use exact time in the key to ensure uniqueness if not a duplicate
-                        kill_key = f"{msg.time_ms}_{offender_name}_{victim_name}"
-                        master_kills[kill_key] = {
-                            "time": kill_time_s,
-                            "attacker": offender_name,
-                            "attacker_veh": getattr(msg, 'offender_vehicle', 'unknown').split('/')[-1],
-                            "weapon": msg.used_weapon or getattr(msg, 'destroyed_weapon', '?'),
-                            "victim": victim_name,
-                            "victim_veh": getattr(msg.offended_unit, 'unit_name', '?')
-                        }
+                        if not is_dup:
+                            # Use exact time in the key to ensure uniqueness if not a duplicate
+                            kill_key = f"{msg.time_ms}_{offender_name}_{victim_name}"
+                            master_kills[kill_key] = {
+                                "time": kill_time_s,
+                                "attacker": offender_name,
+                                "attacker_veh": getattr(msg, 'offender_vehicle', 'unknown').split('/')[-1],
+                                "weapon": msg.used_weapon or getattr(msg, 'destroyed_weapon', '?'),
+                                "victim": victim_name,
+                                "victim_veh": getattr(msg.offended_unit, 'unit_name', '?')
+                            }
 
-                elif msg_type == "CriticalDamageMessage":
-                    # 1. Resolve Attacker (using player_pid and the offender_unit object)
-                    offender_name = resolve_name(msg.player_pid, msg.offender_unit, pid_map, unit_map)
+                    elif msg_type == "CriticalDamageMessage":
+                        # 1. Resolve Attacker (using player_pid and the offender_unit object)
+                        offender_name = resolve_name(msg.player_pid, msg.offender_unit, pid_map, unit_map)
 
-                    # 2. Resolve Victim (using the offended_unit object directly, no PID available)
-                    victim_name = resolve_name(None, msg.offended_unit, pid_map, unit_map)
+                        # 2. Resolve Victim (using the offended_unit object directly, no PID available)
+                        victim_name = resolve_name(None, msg.offended_unit, pid_map, unit_map)
 
-                    # 4. Extract Victim Vehicle Name
-                    victim_veh = getattr(msg.offended_unit, 'unit_name', '?')
-                    victim_veh = getattr(victim_veh, 'data', victim_veh)
-                    if isinstance(victim_veh, str):
-                        victim_veh = victim_veh.split('/')[-1]
+                        # 4. Extract Victim Vehicle Name
+                        victim_veh = getattr(msg.offended_unit, 'unit_name', '?')
+                        victim_veh = getattr(victim_veh, 'data', victim_veh)
+                        if isinstance(victim_veh, str):
+                            victim_veh = victim_veh.split('/')[-1]
 
-                    crit_time_s = msg.time_ms / 1000.0
-                    is_fire = bool(getattr(msg, 'is_fire', False))
+                        crit_time_s = msg.time_ms / 1000.0
+                        is_fire = bool(getattr(msg, 'is_fire', False))
 
-                    # Proximity Deduplication for crits (smaller 5-second window)
-                    is_dup = False
-                    for existing_crit in master_crits.values():
-                        if existing_crit["attacker"] == offender_name and existing_crit["victim"] == victim_name:
-                            if abs(existing_crit["time"] - crit_time_s) <= 5.0 and existing_crit[
-                                "is_fire"] == is_fire:
-                                is_dup = True
-                                break
+                        # Proximity Deduplication for crits (smaller 5-second window)
+                        is_dup = False
+                        for existing_crit in master_crits.values():
+                            if existing_crit["attacker"] == offender_name and existing_crit["victim"] == victim_name:
+                                if abs(existing_crit["time"] - crit_time_s) <= 5.0 and existing_crit[
+                                    "is_fire"] == is_fire:
+                                    is_dup = True
+                                    break
 
-                    if not is_dup:
-                        crit_key = f"{msg.time_ms}_{offender_name}_{victim_name}"
-                        master_crits[crit_key] = {
-                            "time": crit_time_s,
-                            "attacker": offender_name,
-                            "victim": victim_name,
-                            "attacker_veh": msg.vehicle,
-                            "victim_veh": victim_veh,
-                            "is_fire": is_fire,
-                        }
+                        if not is_dup:
+                            crit_key = f"{msg.time_ms}_{offender_name}_{victim_name}"
+                            master_crits[crit_key] = {
+                                "time": crit_time_s,
+                                "attacker": offender_name,
+                                "victim": victim_name,
+                                "attacker_veh": msg.vehicle,
+                                "victim_veh": victim_veh,
+                                "is_fire": is_fire,
+                            }
 
                 if hasattr(state, 'chat_messages'):
                     for chat in state.chat_messages:
