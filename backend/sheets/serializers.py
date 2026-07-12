@@ -544,6 +544,8 @@ class MatchCritSerializer(serializers.ModelSerializer):
 class MatchRoundSerializer(serializers.ModelSerializer):
     kills = MatchKillSerializer(many=True, read_only=True)
     crits = MatchCritSerializer(many=True, read_only=True)
+    replay_files = serializers.SerializerMethodField()
+
 
     class Meta:
         model = MatchRound
@@ -551,7 +553,14 @@ class MatchRoundSerializer(serializers.ModelSerializer):
             'id', 'round_number', 'map_name', 'map_details', 'team_rosters', 'player_spawns',
             'telemetry_data', 'kills', 'crits', 'is_verified',
             'winning_team', 'win_reason', 'start_time_s', 'end_time_s',
-            'capture_zones', 'map_areas', 'chat_log'
+            'capture_zones', 'map_areas', 'chat_log', 'replay_files',
+        ]
+
+    def get_replay_files(self, obj):
+        request = self.context.get('request')
+        return [
+            request.build_absolute_uri(rf.file.url) if request else rf.file.url
+            for rf in obj.replay_files.all() if rf.file
         ]
 
 

@@ -1,6 +1,4 @@
 {
-  "map_name": "European Province",
-  "texture": "avg_eastern_europe_tankmap.png",
   "variants": {
     "_Dom": {
       "mode": "Domination",
@@ -13,8 +11,8 @@
         4096.0
       ],
       "grid_zero": [
-        279.8199462890625,
-        3463.89013671875
+        279.8,
+        3463.9
       ],
       "grid_size": [
         3300.0,
@@ -36,7 +34,7 @@
         4096.0
       ],
       "grid_zero": [
-        0.0,
+        0,
         4096.0
       ],
       "grid_size": [
@@ -46,29 +44,6 @@
       "grid_steps": [
         550.0,
         550.0
-      ]
-    },
-    "_Conq3": {
-      "mode": "Conquest #3",
-      "map_min": [
-        0.0,
-        0.0
-      ],
-      "map_max": [
-        4096.0,
-        4096.0
-      ],
-      "grid_zero": [
-        764.2900390625,
-        3367.60009765625
-      ],
-      "grid_size": [
-        2900.0,
-        2900.0
-      ],
-      "grid_steps": [
-        400.0,
-        400.0
       ]
     },
     "_Conq2": {
@@ -82,8 +57,8 @@
         4096.0
       ],
       "grid_zero": [
-        582.75,
-        3653.10009765625
+        582.7,
+        3653.1
       ],
       "grid_size": [
         3300.0,
@@ -94,8 +69,8 @@
         450.0
       ]
     },
-    "_Conq4": {
-      "mode": "Conquest #4",
+    "_Conq3": {
+      "mode": "Conquest #3",
       "map_min": [
         0.0,
         0.0
@@ -105,17 +80,19 @@
         4096.0
       ],
       "grid_zero": [
-        279.8199462890625,
-        3463.89013671875
+        764.3,
+        3367.6
       ],
       "grid_size": [
-        3300.0,
-        3300.0
+        2900.0,
+        2900.0
       ],
       "grid_steps": [
-        450.0,
-        450.0
+        400.0,
+        400.0
       ]
     }
-  }
+  },
+  "map_name": "Eastern Europe",
+  "texture": "avg_eastern_europe_tankmap.png"
 }

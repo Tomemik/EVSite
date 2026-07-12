@@ -1077,7 +1077,7 @@ def sanitize_filename(name):
 class UploadReplayRoundView(APIView):
     def post(self, request, pk):
         user = request.user
-        if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.judge_permissions')]):
+        if not any([user.has_perm('user.admin_permissions'), user.has_perm('user.judge_permissions'), user.has_perm('user.commander_permissions')]):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         round_number = request.data.get('round_number')
@@ -1090,6 +1090,15 @@ class UploadReplayRoundView(APIView):
 
         match = get_object_or_404(Match, id=pk)
         match_round, created = MatchRound.objects.get_or_create(match=match, round_number=int(round_number))
+
+        if not created:
+            match_round.replay_files.all().delete()
+            match_round.telemetry_data = {}
+            match_round.player_spawns = {}
+            match_round.team_rosters = {}
+            match_round.kills.all().delete()
+            match_round.crits.all().delete()
+            match_round.save()
 
         try:
             parts = str(start_time_str).split(':')
@@ -1200,6 +1209,12 @@ class UploadReplayRoundView(APIView):
             # Swap the raw_level_name to target the correct JSON
             raw_level_name = map_aliases.get(raw_level_name, f"{raw_level_name}_01")
 
+        print(raw_level_name, flush=True)
+        print(loc_name, flush=True)
+
+        if "european_province" in loc_name:
+            raw_level_name = 'avg_eastern_europe_01'
+
         map_details = {
             "internal_name": raw_level_name,
             "postfix": postfix,
@@ -1229,28 +1244,69 @@ class UploadReplayRoundView(APIView):
         match_round.map_name = human_map_name
         match_round.map_details = map_details
 
-        current_rosters = match_round.team_rosters
-
         # 1. Map who actually spawned a valid vehicle
         spawned_players = set()
         for p_name, vehicles in data.get("spawns", {}).items():
             if p_name.lower() != "unknown" and vehicles:
-                if vehicles[-1].lower() != "unknown":
+                # Check if ANY spawned vehicle is not unknown
+                if any(v.lower() != "unknown" for v in vehicles):
                     spawned_players.add(p_name)
 
-        # 2. Filter Rosters: Only append if they actually spawned
-        for team_id, players in data.get("teams", {}).items():
-            if str(team_id) not in current_rosters:
-                current_rosters[str(team_id)] = []
-            for p in players:
-                if p in spawned_players and p not in current_rosters[str(team_id)]:
-                    current_rosters[str(team_id)].append(p)
+        # --- FIX: DYNAMIC TEAM ALIGNMENT SCORING ---
+        parser_team_1_players = data.get("teams", {}).get("1", [])
+        parser_team_2_players = data.get("teams", {}).get("2", [])
+
+        score_1_as_site_1 = 0
+        score_1_as_site_2 = 0
+
+        # Calculate overlap by checking ALL their spawns against the allowed rosters
+        for p in parser_team_1_players:
+            for v_name in data.get("spawns", {}).get(p, []):
+                possible_tanks = internal_id_to_tanks.get(v_name, [v_name])
+                if any(v in team_1_allowed for v in possible_tanks):
+                    score_1_as_site_1 += 1
+                    break  # Stop checking this player once we find a valid tank
+                if any(v in team_2_allowed for v in possible_tanks):
+                    score_1_as_site_2 += 1
+                    break
+
+        for p in parser_team_2_players:
+            for v_name in data.get("spawns", {}).get(p, []):
+                possible_tanks = internal_id_to_tanks.get(v_name, [v_name])
+                if any(v in team_2_allowed for v in possible_tanks):
+                    score_1_as_site_1 += 1
+                    break
+                if any(v in team_1_allowed for v in possible_tanks):
+                    score_1_as_site_2 += 1
+                    break
+
+        # Swap if the parser got them backwards relative to the database
+        if score_1_as_site_2 > score_1_as_site_1:
+            parser_team_1_players, parser_team_2_players = parser_team_2_players, parser_team_1_players
+
+        # Now update rosters with the ALIGNED teams
+        current_rosters = match_round.team_rosters
+
+        if "team_1" not in current_rosters: current_rosters["team_1"] = []
+        if "team_2" not in current_rosters: current_rosters["team_2"] = []
+
+        for p in parser_team_1_players:
+            if p in spawned_players and p not in current_rosters["team_1"]:
+                current_rosters["team_1"].append(p)
+
+        for p in parser_team_2_players:
+            if p in spawned_players and p not in current_rosters["team_2"]:
+                current_rosters["team_2"].append(p)
+
+        # Clear legacy dictionary keys if they exist
+        current_rosters.pop("1", None)
+        current_rosters.pop("2", None)
 
         match_round.team_rosters = current_rosters
 
         formatted_spawns = {"team_1": [], "team_2": []}
-        team_1_roster = current_rosters.get("1", []) + current_rosters.get("team_1", [])
-        team_2_roster = current_rosters.get("2", []) + current_rosters.get("team_2", [])
+        team_1_roster = current_rosters["team_1"]
+        team_2_roster = current_rosters["team_2"]
 
         # --- PROCESS SPAWNS WITH RESOLVER ---
         player_to_resolved_veh = {}
@@ -1260,19 +1316,28 @@ class UploadReplayRoundView(APIView):
             if p_name not in spawned_players:
                 continue
 
-            v_name = vehicles[-1]
-
-            # Determine side and resolve vehicle
             if p_name in team_2_roster:
-                resolved_veh = resolve_vehicle(v_name, team_2_allowed)
-                formatted_spawns["team_2"].append({"player": p_name, "vehicle": resolved_veh})
                 side = 'team_2'
+                allowed_names = team_2_allowed
             else:
-                resolved_veh = resolve_vehicle(v_name, team_1_allowed)
-                formatted_spawns["team_1"].append({"player": p_name, "vehicle": resolved_veh})
                 side = 'team_1'
+                allowed_names = team_1_allowed
 
-            # Clean name for robust dictionary matching (lowercase & stripped)
+            resolved_veh = None
+
+            # Find the actual valid tournament tank among their spawns, ignoring planes
+            for v_name in vehicles:
+                potential_veh = resolve_vehicle(v_name, allowed_names)
+                if potential_veh in allowed_names:
+                    resolved_veh = potential_veh
+                    break
+
+            # Fallback if no valid tank was found at all (e.g. spectator, bugged spawn)
+            if not resolved_veh:
+                resolved_veh = resolve_vehicle(vehicles[-1], allowed_names)
+
+            formatted_spawns[side].append({"player": p_name, "vehicle": resolved_veh})
+
             clean_name = p_name.strip().lower()
             player_to_resolved_veh[clean_name] = resolved_veh
             player_to_side[clean_name] = side
@@ -1352,74 +1417,75 @@ class UploadReplayRoundView(APIView):
         resolved_crits = []
         crit_data = data.get("crits", [])
 
-        # If your worker returns a dict (instead of a list), use .values()
         if isinstance(crit_data, dict):
             crit_data = crit_data.values()
 
         for c in crit_data:
-            # Now 'c' is the dictionary containing "attacker", "victim", etc.
-            raw_atk = c.get("attacker")
-            raw_vic = c.get("victim")
+            raw_atk = c.get("attacker", "")
+            raw_vic = c.get("victim", "")
 
-            # Guard for ghost entities
-            if not raw_atk or not raw_vic or raw_atk.lower() == "unknown" or raw_vic.lower() == "unknown":
+            if not raw_vic or raw_vic.lower() == "unknown":
                 continue
 
-            # Fuzzy match side
-            atk_side = fuzzy_lookup(player_to_side, raw_atk, 'team_1')
+            is_env = "pid" in raw_atk.lower() or raw_atk.lower() == "unknown" or not raw_atk
+
+            if is_env:
+                raw_atk = "Environment"
+                final_atk_veh = ""
+            else:
+                atk_side = fuzzy_lookup(player_to_side, raw_atk, 'team_1')
+                atk_allowed = team_1_allowed if atk_side == 'team_1' else team_2_allowed
+                fallback_atk = resolve_vehicle(c.get("attacker_veh", ""), atk_allowed)
+                final_atk_veh = fuzzy_lookup(player_to_resolved_veh, raw_atk, fallback_atk)
+
             vic_side = fuzzy_lookup(player_to_side, raw_vic, 'team_2')
-
-            atk_allowed = team_1_allowed if atk_side == 'team_1' else team_2_allowed
             vic_allowed = team_1_allowed if vic_side == 'team_1' else team_2_allowed
-
-            # Resolve Vehicles
-            fallback_atk = resolve_vehicle(c["attacker_veh"], atk_allowed)
-            fallback_vic = resolve_vehicle(c["victim_veh"], vic_allowed)
-
-            final_atk_veh = fuzzy_lookup(player_to_resolved_veh, raw_atk, fallback_atk)
+            fallback_vic = resolve_vehicle(c.get("victim_veh", ""), vic_allowed)
             final_vic_veh = fuzzy_lookup(player_to_resolved_veh, raw_vic, fallback_vic)
 
             resolved_crits.append(MatchCrit(
                 match_round=match_round,
-                time_s=c["time"],
+                time_s=c.get("time", 0),
                 attacker=raw_atk,
                 attacker_veh=final_atk_veh,
                 victim=raw_vic,
                 victim_veh=final_vic_veh,
-                is_fire=c["is_fire"],
+                is_fire=c.get("is_fire", False),
             ))
 
         MatchCrit.objects.bulk_create(resolved_crits, ignore_conflicts=True)
 
+        # --- PROCESS KILLS WITH FUZZY RESOLVER ---
         resolved_kills = []
         for k in data.get("kills", []):
-            raw_atk = k["attacker"]
-            raw_vic = k["victim"]
+            raw_atk = k.get("attacker", "")
+            raw_vic = k.get("victim", "")
 
-            # Guard to drop bugged ghost entity kills
-            if raw_atk.lower() == "unknown" or raw_vic.lower() == "unknown":
+            if not raw_vic or raw_vic.lower() == "unknown":
                 continue
 
-            # Fuzzy match side
-            atk_side = fuzzy_lookup(player_to_side, raw_atk, 'team_1')
+            is_env = "pid" in raw_atk.lower() or raw_atk.lower() == "unknown" or not raw_atk
+
+            if is_env:
+                raw_atk = "Environment"
+                final_atk_veh = ""
+            else:
+                atk_side = fuzzy_lookup(player_to_side, raw_atk, 'team_1')
+                atk_allowed = team_1_allowed if atk_side == 'team_1' else team_2_allowed
+                fallback_atk = resolve_vehicle(k.get("attacker_veh", ""), atk_allowed)
+                final_atk_veh = fuzzy_lookup(player_to_resolved_veh, raw_atk, fallback_atk)
+
             vic_side = fuzzy_lookup(player_to_side, raw_vic, 'team_2')
-
-            atk_allowed = team_1_allowed if atk_side == 'team_1' else team_2_allowed
             vic_allowed = team_1_allowed if vic_side == 'team_1' else team_2_allowed
-
-            # Fuzzy match EXACT resolved spawn vehicle
-            fallback_atk = resolve_vehicle(k["attacker_veh"], atk_allowed)
-            fallback_vic = resolve_vehicle(k["victim_veh"], vic_allowed)
-
-            final_atk_veh = fuzzy_lookup(player_to_resolved_veh, raw_atk, fallback_atk)
+            fallback_vic = resolve_vehicle(k.get("victim_veh", ""), vic_allowed)
             final_vic_veh = fuzzy_lookup(player_to_resolved_veh, raw_vic, fallback_vic)
 
             resolved_kills.append(MatchKill(
                 match_round=match_round,
-                time_s=k["time"],
+                time_s=k.get("time", 0),
                 attacker=raw_atk,
                 attacker_veh=final_atk_veh,
-                weapon=k["weapon"],
+                weapon=k.get("weapon", ""),
                 victim=raw_vic,
                 victim_veh=final_vic_veh
             ))
@@ -1540,15 +1606,33 @@ class ParseTemporaryReplayView(APIView):
             postfix = data.get("map_context", {}).get("postfix", "")
             loc_name = data.get("map_context", {}).get("loc_name", "")
 
+            # --- MAP VARIANT ALIASING ---
+            # Intercept _02 locNames and remap the internal .bin name to the correct JSON file
             if "_02" in loc_name:
                 map_aliases = {
                     "avg_egypt_sinai": "avg_sands_of_sinai",
                     "avg_poland": "avg_fields_of_poland",
+                    "avg_poland_snow": "avg_fields_of_poland_snow",
                     "avg_normandy": "avg_fields_of_normandy",
                     "avg_eastern_europe": "avg_european_province",
-                    "avg_volokolamsk": "avg_surroundings_of_volokolamsk"
+                    "avg_volokolamsk": "avg_surroundings_of_volokolamsk",
+                    "avg_arctic": "avg_arctic_02"
                 }
+                # Swap the raw_level_name to target the correct JSON
                 raw_level_name = map_aliases.get(raw_level_name, f"{raw_level_name}_02")
+
+            if "_01" in loc_name:
+                map_aliases = {
+                    "avg_arctic": "avg_arctic_01"
+                }
+                # Swap the raw_level_name to target the correct JSON
+                raw_level_name = map_aliases.get(raw_level_name, f"{raw_level_name}_01")
+
+            print(raw_level_name, flush=True)
+            print(loc_name, flush=True)
+
+            if "european_province" in loc_name:
+                raw_level_name = 'avg_european_province'
 
             map_details = {
                 "internal_name": raw_level_name,
@@ -1642,16 +1726,22 @@ class ParseTemporaryReplayView(APIView):
             # --- 8. PROCESS KILLS & CRITS ---
             kills = []
             for k in data.get("kills", []):
-                raw_atk = k["attacker"]
-                raw_vic = k["victim"]
+                raw_atk = k.get("attacker", "")
+                raw_vic = k.get("victim", "")
 
-                if raw_atk.lower() == "unknown" or raw_vic.lower() == "unknown":
+                if not raw_vic or raw_vic.lower() == "unknown":
                     continue
 
-                fallback_atk = resolve_vehicle(k.get("attacker_veh", ""))
-                fallback_vic = resolve_vehicle(k.get("victim_veh", ""))
+                is_env = "pid" in raw_atk.lower() or raw_atk.lower() == "unknown" or not raw_atk
 
-                final_atk_veh = fuzzy_lookup(player_to_resolved_veh, raw_atk, fallback_atk)
+                if is_env:
+                    raw_atk = "Environment"
+                    final_atk_veh = ""
+                else:
+                    fallback_atk = resolve_vehicle(k.get("attacker_veh", ""))
+                    final_atk_veh = fuzzy_lookup(player_to_resolved_veh, raw_atk, fallback_atk)
+
+                fallback_vic = resolve_vehicle(k.get("victim_veh", ""))
                 final_vic_veh = fuzzy_lookup(player_to_resolved_veh, raw_vic, fallback_vic)
 
                 kills.append({
@@ -1659,8 +1749,8 @@ class ParseTemporaryReplayView(APIView):
                     "attacker_veh": final_atk_veh,
                     "victim": raw_vic,
                     "victim_veh": final_vic_veh,
-                    "weapon": k.get("weapon", "Unknown"),
-                    "time_s": k["time"]
+                    "weapon": k.get("weapon", ""),
+                    "time_s": k.get("time", 0)
                 })
 
             crits = []
@@ -1672,13 +1762,19 @@ class ParseTemporaryReplayView(APIView):
                 raw_atk = c.get("attacker", "")
                 raw_vic = c.get("victim", "")
 
-                if not raw_atk or not raw_vic or raw_atk.lower() == "unknown" or raw_vic.lower() == "unknown":
+                if not raw_vic or raw_vic.lower() == "unknown":
                     continue
 
-                fallback_atk = resolve_vehicle(c.get("attacker_veh", ""))
-                fallback_vic = resolve_vehicle(c.get("victim_veh", ""))
+                is_env = "pid" in raw_atk.lower() or raw_atk.lower() == "unknown" or not raw_atk
 
-                final_atk_veh = fuzzy_lookup(player_to_resolved_veh, raw_atk, fallback_atk)
+                if is_env:
+                    raw_atk = "Environment"
+                    final_atk_veh = ""
+                else:
+                    fallback_atk = resolve_vehicle(c.get("attacker_veh", ""))
+                    final_atk_veh = fuzzy_lookup(player_to_resolved_veh, raw_atk, fallback_atk)
+
+                fallback_vic = resolve_vehicle(c.get("victim_veh", ""))
                 final_vic_veh = fuzzy_lookup(player_to_resolved_veh, raw_vic, fallback_vic)
 
                 crits.append({
@@ -1687,7 +1783,7 @@ class ParseTemporaryReplayView(APIView):
                     "victim": raw_vic,
                     "victim_veh": final_vic_veh,
                     "is_fire": c.get("is_fire", False),
-                    "time_s": c["time"]
+                    "time_s": c.get("time", 0)
                 })
 
             # --- 9. CALCULATE TIMELINE ENDPOINTS ---
@@ -1726,37 +1822,49 @@ class ParseTemporaryReplayView(APIView):
             }, status=status.HTTP_200_OK)
 
 
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from django.core.cache import cache
-
-
+import hashlib
 class ComprehensiveStatsView(APIView):
     def get(self, request):
-        # Pagination & Query Params
         tab = request.query_params.get('tab', 'vehicles')
         page = int(request.query_params.get('page', 1))
         limit = int(request.query_params.get('itemsPerPage', 25))
         search = request.query_params.get('search', '').lower()
 
-        # Sorting Params
         sort_key = request.query_params.get('sortBy', None)
         sort_order = request.query_params.get('sortOrder', 'asc')
 
-        # Drill-down Dialog Params
-        filter_players = request.query_params.get('players', None)
+        # Dialog Params
+        filter_players_str = request.query_params.get('players', None)
         filter_vehicle = request.query_params.get('vehicle', None)
 
-        # 1. Fetch or Generate Raw Data (Cached)
-        cache_key = "stats_comprehensive_raw_v1"
+        # Advanced Match Context Filters
+        min_br = request.query_params.get('min_br', None)
+        max_br = request.query_params.get('max_br', None)
+        tank_type = request.query_params.get('type', None)
+        tank_rank = request.query_params.get('rank', None)
+        team = request.query_params.get('team', None)
+        tier_context = request.query_params.get('tier_context', None)
+
+        # Unique Cache key factoring in all filter variations
+        params_str = f"{filter_players_str}_{filter_vehicle}_{min_br}_{max_br}_{tank_type}_{tank_rank}_{team}_{tier_context}"
+        cache_key = f"stats_v4_{hashlib.md5(params_str.encode()).hexdigest()}"
+
         stats_data = cache.get(cache_key)
 
         if not stats_data:
+            filter_players = filter_players_str.split(',') if filter_players_str else None
             service = StatsService()
-            stats_data = service.get_filtered_stats()
+            stats_data = service.get_filtered_stats(
+                filter_players=filter_players,
+                filter_vehicle=filter_vehicle,
+                filter_team=team,
+                filter_tier_context=tier_context,
+                min_br=min_br, max_br=max_br,
+                tank_type=tank_type, tank_rank=tank_rank
+            )
             cache.set(cache_key, stats_data, timeout=300)
 
-        # 2. Select the targeted dataset and convert dict to list
         dataset = stats_data.get(tab, {})
 
         if tab == 'combos':
@@ -1764,21 +1872,7 @@ class ComprehensiveStatsView(APIView):
         else:
             items = [{'name': k, **v} for k, v in dataset.items()]
 
-        # 3. Apply Drill-down Filters (Used by the Vehicle Dialog)
-        if filter_players:
-            player_list = filter_players.split(',')
-            if tab == 'combos':
-                items = [i for i in items if i.get('player') in player_list]
-            else:
-                items = [i for i in items if i.get('name') in player_list]
-
-        if filter_vehicle:
-            if tab == 'combos':
-                items = [i for i in items if i.get('vehicle') == filter_vehicle]
-            else:
-                items = [i for i in items if i.get('name') == filter_vehicle]
-
-        # 4. Apply Global Search
+        # Global Search
         if search:
             items = [
                 item for item in items
@@ -1787,7 +1881,7 @@ class ComprehensiveStatsView(APIView):
                    or search in str(item.get('vehicle', '')).lower()
             ]
 
-        # 5. Apply Sorting
+        # Sorting
         if sort_key:
             reverse = (sort_order == 'desc')
             items.sort(
@@ -1795,9 +1889,9 @@ class ComprehensiveStatsView(APIView):
                 reverse=reverse
             )
 
-        # 6. Apply Pagination
+        # Pagination
         total_items = len(items)
-        if limit > 0:  # -1 is passed when we want to fetch "All" for the dialog
+        if limit > 0:
             start = (page - 1) * limit
             end = start + limit
             paginated_items = items[start:end]

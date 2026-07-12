@@ -63,7 +63,16 @@
           ></v-select>
         </v-col>
 
-        <v-col cols="12" md="1" class="d-flex justify-end">
+        <v-col cols="12" md="1" class="d-flex justify-end align-center">
+          <v-btn
+            v-if="telemetryData?.replay_files?.length > 0"
+            icon="mdi-download"
+            variant="tonal"
+            color="info"
+            class="mr-2"
+            @click="downloadReplays"
+            v-tooltip="'Download Replays'"
+          ></v-btn>
           <v-btn icon="mdi-refresh" variant="tonal" color="primary" @click="resetViewport" v-tooltip="'Reset View'"></v-btn>
         </v-col>
       </v-row>
@@ -332,7 +341,7 @@ const tooltip = ref({ show: false, x: 0, y: 0, matches: [] });
 
 const sidebarTab = ref('camping');
 const campingRadius = ref(200);
-const campingTimeThreshold = ref(120);
+const campingTimeThreshold = ref(90);
 const campingGracePeriod = ref(300);
 
 const selectedJudges = ref([]);
@@ -425,6 +434,19 @@ const handleMouseMove = (e) => {
 
 const endDrag = () => { isDragging.value = false; };
 
+const downloadReplays = () => {
+  if (!telemetryData.value?.replay_files) return;
+
+  telemetryData.value.replay_files.forEach(fileUrl => {
+    const a = document.createElement('a');
+    a.href = fileUrl;
+    a.download = fileUrl.split('/').pop() || 'replay.wrpl';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+};
+
 const availablePlayers = computed(() => {
   if (!telemetryData.value?.telemetry_data) return [];
   return Object.keys(telemetryData.value.telemetry_data);
@@ -508,7 +530,7 @@ watch(() => props.telemetryData, (data) => {
 
   matchStartTime.value = data.start_time_s || 0;
   minTimelineTime.value = 0;
-  maxTimelineTime.value = data.end_time_s || 1200;
+  maxTimelineTime.value = data.end_time_s || 1800;
   currentScrubTime.value = 0;
   campingGracePeriod.value = matchStartTime.value
 

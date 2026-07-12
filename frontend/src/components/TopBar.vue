@@ -92,6 +92,7 @@ const barItemsLoggedIn = ref([
 ]);
 
 const drawerItems = ref([
+  { title: 'Home', path: '/home' },
   { title: 'Teams', path: '/teams' },
   { title: 'Team Tanks', path: '/teamtanks'},
   { title: 'Alliances', path: '/alliances' },

@@ -37,10 +37,10 @@
                     size="small"
                     color="success"
                     variant="elevated"
-                    prepend-icon="mdi-arrow-right"
+                    :prepend-icon="verifiedRoundsCount >= totalRounds ? 'mdi-clipboard-text-outline' : 'mdi-arrow-right'"
                     @click="startUploading"
                   >
-                    Continue to Round {{ verifiedRoundsCount + 1 }}
+                    {{ verifiedRoundsCount >= totalRounds ? 'Proceed to Results' : `Continue to Round ${verifiedRoundsCount + 1}` }}
                   </v-btn>
                 </div>
               </div>
@@ -706,7 +706,6 @@
 
         <template v-if="userStore.groups.some(i => ['commander', 'judge', 'admin'].includes(i.name))">
           <v-btn
-            v-if="calcOverride"
             color="warning"
             variant="tonal"
             prepend-icon="mdi-undo"
@@ -893,7 +892,10 @@ watch(() => props.showResultsDialog, async (newValue) => {
   localShowResultsDialog.value = newValue;
   if (newValue) {
     currentPhase.value = 'SETUP';
-    totalRounds.value = 3;
+
+    // FIX: Default to the match's defined Bo3 or Bo5 format
+    totalRounds.value = props.detailedMatch?.best_of_number || 3;
+
     replayFiles.value = [];
     startTime.value = '5:00';
     pendingKills.value = [];
@@ -926,6 +928,11 @@ const fetchExistingRounds = async () => {
       existingRoundsList.value = rounds;
       const verified = rounds.filter(r => r.is_verified);
       verifiedRoundsCount.value = verified.length;
+
+      if (rounds.length > 0) {
+        totalRounds.value = rounds.length;
+      }
+
     } else {
       console.warn("Failed to fetch rounds:", await res.text());
       verifiedRoundsCount.value = 0;
@@ -937,7 +944,6 @@ const fetchExistingRounds = async () => {
     existingRoundsList.value = [];
   }
 };
-
 const reviewExistingRound = (roundData) => {
   currentRound.value = roundData.round_number;
   currentMapName.value = roundData.map_name || 'Unknown Map';

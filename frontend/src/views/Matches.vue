@@ -446,12 +446,18 @@ const handleRevertCalc = async (id) => {
           'Authorization': getAuthToken(),
         },
       });
-      if (!response.ok) throw new Error('Failed to update match details');
-      successMsg.value = 'Match successfully calculated. Check out the log to see the results.'
-      showSuccessDialog.value = true
-      calcOverride.value = true
+
+      if (!response.ok) throw new Error('Failed to revert match calculation');
+
+      // Fix: Updated the message to reflect the revert action
+      successMsg.value = 'Match calculation successfully reverted.';
+      showSuccessDialog.value = true;
+      calcOverride.value = true;
+
   } catch (error) {
-    console.error('Match is not calced', error);
+    console.error('Error reverting calc:', error);
+    // Added the alert for error handling
+    alert('Failed to revert calculation. Please check the console for details.');
   }
 }
 

@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.db.models import Count, Q, F, ExpressionWrapper, When, Case, Value, FloatField
 from django.db.models.functions import Coalesce
+from django.utils.html import format_html
 
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, default_upgrade_kits, \
     MatchResult, Substitute, TankLost, TeamResult, TeamLog, TankBox, TeamBox, ImportTank, ImportCriteria, Booster, \
@@ -221,6 +222,16 @@ class ReplayFileInline(admin.TabularInline):
     readonly_fields = ('uploaded_at',)
 
 
+@admin.register(ReplayFile)
+class ReplayFileAdmin(admin.ModelAdmin):
+    list_display = ('id', 'match_round', 'download_link', 'uploaded_at')
+
+    def download_link(self, obj):
+        if obj.file:
+            return format_html('<a href="{}" download>Download .wrpl</a>', obj.file.url)
+        return "-"
+
+
 class MatchKillInline(admin.TabularInline):
     model = MatchKill
     extra = 0
@@ -275,4 +286,3 @@ admin.site.register(MatchRewardRates, MatchRewardRateAdmin)
 
 admin.site.register(MatchRound, MatchRoundAdmin)
 admin.site.register(MatchKill, MatchKillAdmin)
-admin.site.register(ReplayFile)

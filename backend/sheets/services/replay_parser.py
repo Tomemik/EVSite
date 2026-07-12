@@ -3,6 +3,7 @@ import sys
 import os
 import math
 from pathlib import Path
+import statistics
 
 # =========================================================
 #                    CONFIGURATION
@@ -125,7 +126,7 @@ def parse_merged_replays(file_paths, return_dict, start_time_str="0:00"):
         master_zones = []
         map_context = {"level_name": "unknown", "postfix": ""}
 
-        for file_path in file_paths:
+        for file_idx, file_path in enumerate(file_paths):
             try:
                 PyReplayParser.initialize(
                     VromfsPath=wt_directory,
@@ -184,6 +185,9 @@ def parse_merged_replays(file_paths, return_dict, start_time_str="0:00"):
                         if positions:
                             if unit_name not in master_movement[name]:
                                 master_movement[name][unit_name] = {}
+                            # Keep track of WHICH file recorded this movement
+                            if file_idx not in master_movement[name][unit_name]:
+                                master_movement[name][unit_name][file_idx] = {}
 
                             for p in positions:
                                 try:
@@ -205,28 +209,37 @@ def parse_merged_replays(file_paths, return_dict, start_time_str="0:00"):
                                             x, z = float(parts[0]), float(parts[2])
 
                                     if x is not None and z is not None:
-                                        master_movement[name][unit_name][bucket] = (time_ms, x, z)
+                                        # Save the data under the specific file index
+                                        master_movement[name][unit_name][file_idx][bucket] = (time_ms, x, z)
                                 except Exception:
                                     pass
 
-                for msg in state.battle_messages:
-                    msg_type = type(msg).__name__
+            for msg in state.battle_messages:
+                msg_type = type(msg).__name__
 
-                    # Calculate bucket once
-                    bucket = msg.time_ms // TIME_BUCKET_MS
+                if msg_type == "KillMessage":
+                    offender_name = resolve_name(msg.offender_pid, msg.offender_unit, pid_map, unit_map)
+                    victim_pid = getattr(msg, 'VictimPid', -1)
+                    victim_name = pid_map.get(victim_pid) or resolve_name(victim_pid, msg.offended_unit, pid_map,
+                                                                          unit_map)
 
-                    if msg_type == "KillMessage":
-                        offender_name = resolve_name(msg.offender_pid, msg.offender_unit, pid_map, unit_map)
-                        victim_pid = getattr(msg, 'VictimPid', -1)
-                        victim_name = pid_map.get(victim_pid) or resolve_name(victim_pid, msg.offended_unit, pid_map,
-                                                                              unit_map)
+                    kill_time_s = msg.time_ms / 1000.0
 
-                        # KEY: Use bucketed time to merge duplicates
-                        kill_key = f"{bucket}_{offender_name}_{victim_name}"
+                    # Proximity Deduplication: Prevent duplicate kills across rigid boundaries
+                    is_dup = False
+                    for existing_kill in master_kills.values():
+                        if existing_kill["attacker"] == offender_name and existing_kill["victim"] == victim_name:
+                            # If the same attacker kills the same victim within 15 seconds,
+                            # it is guaranteed to be a latency offset of the same event.
+                            if abs(existing_kill["time"] - kill_time_s) <= 15.0:
+                                is_dup = True
+                                break
 
-                        # VALUE: Store the actual accurate time from the object
+                    if not is_dup:
+                        # Use exact time in the key to ensure uniqueness if not a duplicate
+                        kill_key = f"{msg.time_ms}_{offender_name}_{victim_name}"
                         master_kills[kill_key] = {
-                            "time": msg.time_ms / 1000.0,
+                            "time": kill_time_s,
                             "attacker": offender_name,
                             "attacker_veh": getattr(msg, 'offender_vehicle', 'unknown').split('/')[-1],
                             "weapon": msg.used_weapon or getattr(msg, 'destroyed_weapon', '?'),
@@ -234,29 +247,40 @@ def parse_merged_replays(file_paths, return_dict, start_time_str="0:00"):
                             "victim_veh": getattr(msg.offended_unit, 'unit_name', '?')
                         }
 
-                    elif msg_type == "CriticalDamageMessage":
-                        # 1. Resolve Attacker (using player_pid and the offender_unit object)
-                        offender_name = resolve_name(msg.player_pid, msg.offender_unit, pid_map, unit_map)
+                elif msg_type == "CriticalDamageMessage":
+                    # 1. Resolve Attacker (using player_pid and the offender_unit object)
+                    offender_name = resolve_name(msg.player_pid, msg.offender_unit, pid_map, unit_map)
 
-                        # 2. Resolve Victim (using the offended_unit object directly, no PID available)
-                        victim_name = resolve_name(None, msg.offended_unit, pid_map, unit_map)
+                    # 2. Resolve Victim (using the offended_unit object directly, no PID available)
+                    victim_name = resolve_name(None, msg.offended_unit, pid_map, unit_map)
 
-                        # 4. Extract Victim Vehicle Name
-                        victim_veh = getattr(msg.offended_unit, 'unit_name', '?')
-                        victim_veh = getattr(victim_veh, 'data', victim_veh)
-                        if isinstance(victim_veh, str):
-                            victim_veh = victim_veh.split('/')[-1]
+                    # 4. Extract Victim Vehicle Name
+                    victim_veh = getattr(msg.offended_unit, 'unit_name', '?')
+                    victim_veh = getattr(victim_veh, 'data', victim_veh)
+                    if isinstance(victim_veh, str):
+                        victim_veh = victim_veh.split('/')[-1]
 
-                        # KEY: Include unitType or is_fire to distinguish multiple crits in same window
-                        crit_key = f"{bucket}_{offender_name}_{victim_name}"
+                    crit_time_s = msg.time_ms / 1000.0
+                    is_fire = bool(getattr(msg, 'is_fire', False))
 
+                    # Proximity Deduplication for crits (smaller 5-second window)
+                    is_dup = False
+                    for existing_crit in master_crits.values():
+                        if existing_crit["attacker"] == offender_name and existing_crit["victim"] == victim_name:
+                            if abs(existing_crit["time"] - crit_time_s) <= 5.0 and existing_crit[
+                                "is_fire"] == is_fire:
+                                is_dup = True
+                                break
+
+                    if not is_dup:
+                        crit_key = f"{msg.time_ms}_{offender_name}_{victim_name}"
                         master_crits[crit_key] = {
-                            "time": msg.time_ms / 1000.0,
+                            "time": crit_time_s,
                             "attacker": offender_name,
                             "victim": victim_name,
                             "attacker_veh": msg.vehicle,
                             "victim_veh": victim_veh,
-                            "is_fire": bool(getattr(msg, 'is_fire', False)),
+                            "is_fire": is_fire,
                         }
 
                 if hasattr(state, 'chat_messages'):
@@ -354,6 +378,35 @@ def parse_merged_replays(file_paths, return_dict, start_time_str="0:00"):
                 print(f"[!] Failed to parse a file ({file_path}): {str(e)}")
 
         # =========================================================
+        #   1.5 TELEMETRY DEDUPLICATION (Fix Jumps & Sequential Files)
+        # =========================================================
+        # We temporarily stored telemetry by file index. Now we merge them intelligently.
+        consolidated_movement = {}
+        for p_name, vehicles in master_movement.items():
+            consolidated_movement[p_name] = {}
+            for v_name, file_buckets in vehicles.items():
+                if not file_buckets:
+                    continue
+
+                # Rank files by how much data they have for this specific vehicle (descending).
+                # The file with the most points becomes the "Primary POV", others are "Fallbacks".
+                ranked_files = sorted(file_buckets.keys(), key=lambda idx: len(file_buckets[idx]), reverse=True)
+
+                merged_buckets = {}
+
+                # Layer the data: Primary file goes first, fallbacks fill in the empty gaps.
+                for file_idx in ranked_files:
+                    for bucket, point_data in file_buckets[file_idx].items():
+                        # Only add the telemetry if a higher-quality file hasn't already provided data for this 5-second window
+                        if bucket not in merged_buckets:
+                            merged_buckets[bucket] = point_data
+
+                consolidated_movement[p_name][v_name] = merged_buckets
+
+        # Overwrite master_movement so the rest of your script runs perfectly without modifications
+        master_movement = consolidated_movement
+
+        # =========================================================
         #   2. SPATIAL TEAM CORRECTION (Fix Leaving/Rejoining Bug)
         # =========================================================
 
@@ -377,9 +430,10 @@ def parse_merged_replays(file_paths, return_dict, start_time_str="0:00"):
             positions = [player_initial_spawns[name] for name in master_teams.get(t_id, set()) if
                          name in player_initial_spawns]
             if positions:
-                avg_x = sum(p[0] for p in positions) / len(positions)
-                avg_z = sum(p[1] for p in positions) / len(positions)
-                team_centroids[t_id] = (avg_x, avg_z)
+                # Use median instead of mean so air spawns do not drag the centroid off the map
+                med_x = statistics.median([p[0] for p in positions])
+                med_z = statistics.median([p[1] for p in positions])
+                team_centroids[t_id] = (med_x, med_z)
 
         # If we have two clear spawn locations, fix team allocations dynamically
         if len(team_centroids) == 2:
@@ -486,13 +540,70 @@ def parse_merged_replays(file_paths, return_dict, start_time_str="0:00"):
                 end_ms = time_ms
 
         clean_movement = {}
+        MAX_SPEED_MPS = 25
+
         for p_name, vehicles in master_movement.items():
             clean_movement[p_name] = {}
             for v_name, buckets in vehicles.items():
+                raw_points = [pt for bucket_idx, pt in sorted(buckets.items())]
+                if not raw_points:
+                    continue
+
                 valid_points = []
-                for bucket_idx, pt in sorted(buckets.items()):
-                    # pt is the tuple (time_ms, x, z)
+                last_pt = None
+                rejected_streak = 0
+
+                # War Thunder uses the initial spawn coordinate as a placeholder
+                # when an enemy drops out of render/spotting distance.
+                spawn_x, spawn_z = raw_points[0][1], raw_points[0][2]
+                has_left_spawn = False
+
+                for pt in raw_points:
+                    time_ms, x, z = pt
+
+                    # 1. Skip absolute origin glitches
+                    if x == 0.0 and z == 0.0:
+                        continue
+
+                    dist_to_spawn = math.hypot(x - spawn_x, z - spawn_z)
+
+                    # 2. If they already rolled out but suddenly report back EXACTLY at spawn,
+                    # it's the client dropping their telemetry. Ignore it permanently.
+                    if has_left_spawn and dist_to_spawn < 1.0:
+                        continue
+
+                    # 3. Filter other impossible speed jumps
+                    if last_pt is not None:
+                        last_time, last_x, last_z = last_pt
+                        dt = (time_ms - last_time) / 1000.0
+
+                        if dt > 0:
+                            dist = math.hypot(x - last_x, z - last_z)
+                            speed = dist / dt
+
+                            if speed > MAX_SPEED_MPS:
+                                rejected_streak += 1
+                                # Self-correction: if we rejected 3 points in a row,
+                                # the tracker likely locked onto a glitch. Reset to new track.
+                                if rejected_streak >= 3:
+                                    last_pt = pt
+                                    valid_points.append(pt)
+                                    rejected_streak = 0
+
+                                    # Set has_left_spawn if the new locked track is far away
+                                    if dist_to_spawn > 50.0:
+                                        has_left_spawn = True
+                                continue
+
+                    # Point is accepted
                     valid_points.append(pt)
+                    last_pt = pt
+                    rejected_streak = 0
+
+                    # Confirm they've left spawn on a valid accepted point
+                    if not has_left_spawn and dist_to_spawn > 50.0:
+                        has_left_spawn = True
+
                 if valid_points:
                     clean_movement[p_name][v_name] = valid_points
 

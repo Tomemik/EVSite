@@ -2078,11 +2078,11 @@ class MatchRound(models.Model):
 class MatchKill(models.Model):
     match_round = models.ForeignKey(MatchRound, on_delete=models.CASCADE, related_name='kills')
     time_s = models.FloatField()
-    attacker = models.CharField(max_length=100)
-    attacker_veh = models.CharField(max_length=100)
-    weapon = models.CharField(max_length=100)
-    victim = models.CharField(max_length=100)
-    victim_veh = models.CharField(max_length=100)
+    attacker = models.CharField(max_length=100, blank=True, null=True)
+    attacker_veh = models.CharField(max_length=100, blank=True, null=True)
+    weapon = models.CharField(max_length=100, blank=True, null=True)
+    victim = models.CharField(max_length=100, blank=True, null=True)
+    victim_veh = models.CharField(max_length=100, blank=True, null=True)
 
     class Meta:
         unique_together = ('match_round', 'time_s', 'attacker', 'victim')
@@ -2094,10 +2094,10 @@ class MatchKill(models.Model):
 class MatchCrit(models.Model):
     match_round = models.ForeignKey(MatchRound, on_delete=models.CASCADE, related_name='crits')
     time_s = models.FloatField()
-    attacker = models.CharField(max_length=100)
-    attacker_veh = models.CharField(max_length=100)
-    victim = models.CharField(max_length=100)
-    victim_veh = models.CharField(max_length=100)
+    attacker = models.CharField(max_length=100, blank=True, null=True)
+    attacker_veh = models.CharField(max_length=100, blank=True, null=True)
+    victim = models.CharField(max_length=100, blank=True, null=True)
+    victim_veh = models.CharField(max_length=100, blank=True, null=True)
     is_fire = models.BooleanField(default=False)
 
     class Meta:
