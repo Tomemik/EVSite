@@ -17,6 +17,7 @@ import TankInterchangeabilityGraph from "@/views/TankInterchangabilityGraph.vue"
 import Alliances from "@/views/Alliances.vue";
 import Telemetry from "@/views/Telemetry.vue";
 import Stats from "@/views/Stats.vue";
+import MapRolls from "@/views/MapRolls.vue";
 
 const routes = [
     { path: '/home', name: 'Home', component: Home },
@@ -37,6 +38,8 @@ const routes = [
     { path: '/Alliances', name: 'Alliances', component: Alliances},
     { path: '/telemetry', name: 'TelemetryAnalyzer', component: Telemetry },
     { path: '/stats', name: 'Stats', component: Stats },
+    { path: '/maps', name: 'Maps', component: MapRolls },
+
 ];
 
 const router = createRouter({

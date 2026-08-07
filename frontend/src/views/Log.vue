@@ -139,6 +139,7 @@ const methodOptions = [
   { title: 'Imports Purchase', value: 'imports_purchase' },
   { title: 'Box Opened', value: 'open_tank_box' },
   { title: 'Box Purchased', value: 'purchase_box' },
+  { title: 'Weekly Payout', value: 'weekly_under_cap_bonus'}
 ];
 
 function filteredLogsByTeam(TeamName: string) {
@@ -217,6 +218,7 @@ const fetchLogs = async () => {
       'imports_purchase': '#cccccc',
       'open_tank_box': '#46bdc6',
       'purchase_box': '#46bdc6',
+      'weekly_under_cap_bonus': '#4e98ec',
     };
 
     const descMapping: { [key: string]: string } = {
@@ -235,6 +237,7 @@ const fetchLogs = async () => {
       'imports_purchase': 'Imports',
       'open_tank_box': 'Box Opened',
       'purchase_box': 'Box Purchased',
+      'weekly_under_cap_bonus': 'Weekly Payout',
     };
 
 

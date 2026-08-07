@@ -6,7 +6,7 @@
         <div class="d-flex align-center">
           <v-icon start size="x-large" class="mr-3">mdi-poll</v-icon>
           <div>
-            <span class="text-h5 font-weight-bold">Vehicle Statistics</span>
+            <span class="text-h5 font-weight-bold">League Statistics</span>
           </div>
         </div>
         <v-btn color="white" variant="outlined" @click="forceReload" :loading="isLoading">
@@ -16,6 +16,7 @@
 
       <v-toolbar color="surface" density="compact" class="border-b px-2">
         <v-tabs v-model="activeTab" color="primary">
+          <v-tab value="general"><v-icon start>mdi-earth</v-icon> General Overview</v-tab>
           <v-tab value="vehicles"><v-icon start>mdi-tank</v-icon> Played Vehicles</v-tab>
           <v-tab value="all_tanks"><v-icon start>mdi-database</v-icon> All DB Tanks</v-tab>
           <v-tab v-if="isAdmin" value="players"><v-icon start>mdi-account-group</v-icon> Players</v-tab>
@@ -32,7 +33,7 @@
           Advanced Filters
         </v-btn>
 
-        <div style="width: 350px;" class="my-2">
+        <div style="width: 350px;" class="my-2" v-if="activeTab !== 'general'">
           <v-text-field
             v-model="searchQuery"
             label="Search name, vehicle, etc..."
@@ -49,68 +50,90 @@
       <v-expand-transition>
         <v-card v-if="showFilters" color="grey-darken-4" class="px-4 pb-4 pt-8 border-b rounded-0" flat theme="dark">
           <v-row dense align="center">
-            <v-col cols="12" md="3" class="px-4">
-              <v-range-slider
-                v-model="filterBr"
-                min="0.3"
-                max="8.5"
-                step="0.1"
-                label="BR Range"
-                thumb-label="always"
-                density="compact"
-                hide-details
-                color="info"
-              ></v-range-slider>
-            </v-col>
+            <!-- New Date Filters -->
             <v-col cols="12" md="2">
-              <v-select
-                v-model="filterType"
-                :items="['LT', 'MT', 'HT', 'TD']"
-                label="Tank Class"
+              <v-text-field
+                v-model="filterStartDate"
+                type="date"
+                label="Start Date"
                 density="compact"
                 variant="outlined"
                 hide-details
                 clearable
-              ></v-select>
+              ></v-text-field>
             </v-col>
             <v-col cols="12" md="2">
-              <v-select
-                v-model="filterRank"
-                :items="[1, 2, 3, 4, 5, 6]"
-                label="Rank"
+              <v-text-field
+                v-model="filterEndDate"
+                type="date"
+                label="End Date"
                 density="compact"
                 variant="outlined"
                 hide-details
                 clearable
-              ></v-select>
+              ></v-text-field>
             </v-col>
+
+            <!-- Quick Date Buttons -->
+            <v-col cols="12" md="2" class="d-flex align-center">
+              <v-btn-group density="compact" variant="outlined" color="info" divided>
+                <v-btn @click="setQuickDate(7)">1W</v-btn>
+                <v-btn @click="setQuickDate(30)">1M</v-btn>
+              </v-btn-group>
+              <v-btn
+                icon="mdi-close"
+                density="comfortable"
+                variant="plain"
+                color="error"
+                class="ml-1"
+                @click="clearDates"
+                v-if="filterStartDate || filterEndDate"
+                title="Clear Dates"
+              ></v-btn>
+            </v-col>
+
             <v-col cols="12" md="2">
-              <v-select
-                v-model="filterTier"
-                :items="[
-                  {title:'Top Tier (Max BR)', value:'top'},
-                  {title:'Mid Tier (-0.3 to -1.0)', value:'mid'},
-                  {title:'Bottom Tier (-1.3+)', value:'bottom'}
-                ]"
-                label="Match Tier Context"
-                density="compact"
-                variant="outlined"
-                hide-details
-                clearable
-              ></v-select>
-            </v-col>
-            <v-col cols="12" md="3">
               <v-autocomplete
                 v-model="filterTeam"
                 :items="availableTeams"
                 item-title="name"
                 item-value="name"
-                label="Played By Team"
+                label="Filter by Team"
                 density="compact"
                 variant="outlined"
                 hide-details
                 clearable
               ></v-autocomplete>
+            </v-col>
+
+            <!-- Vehicle specific filters (Hidden on General Tab) -->
+            <v-col cols="12" md="4" v-if="activeTab !== 'general'">
+              <v-row dense>
+                <v-col cols="6">
+                  <v-range-slider
+                    v-model="filterBr"
+                    min="0.3"
+                    max="8.5"
+                    step="0.1"
+                    label="BR Range"
+                    thumb-label="always"
+                    density="compact"
+                    hide-details
+                    color="info"
+                  ></v-range-slider>
+                </v-col>
+                <v-col cols="6">
+                  <v-select
+                    v-model="filterType"
+                    :items="['LT', 'MT', 'HT', 'TD']"
+                    label="Tank Class"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    clearable
+                  ></v-select>
+                </v-col>
+              </v-row>
             </v-col>
           </v-row>
         </v-card>
@@ -119,6 +142,151 @@
 
     <v-card class="flex-grow-1 overflow-hidden elevation-2 d-flex flex-column">
       <v-window v-model="activeTab" class="h-100 overflow-auto">
+
+        <!-- GENERAL TAB -->
+        <v-window-item value="general" class="pa-6">
+          <div v-if="isLoading" class="d-flex justify-center my-12">
+            <v-progress-circular indeterminate size="64" color="primary"></v-progress-circular>
+          </div>
+          <div v-else-if="generalStats">
+            <!-- KPIs -->
+            <v-row class="mb-6">
+              <v-col cols="12" md="3">
+                <v-card color="indigo-darken-4" theme="dark" class="pa-4 elevation-3">
+                  <div class="text-caption text-uppercase text-medium-emphasis font-weight-bold">Total Matches Played</div>
+                  <div class="text-h4 mt-1 font-weight-bold">{{ generalStats.overview.total_matches }}</div>
+                </v-card>
+              </v-col>
+              <v-col cols="12" md="3">
+                <v-card color="teal-darken-4" theme="dark" class="pa-4 elevation-3">
+                  <div class="text-caption text-uppercase text-medium-emphasis font-weight-bold">Rounds Played (uploaded)</div>
+                  <div class="text-h4 mt-1 font-weight-bold">{{ generalStats.overview.total_rounds }}</div>
+                </v-card>
+              </v-col>
+              <v-col cols="12" md="3">
+                <v-card color="blue-grey-darken-4" theme="dark" class="pa-4 elevation-3">
+                  <div class="text-caption text-uppercase text-medium-emphasis font-weight-bold">Avg Round Length</div>
+                  <div class="text-h4 mt-1 font-weight-bold">{{ formatTime(generalStats.overview.avg_round_length_s) }}</div>
+                </v-card>
+              </v-col>
+              <v-col cols="12" md="3">
+                <v-card color="green-darken-4" theme="dark" class="pa-4 elevation-3">
+                  <div class="text-caption text-uppercase text-medium-emphasis font-weight-bold">Avg Reward / Match</div>
+                  <div class="text-h4 mt-1 font-weight-bold text-success">${{ formatNumber(generalStats.overview.avg_reward_per_team) }}</div>
+                </v-card>
+              </v-col>
+            </v-row>
+
+            <v-row>
+              <!-- Map Popularity -->
+              <v-col cols="12" md="6">
+                <v-card class="elevation-2 h-100">
+                  <v-card-title class="bg-surface text-subtitle-1 font-weight-bold border-b">
+                    <v-icon start>mdi-map</v-icon> Map Popularity
+                  </v-card-title>
+                  <v-card-text class="pt-4">
+                    <div v-for="(data, mapName) in generalStats.maps" :key="mapName" class="mb-3">
+                      <!-- Base Map (Clickable) -->
+                      <div class="d-flex justify-space-between text-body-2 mb-1 cursor-pointer select-none" @click="toggleMap(mapName)">
+                        <span>
+                          <v-icon size="small" class="mr-1">
+                            {{ expandedMaps[mapName] ? 'mdi-chevron-down' : 'mdi-chevron-right' }}
+                          </v-icon>
+                          {{ formatMapName(mapName) }}
+                        </span>
+                        <span class="font-weight-bold">{{ data.total }} rounds</span>
+                      </div>
+
+                      <v-progress-linear
+                        :model-value="(data.total / generalStats.overview.total_rounds) * 100"
+                        color="info"
+                        height="8"
+                        rounded>
+                      </v-progress-linear>
+
+                      <!-- Variant Dropdown -->
+                      <v-expand-transition>
+                        <div v-if="expandedMaps[mapName]" class="mt-2 pl-6 pr-2 border-s-sm border-info ml-2">
+                           <div v-for="(vCount, vName) in data.variants" :key="vName" class="d-flex justify-space-between text-caption text-medium-emphasis mb-1">
+                              <span class="text-truncate mr-2">{{ formatMapName(vName) }}</span>
+                              <span class="font-weight-bold">{{ vCount }}</span>
+                           </div>
+                        </div>
+                      </v-expand-transition>
+                    </div>
+                    <div v-if="Object.keys(generalStats.maps).length === 0" class="text-center text-medium-emphasis py-4">No map data available</div>
+                  </v-card-text>
+                </v-card>
+              </v-col>
+
+              <!-- Meta Distributions -->
+              <v-col cols="12" md="6" class="d-flex flex-column" style="gap: 16px;">
+                <!-- BR Distribution -->
+                <v-card class="elevation-2 flex-grow-1">
+                  <v-card-title class="bg-surface text-subtitle-1 font-weight-bold border-b">
+                    <v-icon start>mdi-chart-bar</v-icon> BR Distribution
+                  </v-card-title>
+                  <v-card-text class="pt-4">
+                    <div v-for="(count, br) in generalStats.br_distribution" :key="br" class="mb-2">
+                      <div class="d-flex justify-space-between text-body-2 mb-1">
+                        <span>BR {{ br }}</span>
+                        <span class="font-weight-bold">{{ count }} spawns</span>
+                      </div>
+                      <v-progress-linear :model-value="(count / maxDictValue(generalStats.br_distribution)) * 100" color="purple" height="6" rounded></v-progress-linear>
+                    </div>
+                    <div v-if="Object.keys(generalStats.br_distribution).length === 0" class="text-center text-medium-emphasis py-4">No BR data available</div>
+                  </v-card-text>
+                </v-card>
+
+                <!-- Class & Gamemode Split -->
+                <v-row>
+                  <v-col cols="4">
+                    <v-card class="elevation-2 h-100">
+                      <v-card-title class="bg-surface text-subtitle-1 font-weight-bold border-b text-caption">Modes</v-card-title>
+                      <v-card-text class="pt-4">
+                        <div v-for="(count, mode) in generalStats.modes" :key="mode" class="mb-2">
+                          <div class="d-flex justify-space-between text-caption mb-1">
+                            <span class="text-capitalize">{{ mode.replace('_', ' ') }}</span>
+                            <span class="font-weight-bold">{{ count }}</span>
+                          </div>
+                          <v-progress-linear :model-value="(count / maxDictValue(generalStats.modes)) * 100" color="green" height="4"></v-progress-linear>
+                        </div>
+                      </v-card-text>
+                    </v-card>
+                  </v-col>
+                  <v-col cols="4">
+                    <v-card class="elevation-2 h-100">
+                      <v-card-title class="bg-surface text-subtitle-1 font-weight-bold border-b text-caption">Game Modes</v-card-title>
+                      <v-card-text class="pt-4">
+                        <div v-for="(count, mode) in generalStats.gamemodes" :key="mode" class="mb-2">
+                          <div class="d-flex justify-space-between text-caption mb-1">
+                            <span class="text-capitalize">{{ mode.replace('_', ' ') }}</span>
+                            <span class="font-weight-bold">{{ count }}</span>
+                          </div>
+                          <v-progress-linear :model-value="(count / maxDictValue(generalStats.gamemodes)) * 100" color="green" height="4"></v-progress-linear>
+                        </div>
+                      </v-card-text>
+                    </v-card>
+                  </v-col>
+                  <v-col cols="4">
+                    <v-card class="elevation-2 h-100">
+                      <v-card-title class="bg-surface text-subtitle-1 font-weight-bold border-b text-caption">Vehicle Classes</v-card-title>
+                      <v-card-text class="pt-4">
+                        <div v-for="(count, tClass) in generalStats.class_distribution" :key="tClass" class="mb-2">
+                          <div class="d-flex justify-space-between text-caption mb-1">
+                            <span>{{ tClass }}</span>
+                            <span class="font-weight-bold">{{ count }}</span>
+                          </div>
+                          <v-progress-linear :model-value="(count / maxDictValue(generalStats.class_distribution)) * 100" color="orange" height="4"></v-progress-linear>
+                        </div>
+                      </v-card-text>
+                    </v-card>
+                  </v-col>
+                </v-row>
+              </v-col>
+            </v-row>
+          </div>
+        </v-window-item>
 
         <!-- PLAYED VEHICLES TAB -->
         <v-window-item value="vehicles">
@@ -154,7 +322,7 @@
 
         <!-- ALL DB TANKS TAB -->
         <v-window-item value="all_tanks">
-          <v-data-table-server
+           <v-data-table-server
             :headers="allTanksHeaders"
             :items="serverItems"
             :items-length="totalItems"
@@ -189,7 +357,7 @@
 
         <!-- PLAYERS TAB -->
         <v-window-item v-if="isAdmin" value="players">
-          <v-data-table-server
+           <v-data-table-server
             :headers="playerHeaders"
             :items="serverItems"
             :items-length="totalItems"
@@ -429,7 +597,7 @@ import { useUserStore } from "@/config/store.ts";
 
 const userStore = useUserStore();
 const isLoading = ref(false);
-const activeTab = ref('vehicles');
+const activeTab = ref('general');
 const searchQuery = ref('');
 
 // --- ADVANCED FILTERS ---
@@ -439,10 +607,13 @@ const filterType = ref(null);
 const filterRank = ref(null);
 const filterTier = ref(null);
 const filterTeam = ref(null);
+const filterStartDate = ref('');
+const filterEndDate = ref('');
 const availableTeams = ref([]);
 
 const serverItems = ref([]);
 const totalItems = ref(0);
+const generalStats = ref(null);
 const currentOptions = ref({});
 
 const showVehicleDialog = ref(false);
@@ -456,13 +627,40 @@ const selectedPlayer = ref(null);
 const playerVehiclesList = ref([]);
 const isPlayerDialogLoading = ref(false);
 
+const expandedMaps = ref({});
+
+const toggleMap = (name) => {
+  expandedMaps.value[name] = !expandedMaps.value[name];
+};
+
 const isAdmin = computed(() => {
   return userStore.groups.some(group => group.name === 'admin');
 });
 
+// --- QUICK DATE HANDLERS ---
+const getLocalDateString = (date) => {
+  // Prevents the date from shifting backwards due to UTC timezone offsets
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().split('T')[0];
+};
+
+const setQuickDate = (days) => {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+
+  filterEndDate.value = getLocalDateString(end);
+  filterStartDate.value = getLocalDateString(start);
+};
+
+const clearDates = () => {
+  filterStartDate.value = '';
+  filterEndDate.value = '';
+};
+
 onMounted(async () => {
   try {
-    const res = await fetch(new URL(window.location.origin + '/api/league/teams/slim/'), {
+    const res = await fetch(new URL(window.location.origin + '/api/league/teams/'), {
       headers: { 'Content-Type': 'application/json' }
     });
     if (res.ok) {
@@ -470,6 +668,10 @@ onMounted(async () => {
     }
   } catch (error) {
     console.error("Failed fetching teams:", error);
+  }
+
+  if (activeTab.value === 'general') {
+    loadItems({ page: 1, itemsPerPage: 25 });
   }
 });
 
@@ -525,29 +727,35 @@ const playerVehiclesHeaders = [
 
 // --- CORE DATA LOADER ---
 const loadItems = async (options) => {
-  currentOptions.value = options;
-  const { page, itemsPerPage, sortBy } = options;
+  if (options) currentOptions.value = options;
+  const page = options?.page || 1;
+  const itemsPerPage = options?.itemsPerPage || 25;
+  const sortBy = options?.sortBy;
 
   isLoading.value = true;
   try {
     const url = new URL(window.location.origin + '/api/league/stats/comprehensive/');
     url.searchParams.append('tab', activeTab.value);
-    url.searchParams.append('page', page);
-    url.searchParams.append('itemsPerPage', itemsPerPage);
 
-    // Filter Attachments
-    if (searchQuery.value) url.searchParams.append('search', searchQuery.value);
-    if (filterBr.value[0] > 0.3) url.searchParams.append('min_br', filterBr.value[0]);
-    if (filterBr.value[1] < 8.5) url.searchParams.append('max_br', filterBr.value[1]);
-    if (filterType.value) url.searchParams.append('type', filterType.value);
-    if (filterRank.value) url.searchParams.append('rank', filterRank.value);
-    if (filterTier.value) url.searchParams.append('tier_context', filterTier.value);
-    if (filterTeam.value) url.searchParams.append('team', filterTeam.value);
-
-    if (sortBy && sortBy.length > 0) {
-      url.searchParams.append('sortBy', sortBy[0].key);
-      url.searchParams.append('sortOrder', sortBy[0].order);
+    if (activeTab.value !== 'general') {
+      url.searchParams.append('page', page);
+      url.searchParams.append('itemsPerPage', itemsPerPage);
+      if (searchQuery.value) url.searchParams.append('search', searchQuery.value);
+      if (filterBr.value[0] > 0.3) url.searchParams.append('min_br', filterBr.value[0]);
+      if (filterBr.value[1] < 8.5) url.searchParams.append('max_br', filterBr.value[1]);
+      if (filterType.value) url.searchParams.append('type', filterType.value);
+      if (filterRank.value) url.searchParams.append('rank', filterRank.value);
+      if (filterTier.value) url.searchParams.append('tier_context', filterTier.value);
+      if (sortBy && sortBy.length > 0) {
+        url.searchParams.append('sortBy', sortBy[0].key);
+        url.searchParams.append('sortOrder', sortBy[0].order);
+      }
     }
+
+    // Shared filters
+    if (filterTeam.value) url.searchParams.append('team', filterTeam.value);
+    if (filterStartDate.value) url.searchParams.append('start_date', filterStartDate.value);
+    if (filterEndDate.value) url.searchParams.append('end_date', filterEndDate.value);
 
     const headers = { 'Content-Type': 'application/json' };
     if (localStorage.getItem("authToken")) headers['Authorization'] = getAuthToken();
@@ -555,8 +763,13 @@ const loadItems = async (options) => {
     const response = await fetch(url.toString(), { method: 'GET', headers });
     if (response.ok) {
       const data = await response.json();
-      serverItems.value = data.items;
-      totalItems.value = data.total;
+
+      if (activeTab.value === 'general') {
+        generalStats.value = data;
+      } else {
+        serverItems.value = data.items;
+        totalItems.value = data.total;
+      }
     }
   } catch (error) {
     console.error("Error fetching stats:", error);
@@ -565,21 +778,42 @@ const loadItems = async (options) => {
   }
 };
 
-const forceReload = () => { if (currentOptions.value) loadItems(currentOptions.value); };
+const forceReload = () => { loadItems(currentOptions.value); };
 
 // Setup debounced watcher for filters
 let filterTimeout;
-watch([activeTab, searchQuery, filterBr, filterType, filterRank, filterTier, filterTeam], () => {
+watch([activeTab, searchQuery, filterBr, filterType, filterRank, filterTier, filterTeam, filterStartDate, filterEndDate], () => {
   clearTimeout(filterTimeout);
   filterTimeout = setTimeout(() => {
-    if (currentOptions.value) {
-      currentOptions.value.page = 1;
-      loadItems(currentOptions.value);
-    }
-  }, 500); // 500ms debounce
+    if (currentOptions.value) currentOptions.value.page = 1;
+    loadItems(currentOptions.value);
+  }, 500);
 });
 
-// --- VEHICLE DIALOG LOGIC ---
+// --- FORMATTING UTILS ---
+const formatNumber = (num) => {
+  if (!num) return '0';
+  return Math.round(num).toLocaleString('en-US');
+};
+
+const formatTime = (seconds) => {
+  if (!seconds) return '0:00';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
+const formatMapName = (name) => {
+  if (!name) return 'Unknown';
+  return name.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
+
+const maxDictValue = (dict) => {
+  const vals = Object.values(dict);
+  return vals.length > 0 ? Math.max(...vals) : 1;
+};
+
+// --- DIALOG LOGIC ---
 const openVehicleDetails = (event, { item }) => {
   selectedVehicle.value = item;
   selectedFilterPlayers.value = [];
@@ -644,7 +878,6 @@ const aggregatedComboStats = computed(() => {
   return agg;
 });
 
-// --- PLAYER DIALOG LOGIC ---
 const openPlayerDetails = (event, { item }) => {
   selectedPlayer.value = item;
   playerVehiclesList.value = [];
@@ -703,5 +936,12 @@ const getWinrateColor = (wr) => {
 .clickable-rows :deep(tbody tr) {
   cursor: pointer;
   transition: background-color 0.2s;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+.select-none {
+  user-select: none;
 }
 </style>

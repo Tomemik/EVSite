@@ -5,12 +5,15 @@ import os
 import re
 import tempfile
 from collections import deque, defaultdict
+from datetime import timedelta
 from pathlib import Path
 
+from dateutil.parser import parser
 from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
 from django.shortcuts import render, get_object_or_404
+from django.utils.dateparse import parse_date
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -182,6 +185,11 @@ class SellTankView(APIView):
 
         try:
             team = Team.objects.get(name=team_name)
+
+            if team.weekly_sells_left < len(tanks):
+                raise ValidationError(
+                    f"Weekly limit reached: You can only sell {team.weekly_sells_left} more tanks this week.")
+
             initial_balance = team.balance
             sold_names = []
 
@@ -210,19 +218,26 @@ class SellTankView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
 class SellTanksView(APIView):
     def post(self, request):
         user = request.user
         team_name = request.data['team']
         if not (
-            user.has_perm('user.admin_permissions') or
-            (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
+                user.has_perm('user.admin_permissions') or
+                (user.has_perm('user.commander_permissions') and user.team and user.team.name == team_name)
         ):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         try:
             tanks = request.data.get('tanks', [])
             team = Team.objects.get(name=team_name)
+
+            total_to_sell = sum(int(tank.get('quantity', 0)) for tank in tanks)
+            if team.weekly_sells_left < total_to_sell:
+                raise ValidationError(
+                    f"Weekly limit reached: You can only sell {team.weekly_sells_left} more tanks this week.")
+
             initial_balance = team.balance
             sold_summary = []
 
@@ -1824,9 +1839,48 @@ class ParseTemporaryReplayView(APIView):
 
 from django.core.cache import cache
 import hashlib
+
+
 class ComprehensiveStatsView(APIView):
     def get(self, request):
         tab = request.query_params.get('tab', 'vehicles')
+        team = request.query_params.get('team', None)
+
+        # 1. Parse Date Filters (Safely using Django's native parser)
+        start_date_str = request.query_params.get('start_date', '')
+        end_date_str = request.query_params.get('end_date', '')
+
+        start_date = None
+        end_date = None
+
+        if start_date_str and start_date_str.strip():
+            start_date = parse_date(start_date_str.strip())
+
+        if end_date_str and end_date_str.strip():
+            parsed_end = parse_date(end_date_str.strip())
+            if parsed_end:
+                # Add one day so the 'lte' filter includes the entirety of the selected end date
+                end_date = parsed_end + timedelta(days=1)
+
+        # 2. Intercept 'general' tab early
+        if tab == 'general':
+            general_params = f"general_{team}_{start_date_str}_{end_date_str}"
+            general_cache_key = f"stats_v4_gen_{hashlib.md5(general_params.encode()).hexdigest()}"
+
+            general_data = cache.get(general_cache_key)
+            if not general_data:
+                # Import your StatsService where appropriate
+                service = StatsService()
+                general_data = service.get_general_stats(
+                    filter_team=team,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+                cache.set(general_cache_key, general_data, timeout=300)
+
+            return Response(general_data)
+
+        # 3. Existing logic for 'vehicles', 'all_tanks', 'players', 'combos'
         page = int(request.query_params.get('page', 1))
         limit = int(request.query_params.get('itemsPerPage', 25))
         search = request.query_params.get('search', '').lower()
@@ -1843,11 +1897,12 @@ class ComprehensiveStatsView(APIView):
         max_br = request.query_params.get('max_br', None)
         tank_type = request.query_params.get('type', None)
         tank_rank = request.query_params.get('rank', None)
-        team = request.query_params.get('team', None)
         tier_context = request.query_params.get('tier_context', None)
 
         # Unique Cache key factoring in all filter variations
-        params_str = f"{filter_players_str}_{filter_vehicle}_{min_br}_{max_br}_{tank_type}_{tank_rank}_{team}_{tier_context}"
+        # Note: I added start_date and end_date to the cache key here so that if you
+        # decide to update get_filtered_stats() to accept dates later, the cache won't break.
+        params_str = f"{filter_players_str}_{filter_vehicle}_{min_br}_{max_br}_{tank_type}_{tank_rank}_{team}_{tier_context}_{start_date_str}_{end_date_str}"
         cache_key = f"stats_v4_{hashlib.md5(params_str.encode()).hexdigest()}"
 
         stats_data = cache.get(cache_key)
@@ -1902,3 +1957,26 @@ class ComprehensiveStatsView(APIView):
             'items': paginated_items,
             'total': total_items,
         })
+
+class MapDataView(APIView):
+    def get(self, request):
+        # Path to your maps folder based on your project structure
+        maps_dir = os.path.join(settings.BASE_DIR, '_vendor', 'maps')
+        map_data_list = []
+
+        if os.path.exists(maps_dir):
+            for filename in os.listdir(maps_dir):
+                if filename.endswith('.json'):
+                    filepath = os.path.join(maps_dir, filename)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            # Only include files that look like valid map definitions
+                            if 'map_name' in data and 'variants' in data:
+                                map_data_list.append(data)
+                    except Exception as e:
+                        print(f"Error reading map JSON {filename}: {e}")
+
+        # Sort alphabetically by map name for the frontend
+        map_data_list.sort(key=lambda x: x.get('map_name', ''))
+        return Response(map_data_list)

@@ -75,38 +75,33 @@
       </v-col>
     </v-row>
 
-    <!-- Bottom Row: Wheels & System Overview -->
+    <!-- Bottom Row: Randomizer & System Overview -->
     <v-row justify="center">
-      <!-- Match Generation Wheels -->
+      <!-- Match Generation Tool Link -->
       <v-col cols="12" md="4">
-        <v-card class="fill-height" elevation="3" rounded="lg">
+        <v-card class="fill-height d-flex flex-column" elevation="3" rounded="lg">
           <v-card-title class="py-4 bg-surface-variant">
-            <v-icon start color="orange-lighten-1">mdi-slot-machine-outline</v-icon>
+            <v-icon start color="orange-lighten-1">mdi-dice-multiple</v-icon>
             <span class="font-weight-bold">Match Generation</span>
           </v-card-title>
           <v-divider></v-divider>
-          <v-card-text class="pt-4">
-            <p class="mb-5 text-body-2 text-grey-lighten-1 text-center">
-              Use these tools to randomly determine parameters for your upcoming matches.
+
+          <v-card-text class="pt-6 flex-grow-1 d-flex flex-column justify-center align-center text-center">
+            <v-icon size="64" color="orange-lighten-1" class="mb-4">mdi-slot-machine-outline</v-icon>
+            <p class="mb-6 text-body-1 text-grey-lighten-1 px-4">
+              Generate your maps, game modes, time of day, and weather all in one place with our newly integrated randomizer tool.
             </p>
-            <v-row dense>
-              <v-col cols="6" v-for="(wheel, i) in wheels" :key="i">
-                <v-btn
-                  block
-                  variant="tonal"
-                  :color="wheel.color"
-                  class="wheel-btn h-100 py-3"
-                  :href="wheel.url"
-                  target="_blank"
-                  rel="noopener"
-                >
-                  <div class="d-flex flex-column align-center">
-                    <v-icon class="mb-2" size="x-large">{{ wheel.icon }}</v-icon>
-                    <span class="text-caption font-weight-bold">{{ wheel.title }}</span>
-                  </div>
-                </v-btn>
-              </v-col>
-            </v-row>
+            <!-- Update the 'to' prop to match your router's path for the Match Randomizer component -->
+            <v-btn
+              color="orange-darken-2"
+              size="x-large"
+              elevation="4"
+              to="/maps"
+              prepend-icon="mdi-launch"
+              class="mt-auto mb-2"
+            >
+              Launch Randomizer
+            </v-btn>
           </v-card-text>
         </v-card>
       </v-col>
@@ -175,33 +170,6 @@ const documents = ref([
     url: 'https://docs.google.com/document/d/1ATllZRk7JLVHDZo4KUtFoh_q_w_EZHBbi1B9sVt1WBc/edit?usp=sharing'
   },
 ]);
-
-const wheels = ref([
-  {
-    title: 'Maps',
-    icon: 'mdi-map',
-    color: 'success',
-    url: "https://wheeldecide.com/index.php?c1=abandoned+factory&c2=advance+to+the+rhine&c3=alaska&c4=american+desert&c5=ardennes&c6=ash+river+&c7=Battle+of+Hürtgen+Forest&c8=Berlin&c9=Cargo+Port&c10=Carpathians&c11=Eastern+Europe&c12=European+Province&c13=Finland&c14=Frozen+Pass&c15=Fulda+Gap&c16=Emperor's+Garden&c17=Jungle&c18=Karelia&c19=38th+Parallel&c20=Kuban&c21=Kursk&c22=Maginot+Line&c23=Middle+East&c24=Mozdok&c25=Fields+of+Normandy&c26=+Poland&c27=Fields+of+Poland&c28=Port+Novorossiysk&c29=Second+Battle+of+El+Alamein&c30=Sinai&c31=Sands+of+Sinai&c32=Stalingrad&c33=Tunisia&c34=Sands+of+Tunisia&c35=Vietnam+Hills&c36=Volokolamsk&c37=Red+Desert&c38=Sweden&c39=Seversk-13&c40=Spaceport&c41=Breslau&c42=White+rock+fortress&c43=Aral+sea&c44=Sun+City&c45=Ground+Zero&c46=Abandoned+Town&c47=Arctic&c48=Golden+Quarry&c49=Winter+Poland&c50=Winter+Fields+of+Poland&c51=Normandy&c52=Campania&c53=Winter+Seversk&c54=Winter+Maginot&c55=Winter+Ardennes&c56=Iberian+Castle&c57=Pradesh&c58=Test+Site+2771&c59=Flanders&t=Trash+Maps+Generator&time=5"
-  },
-  {
-    title: 'Conquest',
-    icon: 'mdi-flag-variant',
-    color: 'error',
-    url: 'https://wheeldecide.com/index.php?c1=Conquest+1&c2=Conquest+2&c3=Conquest+3&c4=Conquest+4&t=Conquest&time=5'
-  },
-  {
-    title: 'Time',
-    icon: 'mdi-clock-outline',
-    color: 'primary',
-    url: 'https://wheeldecide.com/index.php?c1=Dawn&c2=Morning&c3=Noon&c4=Day&c5=Evening&c6=Dusk&c7=07%3A00&c8=08%3A00&c9=09%3A00&c10=10%3A00&c11=11%3A00&c12=12%3A00&c13=13%3A00&c14=14%3A00&c15=15%3A00&c16=16%3A00&c17=17%3A00&c18=18%3A00&c19=Night&t=Wheel+of+Time&time=5'
-  },
-  {
-    title: 'Weather',
-    icon: 'mdi-weather-partly-cloudy',
-    color: 'info',
-    url: 'https://wheeldecide.com/index.php?c1=Clear&c2=Partly+Cloudy&c3=Hazy&c4=Mist&c5=Thin+Clouds&c6=Thunderclouds&c7=Cloudy&c8=Overcast&c9=Low+Cloud+Cover&c10=Fog&c11=Rain&c12=Storm&t=Wheel+of+Weather&time=5'
-  },
-]);
 </script>
 
 <style scoped>
@@ -223,14 +191,6 @@ const wheels = ref([
 
 .doc-link:hover {
   background-color: rgba(255, 255, 255, 0.05);
-}
-
-.wheel-btn {
-  transition: transform 0.1s ease;
-}
-
-.wheel-btn:hover {
-  transform: scale(1.03);
 }
 
 .feature-list {

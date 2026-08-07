@@ -145,15 +145,44 @@ const fetchTeamDetails = async () => {
 
 const groupedBoxes = computed(() => {
   const categories = {};
+
+  // Group boxes by name and retain the is_national flag for sorting later
   for (const box of boxes.value) {
     if (!categories[box.name]) {
-      categories[box.name] = { name: box.name, tiers: [] };
+      categories[box.name] = {
+        name: box.name,
+        is_national: box.is_national,
+        tiers: []
+      };
     }
     categories[box.name].tiers.push(box);
   }
-  return Object.values(categories).map(category => {
+
+  // Convert object to array and sort tiers inside each category
+  const categoriesArray = Object.values(categories).map(category => {
     category.tiers.sort((a, b) => a.tier - b.tier);
     return category;
+  });
+
+  // Sort the categories array by the custom priority rules and then alphabetically
+  return categoriesArray.sort((a, b) => {
+    // Priority logic function
+    const getPriority = (category) => {
+      if (category.name === team.value.name) return 0; // Highest priority (User's team)
+      if (category.is_national) return 1;              // Medium priority (National boxes)
+      return 2;                                        // Lowest priority (Other teams' boxes)
+    };
+
+    const priorityA = getPriority(a);
+    const priorityB = getPriority(b);
+
+    // If priorities are different, sort by priority
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+
+    // If priorities are the same, sort alphabetically
+    return a.name.localeCompare(b.name);
   });
 });
 

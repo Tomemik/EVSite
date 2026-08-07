@@ -57,10 +57,14 @@
                       size="large"
                       @click="initiatePurchase(tank)"
                       class="mt-1"
-                      :disabled="!isCommander || isPurchased(tank) || isExpired(tank) || isBeforeAvailableFrom(tank) || !canAfford(tank)"
+                      :disabled="!isCommander || isPurchased(tank) || isExpired(tank) || isBeforeAvailableFrom(tank) || !canAfford(tank) || isRestrictedBy24hLimit(tank, group)"
                     >
                       Buy
                     </v-btn>
+                    <!-- Small UI hint that they're locked out for the 1st 24h -->
+                    <div v-if="isRestrictedBy24hLimit(tank, group)" class="text-caption text-error font-weight-bold mt-1" style="line-height: 1;">
+                      24h Limit Reached
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -78,6 +82,7 @@
       </v-col>
     </v-row>
 
+    <!-- ... Pagination & Dialogs (unchanged) ... -->
     <v-row justify="space-between" class="mb-2 mt-4">
       <v-btn @click="prevPage" :disabled="currentPage === 0" color="primary" class="ml-3">
         ← Previous
@@ -88,6 +93,7 @@
     </v-row>
 
     <v-dialog v-model="showCriteriaDialog" max-width="500px">
+      <!-- Unchanged -->
       <v-card>
         <v-card-title class="text-h6">Offer Criteria</v-card-title>
         <v-divider></v-divider>
@@ -134,6 +140,7 @@
     </v-dialog>
 
     <v-dialog v-model="showCaptchaDialog" max-width="400px" persistent>
+      <!-- Unchanged -->
       <v-card>
         <v-card-title class="text-h6">Verify Purchase</v-card-title>
         <v-divider></v-divider>
@@ -164,7 +171,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </v-container>
 </template>
 
@@ -177,7 +183,6 @@ const $cookies = inject("$cookies");
 //@ts-ignore
 const csrfToken = $cookies.get('csrftoken');
 
-// ... (Your existing interfaces remain exactly the same) ...
 interface Tank {
   id: number;
   name: string;
@@ -188,6 +193,7 @@ interface Tank {
   base_discounted_price: number;
   battle_rating: number;
   is_purchased: boolean;
+  purchased_by: string | null; // NEW: Added purchased_by to interface
 }
 
 interface Criteria {
@@ -274,6 +280,18 @@ const groupList = computed(() => {
 const isBeforeAvailableFrom = (tank: Tank): boolean => {
   const availableFrom = new Date(tank.available_from).getTime();
   return currentTime.value < availableFrom;
+};
+
+// NEW: Check if the 24 hour restriction applies to this tank/group for the user's team
+const isRestrictedBy24hLimit = (tank: Tank, group: Group): boolean => {
+  const availableFrom = new Date(tank.available_from).getTime();
+  const restrictedUntil = availableFrom + 24 * 60 * 60 * 1000; // + 24 hours
+
+  if (currentTime.value < restrictedUntil) {
+    // If we're inside the 24h window, check if our team bought ANY tank from this specific group
+    return group.tanks.some(t => t.purchased_by === team.value.name);
+  }
+  return false;
 };
 
 const visibleGroups = computed(() => {
@@ -389,16 +407,21 @@ const purchaseTank = async (tank: Tank) => {
       body: JSON.stringify({ import_id: tank.id }),
     });
 
+    const respData = await response.json();
+
     if (!response.ok) {
-      throw new Error("Failed to purchase the tank.");
+      throw new Error(respData.error || "Failed to purchase the tank.");
     }
 
+    // Update state to trigger UI changes instantly without a reload
     tank.is_purchased = true;
+    tank.purchased_by = team.value.name; // Register UI constraint immediately
     team.value.balance -= calculatePrice(tank);
+
     alert(`Successfully purchased ${tank.tank_name}!`);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error purchasing tank:", error);
-    alert("An error occurred while purchasing the tank.");
+    alert(error.message || "An error occurred while purchasing the tank.");
   }
 };
 

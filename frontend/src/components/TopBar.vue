@@ -100,6 +100,7 @@ const drawerItems = ref([
   { title: 'Imports', path: '/imports'},
   { title: 'Boxes', path: '/boxes' },
   { title: 'Money Log', path: '/log'},
+  { title: 'Maps', path: '/maps' },
   { title: 'Tanks', path: '/tanks' },
   { title: 'Manufacturers', path: '/manufacturers' },
   { title: 'Upgrade Charts', path: '/upgrades' },

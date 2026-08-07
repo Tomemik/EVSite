@@ -1,7 +1,7 @@
-from collections import defaultdict
+from collections import defaultdict, Counter
 from django.db.models import Q
 from django.core.exceptions import ObjectDoesNotExist
-from ..models import MatchRound, MatchKill, Tank
+from ..models import MatchRound, MatchKill, Tank, Match, TeamLog
 
 
 class StatsService:
@@ -243,4 +243,119 @@ class StatsService:
             'kills_per_spawn': round(kills / spawns, 2) if spawns > 0 else 0.0,
             'match_winrate': round(match_wr, 1),
             'round_winrate': round(round_wr, 1)
+        }
+
+    def get_general_stats(self, filter_team=None, start_date=None, end_date=None):
+        # 1. Base Match Query
+        matches_qs = Match.objects.filter(was_played=True).prefetch_related('match_result', 'teammatch_set__team')
+
+        if start_date: matches_qs = matches_qs.filter(datetime__gte=start_date)
+        if end_date: matches_qs = matches_qs.filter(datetime__lte=end_date)
+        if filter_team: matches_qs = matches_qs.filter(teams__name=filter_team)
+
+        total_matches = matches_qs.count()
+        gamemode_counts = Counter(matches_qs.values_list('gamemode', flat=True))
+        mode_counts = Counter(matches_qs.values_list('mode', flat=True))
+
+        # 2. Maps & Match Lengths from verified rounds
+        rounds_qs = MatchRound.objects.filter(match__in=matches_qs, is_verified=True).select_related('match')
+
+        total_time_s = 0
+        valid_time_rounds = 0
+        br_counts = Counter()
+        class_counts = Counter()
+        maps_data = defaultdict(lambda: {'total': 0, 'variants': Counter()})
+
+        valid_tanks = {t.name: t for t in Tank.objects.all()}
+
+        # Tank class grouping map
+        type_clumps = {
+            'LT': ['LT', 'LT/SPG', 'LT/TD', 'PWLT'],
+            'MT': ['MT', 'MT/SPG', 'PWMT', 'MBT'],
+            'HT': ['HT', 'HT/A', 'PWHT'],
+            'TD': ['TD', 'TD/A', 'TD/SPG', 'PWTD', 'PWTD/SPG']
+        }
+        class_mapping = {}
+        for main_class, sub_classes in type_clumps.items():
+            for sub in sub_classes:
+                class_mapping[sub.upper()] = main_class
+
+        for r in rounds_qs:
+            # Match Length
+            if r.start_time_s and r.end_time_s:
+                total_time_s += abs(r.start_time_s - r.end_time_s)
+                valid_time_rounds += 1
+
+            # Maps & Variants Nested Tracking (Updated to use map_details)
+            if r.map_name:
+                # Extract variant strictly from the parsed JSON dictionary
+                variant = 'Standard'
+                if isinstance(r.map_details, dict):
+                    variant = r.map_details.get('mode', 'Standard')
+
+                maps_data[r.map_name]['total'] += 1
+                maps_data[r.map_name]['variants'][variant] += 1
+
+            # Aggregate BRs and Classes driven
+            for side, spawns in r.player_spawns.items():
+                if not isinstance(spawns, list): continue
+
+                # If filtering by team, only count their specific spawns
+                if filter_team:
+                    try:
+                        actual_team = r.match.teammatch_set.get(side=side).team.name
+                        if actual_team != filter_team:
+                            continue
+                    except ObjectDoesNotExist:
+                        continue
+
+                for s in spawns:
+                    veh = s.get('vehicle') or s.get('veh')
+                    tank = valid_tanks.get(veh)
+                    if tank:
+                        br_counts[f"{tank.battle_rating:.1f}"] += 1
+
+                        # Apply Grouping
+                        raw_type = tank.type.upper()
+                        grouped_type = class_mapping.get(raw_type, raw_type)
+                        class_counts[grouped_type] += 1
+
+        avg_round_length = (total_time_s / valid_time_rounds) if valid_time_rounds > 0 else 0
+
+        # Sort maps by total and limit to top 12. Convert variants Counter to dict for JSON serialization
+        sorted_maps = dict(sorted(maps_data.items(), key=lambda item: item[1]['total'], reverse=True)[:12])
+        for m_name in sorted_maps:
+            sorted_maps[m_name]['variants'] = dict(
+                sorted(sorted_maps[m_name]['variants'].items(), key=lambda x: x[1], reverse=True))
+
+        # 3. Economy logic (TeamLog for exact dates)
+        economy_qs = TeamLog.objects.filter(method_name='calc_rewards')
+        if start_date: economy_qs = economy_qs.filter(timestamp__gte=start_date)
+        if end_date: economy_qs = economy_qs.filter(timestamp__lte=end_date)
+        if filter_team: economy_qs = economy_qs.filter(team__name=filter_team)
+
+        total_economy_payout = 0
+        valid_payout_logs = 0
+
+        for log in economy_qs:
+            diff = log.new_value.get('balance', 0) - log.previous_value.get('balance', 0)
+            if diff > 0:
+                total_economy_payout += diff
+                valid_payout_logs += 1
+
+        avg_reward_per_team = (total_economy_payout / valid_payout_logs) if valid_payout_logs > 0 else 0
+
+        return {
+            'overview': {
+                'total_matches': total_matches,
+                'total_rounds': rounds_qs.count(),
+                'avg_round_length_s': avg_round_length,
+                'total_payout': total_economy_payout,
+                'avg_reward_per_team': avg_reward_per_team,
+            },
+            'gamemodes': dict(sorted(gamemode_counts.items(), key=lambda x: x[1], reverse=True)),
+            'modes': dict(sorted(mode_counts.items(), key=lambda x: x[1], reverse=True)),
+            'maps': sorted_maps,
+            'br_distribution': dict(sorted(br_counts.items(), key=lambda x: float(x[0]))),
+            'class_distribution': dict(sorted(class_counts.items(), key=lambda x: x[1], reverse=True))
         }

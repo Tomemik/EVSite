@@ -70,8 +70,9 @@
       </v-data-table>
       <v-divider></v-divider>
       <v-card-actions v-if="isCommander" class="pa-3">
-        <v-btn color="error" text small @click="openSellTankDialog">
-          <v-icon left small>mdi-delete</v-icon> Bulk Sell
+        <!-- ADDED: Limit checks and visual counter for bulk sell -->
+        <v-btn color="error" text small @click="openSellTankDialog" :disabled="(team.weekly_sells_left ?? 2) <= 0">
+          <v-icon left small>mdi-delete</v-icon> Bulk Sell ({{ team.weekly_sells_left ?? 2 }} left)
         </v-btn>
       </v-card-actions>
     </v-card>
@@ -436,8 +437,9 @@
         <v-divider></v-divider>
 
         <v-card-actions class="pa-4">
-          <v-btn v-if="isCommander" color="error" text @click="sellTank">
-            <v-icon left>mdi-cash-minus</v-icon> Sell
+          <!-- ADDED: Limit checks and visual counter for single sell -->
+          <v-btn v-if="isCommander" color="error" text @click="sellTank" :disabled="(team.weekly_sells_left ?? 2) <= 0">
+            <v-icon left>mdi-cash-minus</v-icon> Sell ({{ team.weekly_sells_left ?? 2 }} left)
           </v-btn>
           <v-spacer></v-spacer>
           <v-btn text @click="showTankDetailsDialog = false">Cancel</v-btn>
@@ -469,15 +471,17 @@
             class="elevation-0"
           >
             <template v-slot:[`item.quantityToSell`]="{ item }">
+              <!-- ADDED: Max validation dynamic input based on weekly_sells_left -->
               <v-text-field
                 v-model.number="sellQuantities[item.name]"
-                :max="item.quantity"
+                :max="Math.min(item.quantity, team.weekly_sells_left ?? 2)"
                 type="number"
                 min="0"
                 dense outlined
                 hide-details
                 class="mt-1 mb-1"
                 style="max-width: 100px"
+                @input="validateSellQuantity(item)"
               ></v-text-field>
             </template>
           </v-data-table>
@@ -521,7 +525,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-
     <v-dialog v-model="showBoxDialog" max-width="400px">
       <v-card class="text-center pa-4">
         <v-icon size="64" color="primary">mdi-package-variant-closed</v-icon>
@@ -533,7 +536,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-
     <v-dialog v-model="showSuccessDialog" max-width="400">
       <v-card>
         <v-card-title class="success white--text">Success</v-card-title>
@@ -549,7 +551,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-
     <v-dialog v-model="showUpgradeSuccessDialog" max-width="400">
       <v-card>
         <v-card-title class="success white--text">Upgrade Complete</v-card-title>
@@ -567,7 +568,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-
     <v-dialog v-model="showTransferSuccessDialog" max-width="400">
       <v-card>
         <v-card-title class="success white--text">Transfer Complete</v-card-title>
@@ -613,6 +613,7 @@ export default {
         tank_boxes: [],
         upgrade_kits: {},
         alliance_name: null,
+        weekly_sells_left: 2, // Added to prevent undefined errors before fetch completes
       },
       soldTanks: '',
       newBalance: 0,
@@ -675,12 +676,11 @@ export default {
       kitTransferAmount: 1,
       showRouletteDialog: false,
       wonTankName: '',
-      allBoxes: [], // Store the template boxes here
-      currentBoxContents: [], // The contents for the animation
+      allBoxes: [],
+      currentBoxContents: [],
     };
   },
   computed: {
-    // ... [Existing Computeds] ...
     nextKitTier() {
       if (!this.selectedKit) return '';
       return this.selectedKit.tier === 'T1' ? 'T2' : this.selectedKit.tier === 'T2' ? 'T3' : '';
@@ -880,6 +880,27 @@ export default {
     }
   },
   methods: {
+    // ADDED: Prevent users from typing a number higher than they are allowed to sell total
+    validateSellQuantity(item) {
+      let val = this.sellQuantities[item.name] || 0;
+      if (val < 0) val = 0;
+      if (val > item.quantity) val = item.quantity;
+
+      let otherTotal = 0;
+      for (const key in this.sellQuantities) {
+        if (key !== item.name) {
+          otherTotal += (this.sellQuantities[key] || 0);
+        }
+      }
+
+      const limit = this.team.weekly_sells_left ?? 2;
+
+      if (otherTotal + val > limit) {
+        val = limit - otherTotal;
+      }
+
+      this.sellQuantities[item.name] = val;
+    },
     async fetchTeams() {
       try {
         const response = await fetch('/api/league/teams/');
@@ -981,6 +1002,13 @@ export default {
     },
     async sellTank() {
       if (!this.selectedTank) return;
+
+      // ADDED: Prevent frontend selling if limit reached
+      if ((this.team.weekly_sells_left ?? 2) <= 0) {
+        alert("Weekly limit reached. You cannot sell more tanks this week.");
+        return;
+      }
+
       const tanksToSell = [this.selectedTank.item.id];
       try {
         const response = await fetch('/api/league/transactions/sell_tank/', {
@@ -1074,7 +1102,13 @@ export default {
         this.showUpgradeSuccessDialog = true;
       } catch (error) { console.error('Error upgrading tank:', error); }
     },
-    openSellTankDialog() { this.showSellTankDialog = true; },
+    openSellTankDialog() {
+      this.sellQuantities = {};
+      this.filteredTanks.forEach(tank => {
+        this.sellQuantities[tank.name] = 0;
+      });
+      this.showSellTankDialog = true;
+    },
     async sellTanks() {
       const tanksToSell = Object.keys(this.sellQuantities)
         .filter(name => this.sellQuantities[name] > 0)
@@ -1083,6 +1117,14 @@ export default {
           quantity: this.sellQuantities[name]
         }));
       if (tanksToSell.length === 0) return;
+
+      // ADDED: Extra frontend guard preventing selling over limit
+      const totalToSell = tanksToSell.reduce((acc, curr) => acc + curr.quantity, 0);
+      if (totalToSell > (this.team.weekly_sells_left ?? 2)) {
+        alert(`You can only sell ${this.team.weekly_sells_left ?? 2} more tanks this week.`);
+        return;
+      }
+
       try {
         const response = await fetch('/api/league/transactions/sell_tanks/', {
           method: 'POST',
@@ -1096,12 +1138,12 @@ export default {
             tanks: tanksToSell
           })
         });
-        if (!response.ok) { const res = await response.json(); alert(`Error Selling tank: ${res.error}`); }
+        if (!response.ok) { const res = await response.json(); alert(`Error Selling tank: ${res.error}`); return; }
         const responseData = await response.json();
         this.soldTanks = responseData.sold_tanks;
         this.newBalance = responseData.new_balance;
         await this.fetchTeamDetails();
-        this.showTankDetailsDialog = false;
+        this.showSellTankDialog = false; // Fixed issue where the wrong dialog was being closed
         this.showSuccessDialog = true;
       } catch (error) {}
     },
@@ -1200,8 +1242,6 @@ export default {
         console.error('Error fetching tank boxes:', error);
       }
     },
-
-    // 2. Update your openBox method
     async openBox() {
       try {
         const response = await fetch('/api/league/transactions/open_box/', {
@@ -1223,12 +1263,11 @@ export default {
           const wonTank = await response.json();
           this.wonTankName = wonTank;
 
-          // Look up the box template to see what's inside it
           const templateBox = this.allBoxes.find(b => b.name === this.selectedBox.name);
           if (templateBox && templateBox.tanks) {
             this.currentBoxContents = templateBox.tanks.map(t => t.name);
           } else {
-            this.currentBoxContents = []; // Component will fallback gracefully
+            this.currentBoxContents = [];
           }
 
           this.showRouletteDialog = true;
@@ -1244,10 +1283,9 @@ export default {
       this.preTaxAmount = 0
       this.postTaxAmount = 0
     },
-
     openKitTransferDialog() {
-      this.showMergeSplitDialog = false; // Close parent dialog
-      this.showKitTransferDialog = true; // Open transfer dialog
+      this.showMergeSplitDialog = false;
+      this.showKitTransferDialog = true;
       this.selectedKitTransferTeam = null;
       this.kitTransferAmount = 1;
     },
@@ -1273,7 +1311,7 @@ export default {
 
         if (response.ok) {
           alert(`Successfully sent ${this.kitTransferAmount} kit(s) to ${this.selectedKitTransferTeam}`);
-          await this.fetchTeamDetails(); // Refresh inventory
+          await this.fetchTeamDetails();
           this.showKitTransferDialog = false;
         } else {
           alert(`Failed: ${data.error || 'Unknown error'}`);

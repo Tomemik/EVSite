@@ -122,6 +122,7 @@ class TeamSerializer(serializers.ModelSerializer):
     tanks = serializers.SerializerMethodField()
     upgrade_kits = serializers.JSONField(required=False)
     tank_boxes = TeamBoxSerializer(many=True, read_only=True, source='teambox_set')
+    weekly_sells_left = serializers.IntegerField(read_only=True)
 
     alliance_id = serializers.PrimaryKeyRelatedField(source='alliance', read_only=True)
     alliance_name = serializers.CharField(source='alliance.name', read_only=True)
@@ -133,7 +134,7 @@ class TeamSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'color', 'balance', 'manufacturers', 'tanks',
             'upgrade_kits', 'tank_boxes', 'alliance_id', 'alliance_name', 'alliance_color',
-            'has_bounty', 'total_money_earned', 'score'
+            'has_bounty', 'total_money_earned', 'score', 'weekly_sells_left'
         ]
         depth = 1
 
@@ -473,10 +474,11 @@ class ImportTankSerializer(serializers.ModelSerializer):
     battle_rating = serializers.FloatField(source='tank.battle_rating')
     base_discounted_price = serializers.SerializerMethodField()
     criteria_id = serializers.IntegerField(source='criteria.id', read_only=True)
+    purchased_by = serializers.CharField(source='purchased_by.name', read_only=True, allow_null=True)
 
     class Meta:
         model = ImportTank
-        fields = ['id', 'tank_name', 'battle_rating', 'discount', 'available_from', 'available_until', 'is_purchased', 'base_discounted_price', 'criteria_id']
+        fields = ['id', 'tank_name', 'battle_rating', 'discount', 'available_from', 'available_until', 'is_purchased', 'purchased_by', 'base_discounted_price', 'criteria_id']
 
     def get_base_discounted_price(self, obj):
         if not obj.tank or obj.tank.price is None:

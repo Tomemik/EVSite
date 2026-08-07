@@ -224,6 +224,7 @@ class Team(models.Model):
     def has_active_bounty(self):
         return self.bounties.filter(is_active=True).exists()
 
+
     def can_challenge_bounty(self, target_team):
         if not target_team.has_active_bounty:
             return True, None
@@ -249,6 +250,29 @@ class Team(models.Model):
 
         return True, None
 
+    def get_weekly_match_earnings(self, current_time=None):
+        if current_time is None:
+            current_time = now()
+
+        start_of_week = current_time - timedelta(days=current_time.weekday())
+        start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Fetch logs where money was earned via matches
+        logs = TeamLog.objects.filter(
+            team=self,
+            timestamp__gte=start_of_week,
+            method_name__in=['calc_rewards', 'sub_rewards', 'judge_rewards', 'judge_and_sub_rewards']
+        )
+
+        weekly_earnings = 0
+        for log in logs:
+            prev_balance = log.previous_value.get('balance', 0)
+            new_balance = log.new_value.get('balance', 0)
+            difference = new_balance - prev_balance
+            if difference > 0:
+                weekly_earnings += difference
+
+        return weekly_earnings
 
     def split_merge_kit(self, action, kit_type, kit_amount):
         if action not in ['merge', 'split']:
@@ -450,8 +474,25 @@ class Team(models.Model):
         TeamTank.objects.create(team=self, tank=tank)
         return f"Tank {tank.name} purchased successfully. Remaining balance: {self.balance}"
 
+    @property
+    def weekly_sells_left(self):
+        """Calculates how many tanks the team can still sell this week."""
+        start_of_week = now() - timedelta(days=now().weekday())
+        start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        sold_this_week = TeamLog.objects.filter(
+            team=self,
+            timestamp__gte=start_of_week,
+            method_name='sell_teamtank'
+        ).count()
+
+        return max(2 - sold_this_week, 0)
+
     @log_team_changes
     def sell_teamtank(self, teamtank, *, user):
+        if self.weekly_sells_left <= 0:
+            raise ValidationError("Weekly limit reached: You can only sell 2 tanks per week.")
+
         active_matches = Match.objects.filter(
             teammatch__tanks=teamtank,
             was_played=False
@@ -854,6 +895,29 @@ class Team(models.Model):
                     self.tanks.through.objects.create(team=self, tank=tank_to_add)
 
             self.save()
+
+    def get_manufacturer_plus_roster(self):
+        """
+        Returns a QuerySet of all allowed tanks for the 'Manufacturer+' gamemode.
+        This includes:
+        1. Base tanks from the team's manufacturers.
+        2. +1 Tier: Tanks that can be directly upgraded TO from a base tank.
+        3. -1 Tier: Tanks that can be directly upgraded FROM to reach a base tank.
+        """
+        team_manufacturers = self.manufacturers.all()
+
+        # 1. Base Tanks (Tanks directly built by your manufacturers)
+        base_q = Q(manufacturers__in=team_manufacturers)
+
+        # 2. +1 Tier (Tanks you can reach by upgrading FROM a base tank)
+        plus_1_q = (Q(upgrade_to__from_tank__manufacturers__in=team_manufacturers) & Q(battle_rating__lte=7.5))
+
+        # 3. -1 Tier (Tanks you must upgrade FROM to reach a base tank)
+        minus_1_q = (Q(upgrade_from__to_tank__manufacturers__in=team_manufacturers) & Q(battle_rating__lte=7.5))
+
+        allowed_tanks = Tank.objects.filter(base_q | plus_1_q | minus_1_q).distinct()
+
+        return allowed_tanks
 
 
 class Bounty(models.Model):
@@ -1603,20 +1667,38 @@ class MatchResult(models.Model):
                         bounty_amount = active_bounty.value
                         team_rewards[challenger_team.id] += bounty_amount
 
+        economy_settings = WeeklyEconomySettings.load()
+        current_cap = economy_settings.current_cap
+
         for team_id, reward in team_rewards.items():
-            reversed_score = ":".join(self.round_score.split(':')[::-1])
-            if team_id in winning_teams:
-                points = ROUND_POINTS.get(self.round_score, 0)
-                num_rounds = sum(map(int, self.round_score.split(':')))
-                win_percentage = int(self.round_score.split(':')[0]) / num_rounds if num_rounds > 0 else 0
-                total_points = points * (1 + win_percentage)
-            elif team_id in losing_teams:
-                points = ROUND_POINTS.get(reversed_score, 0)
-                num_rounds = sum(map(int, self.round_score.split(':')))
-                win_percentage = int(self.round_score.split(':')[0]) / num_rounds if num_rounds > 0 else 0
-                total_points = points * (1 + win_percentage)
-            else:
-                total_points = 0
+            team = Team.objects.get(id=team_id)
+
+            # Only scale positive rewards (do not scale down penalties)
+            if reward > 0:
+                weekly_earnings = team.get_weekly_match_earnings(self.match.datetime)
+
+                # Soft Cap Scaling Logic
+                if weekly_earnings > current_cap:
+                    # Calculate how far over the cap they are as a percentage
+                    overage_amount = weekly_earnings - current_cap
+                    overage_ratio = overage_amount / current_cap
+
+                    # E.g., 100k over a 500k cap = 0.2 (20%).
+                    # Apply admin scaling factor (default 1.0)
+                    penalty_percentage = overage_ratio * economy_settings.over_cap_penalty_scaling
+
+                    # Ensure they don't get reduced to 0 or negative
+                    reward_multiplier = max(1.0 - penalty_percentage, economy_settings.min_reward_floor)
+
+                    # Apply the scale to this match's reward
+                    original_reward = reward
+                    reward = int(reward * reward_multiplier)
+                    team_rewards[team_id] = reward
+
+                    # You might want to append this to the description string for the TeamLog
+                    soft_cap_log = f"\nSoft Cap Applied: Reached {weekly_earnings:,}/{current_cap:,}. Reward reduced to {reward_multiplier * 100:.1f}%."
+                else:
+                    soft_cap_log = ""
 
             team = Team.objects.get(id=team_id)
             initial_balance = team.balance
@@ -1689,6 +1771,7 @@ class MatchResult(models.Model):
                     description=f"Balance Changed by: {reward}\n"
                                 f"Kits changed by: {compare_upgrade_kits(kits, team.upgrade_kits)}\n"
                                 f"{bounty_line}"
+                                f"{soft_cap_log}\n"
                                 f"Match: {self.match.__str__()}\n"
                                 f"Match ID: {self.match.id}\n"
                                 f"Booster: {booster_log_data if booster_log_data else 'None'}",
@@ -1709,6 +1792,7 @@ class MatchResult(models.Model):
                     },
                     description=f"Balance Changed by: {reward}\n"
                                 f"{bounty_line}"
+                                f"{soft_cap_log}\n"
                                 f"Match: {self.match.__str__()}\n"
                                 f"Match ID: {self.match.id}\n"
                                 f"Booster: {booster_log_data if booster_log_data else 'None'}",
@@ -1884,6 +1968,9 @@ class ImportTank(models.Model):
     available_from = models.DateTimeField(default=now)
     available_until = models.DateTimeField(default=default_expiry_date)
     is_purchased = models.BooleanField(default=False)
+    purchased_by = models.ForeignKey(
+        'Team', on_delete=models.SET_NULL, null=True, blank=True, related_name='purchased_imports'
+    )
     criteria = models.ForeignKey(
         'ImportCriteria',
         on_delete=models.SET_NULL,
@@ -1909,6 +1996,16 @@ class ImportTank(models.Model):
         if now() < import_tank.available_from or now() > import_tank.available_until:
             raise ValidationError("This import is not open.")
 
+        # NEW: Check 24-hour limit (1 purchase per team per import batch)
+        restricted_until = import_tank.available_from + timedelta(hours=24)
+        if now() < restricted_until:
+            already_bought = ImportTank.objects.filter(
+                available_from=import_tank.available_from,
+                purchased_by=team
+            ).exists()
+            if already_bought:
+                raise ValidationError("Your team can only purchase 1 tank from this import batch within the first 24 hours.")
+
         tank_price = max(import_tank.tank.price - import_tank.tank.price * (import_tank.discount / 100), 0)
 
         if team.manufacturers.filter(id__in=import_tank.tank.manufacturers.all()).exists():
@@ -1928,6 +2025,7 @@ class ImportTank(models.Model):
         team.balance -= tank_price
         team.total_money_spent += tank_price
         import_tank.is_purchased = True
+        import_tank.purchased_by = team  # Save the purchasing team
         import_tank.save()
         team.save()
 
@@ -1943,7 +2041,7 @@ class ImportTank(models.Model):
             method_name='imports_purchase',
         )
 
-        return f"Tank {import_tank.tank.name} purchased from imports successfully. Remaining balance: {team.balance}"
+        return f"Tank {import_tank.tank.name} purchased from imports successfully. Remaining balance {team.balance}."
 
 
 class ImportCriteria(models.Model):
@@ -2111,3 +2209,93 @@ class ReplayFile(models.Model):
 
     def __str__(self):
         return self.file.name
+
+
+class WeeklyEconomySettings(models.Model):
+    target_matches_for_cap = models.FloatField(
+        default=3.5,
+        help_text="Target matches per week used to compute the cap (e.g., 3.5 = midpoint of 3-4 games)."
+    )
+    max_weekly_matches = models.IntegerField(
+        default=6,
+        help_text="Maximum matches a team is allowed to play per week."
+    )
+    current_cap = models.IntegerField(
+        default=350000,
+        help_text="The dynamic weekly soft cap (auto-calculated)."
+    )
+    fallback_match_reward = models.IntegerField(
+        default=100000,
+        help_text="Default reward per match if no past match data exists."
+    )
+    under_cap_payout_ratio = models.FloatField(
+        default=0.5,
+        help_text="Percentage of under-cap deficit paid out at week end (0.5 = 50%)."
+    )
+    over_cap_penalty_scaling = models.FloatField(
+        default=1.0,
+        help_text="Scaling multiplier for over-cap penalty."
+    )
+    min_reward_floor = models.FloatField(
+        default=0.1,
+        help_text="Minimum reward multiplier floor (0.1 = 10%)."
+    )
+    ema_weight = models.FloatField(
+        default=0.3,
+        help_text="Weight of the new week's average (0.0 to 1.0). 0.3 means 30% new week, 70% old cap."
+    )
+
+    class Meta:
+        verbose_name = "Weekly Economy Setting"
+        verbose_name_plural = "Weekly Economy Settings"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, created = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def update_dynamic_cap(self):
+        """
+        Calculates the global average reward per team-match over the last 7 days,
+        then applies an Exponential Moving Average (EMA) to smoothly shift the cap.
+        """
+        window_start = now() - timedelta(days=7)
+
+        # 1. Sum all match rewards earned globally in the last 7 days
+        reward_logs = TeamLog.objects.filter(
+            timestamp__gte=window_start,
+            method_name__in=['calc_rewards']
+        )
+
+        total_payouts = sum(
+            max(0, log.new_value.get('balance', 0) - log.previous_value.get('balance', 0))
+            for log in reward_logs
+        )
+
+        # 2. Count total team participations (team-matches) played in that window
+        total_team_matches = TeamMatch.objects.filter(
+            match__was_played=True,
+            match__datetime__gte=window_start
+        ).count()
+
+        # 3. Compute global average per team per match (for the last 7 days)
+        if total_team_matches > 0:
+            current_week_avg_per_match = total_payouts / total_team_matches
+        else:
+            current_week_avg_per_match = self.fallback_match_reward
+
+        # 4. Calculate what the cap *would* be based purely on this 7-day window
+        current_week_target_cap = current_week_avg_per_match * self.target_matches_for_cap
+
+        # 5. Apply the EMA formula: (Weight * New Raw Cap) + ((1 - Weight) * Old Cap)
+        smoothed_cap = (self.ema_weight * current_week_target_cap) + ((1.0 - self.ema_weight) * self.current_cap)
+
+        # 6. Save the new smoothed cap
+        self.current_cap = int(smoothed_cap)
+        self.save()
+
+        return self.current_cap

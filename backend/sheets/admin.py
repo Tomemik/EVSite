@@ -6,7 +6,7 @@ from django.utils.html import format_html
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, default_upgrade_kits, \
     MatchResult, Substitute, TankLost, TeamResult, TeamLog, TankBox, TeamBox, ImportTank, ImportCriteria, Booster, \
     UpgradeTree, Interchange, InterchangeGroup, Alliance, Bounty, BountyTier, MatchRewardRates, \
-    MatchRound, MatchKill, ReplayFile, MatchCrit
+    MatchRound, MatchKill, ReplayFile, MatchCrit, WeeklyEconomySettings
 
 
 class ManufacturerAdmin(admin.ModelAdmin):
@@ -262,6 +262,14 @@ class MatchKillAdmin(admin.ModelAdmin):
     list_filter = ('match_round__match',)
 
 
+class WeeklyEconomySettingsAdmin(admin.ModelAdmin):
+    list_display = ('current_cap', 'target_matches_for_cap', 'ema_weight', 'under_cap_payout_ratio')
+
+    def has_add_permission(self, request):
+        if self.model.objects.exists():
+            return False
+        return super().has_add_permission(request)
+
 admin.site.register(Booster, BoosterAdmin)
 admin.site.register(MatchResult, MatchResultAdmin)
 admin.site.register(Manufacturer, ManufacturerAdmin)
@@ -283,6 +291,6 @@ admin.site.register(Alliance, AllianceAdmin)
 admin.site.register(Bounty, BountyAdmin)
 admin.site.register(BountyTier, BountyTierAdmin)
 admin.site.register(MatchRewardRates, MatchRewardRateAdmin)
-
+admin.site.register(WeeklyEconomySettings, WeeklyEconomySettingsAdmin)
 admin.site.register(MatchRound, MatchRoundAdmin)
 admin.site.register(MatchKill, MatchKillAdmin)

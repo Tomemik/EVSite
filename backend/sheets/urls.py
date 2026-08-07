@@ -1,7 +1,7 @@
 from django.urls import path
 
 from . import views
-from .views import MatchRoundListView, RoundTelemetryView, ParseTemporaryReplayView, ComprehensiveStatsView
+from .views import MatchRoundListView, RoundTelemetryView, ParseTemporaryReplayView, ComprehensiveStatsView, MapDataView
 
 urlpatterns = [
     path("teams/", views.AllTeamsView.as_view(), name='teams'),
@@ -48,4 +48,5 @@ urlpatterns = [
     path('matches/<int:pk>/replays/<int:round_number>/telemetry/', RoundTelemetryView.as_view(), name='round-telemetry'),
     path('replays/parse-temp/', ParseTemporaryReplayView.as_view()),
     path('stats/comprehensive/', ComprehensiveStatsView.as_view(), name='comprehensive-stats'),
+    path('maps/data/', MapDataView.as_view(), name='map-data'),
 ]
