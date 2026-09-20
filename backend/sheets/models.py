@@ -5,6 +5,7 @@ import random
 
 from django.db import models, transaction
 from django.db.models import F, Q, Count
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.timezone import now
 from rest_framework.exceptions import ValidationError
 import heapq
@@ -196,9 +197,22 @@ class Team(models.Model):
         return self.name
 
     def check_tank_limit(self, tank):
-        current_count = TeamTank.objects.filter(team=self, tank=tank).count()
-        if current_count >= self.MAX_PER_TANK:
-            raise ValidationError(f"Limit reached: You cannot own more than {self.MAX_PER_TANK} of {tank.name}.")
+        current_count = TeamTank.objects.filter(
+            team=self,
+            tank=tank,
+        ).count()
+
+        reserved_auction_count = AuctionLot.objects.filter(
+            current_bidder=self,
+            candidate__tank=tank,
+            finalized_at__isnull=True,
+        ).count()
+
+        if current_count + reserved_auction_count >= self.MAX_PER_TANK:
+            raise ValidationError(
+                f"Limit reached: You cannot own more than "
+                f"{self.MAX_PER_TANK} of {tank.name}."
+            )
 
     @property
     def matches_played(self):
@@ -966,6 +980,13 @@ class Tank(models.Model):
     manufacturers = models.ManyToManyField(Manufacturer, related_name='tanks', blank=True)
     internal_ids = models.JSONField(default=list, blank=True)
 
+    is_allowed_in_advanced = models.BooleanField(default=True)
+    advanced_battle_rating = models.FloatField(default=0.0)
+    advanced_value = models.IntegerField(default=0)
+
+    is_allowed_in_evolved = models.BooleanField(default=True)
+    evolved_battle_rating = models.FloatField(default=0.0)
+
     def __str__(self):
         return f"{self.name}"
 
@@ -1160,6 +1181,20 @@ class MatchRewardRates(models.Model):
     no_rule_kill_reward = models.FloatField(default=0.0)
     no_rule_repair_cost = models.FloatField(default=0.0)
 
+    advanced_even_split_kill_reward = models.FloatField(default=0.0)
+    advanced_even_split_repair_cost = models.FloatField(default=0.0)
+    advanced_money_rule_kill_reward = models.FloatField(default=0.0)
+    advanced_money_rule_repair_cost = models.FloatField(default=0.0)
+    advanced_no_rule_kill_reward = models.FloatField(default=0.0)
+    advanced_no_rule_repair_cost = models.FloatField(default=0.0)
+
+    evolved_even_split_kill_reward = models.FloatField(default=0.0)
+    evolved_even_split_repair_cost = models.FloatField(default=0.0)
+    evolved_money_rule_kill_reward = models.FloatField(default=0.0)
+    evolved_money_rule_repair_cost = models.FloatField(default=0.0)
+    evolved_no_rule_kill_reward = models.FloatField(default=0.0)
+    evolved_no_rule_repair_cost = models.FloatField(default=0.0)
+
     class Meta:
         verbose_name = "Match Reward Rate"
         verbose_name_plural = "Match Reward Rates"
@@ -1260,8 +1295,20 @@ class MatchResult(models.Model):
         tanks_lost = TankLost.objects.filter(match_result__match=self.match)
         tanks = Tank.objects.filter(id__in=tanks_lost.values_list('tank_id', flat=True))
 
-        total_rank_br = sum(tank.rank * tank.battle_rating for tank in tanks)
-        total_br = sum(tank.battle_rating for tank in tanks)
+        mode = self.match.mode
+        total_rank_br = 0
+        total_br = 0
+
+        for tank in tanks:
+            if mode == 'evolved' and tank.evolved_battle_rating != 0:
+                br = tank.evolved_battle_rating
+            elif mode == 'advanced' and tank.advanced_battle_rating != 0:
+                br = tank.advanced_battle_rating
+            else:
+                br = tank.battle_rating
+
+            total_rank_br += tank.rank * br
+            total_br += br
 
         if total_br > 0:
             average_rank = total_rank_br / total_br
@@ -1273,6 +1320,14 @@ class MatchResult(models.Model):
     def calculate_base_reward(self, average_rank):
 
         advanced_rewards = [
+            {"rank": 1, "winner": 20000, "loser": 15000},
+            {"rank": 2, "winner": 40000, "loser": 30000},
+            {"rank": 3, "winner": 60000, "loser": 45000},
+            {"rank": 4, "winner": 80000, "loser": 60000},
+            {"rank": 5, "winner": 100000, "loser": 75000},
+        ]
+
+        evolved_rewards = [
             {"rank": 1, "winner": 20000, "loser": 15000},
             {"rank": 2, "winner": 40000, "loser": 30000},
             {"rank": 3, "winner": 60000, "loser": 45000},
@@ -1315,13 +1370,20 @@ class MatchResult(models.Model):
             else:
                 return trad_bo3_rewards[min(int(round(average_rank) - 1), 4)]["winner"], \
                     trad_bo3_rewards[min(int(round(average_rank) - 1), 4)]["loser"]
-        elif mode == "advanced" or mode == "evolved":
+        elif mode == "advanced":
             if game_mode == "flag_tank":
                 return flag_rewards[min(int(round(average_rank)-1), 4)]["winner"], \
                     flag_rewards[min(int(round(average_rank)-1), 4)]["loser"]
             else:
                 return advanced_rewards[min(int(round(average_rank)-1), 4)]["winner"], \
                     advanced_rewards[min(int(round(average_rank)-1), 4)]["loser"]
+        elif mode == "evolved":
+            if game_mode == "flag_tank":
+                return flag_rewards[min(int(round(average_rank)-1), 4)]["winner"], \
+                    flag_rewards[min(int(round(average_rank)-1), 4)]["loser"]
+            else:
+                return evolved_rewards[min(int(round(average_rank)-1), 4)]["winner"], \
+                    evolved_rewards[min(int(round(average_rank)-1), 4)]["loser"]
 
         return 0, 0
 
@@ -1343,7 +1405,25 @@ class MatchResult(models.Model):
         if self.judge:
             participating_teams.add(self.judge.id)
 
-        team_rewards = {team_id: 0 for team_id in participating_teams}
+        team_rewards = {team_id: 0.0 for team_id in participating_teams}
+
+        # Initialize breakdown tracker (Removed round_score_reward as score doesn't belong to money)
+        team_breakdowns = {team_id: {
+            "base_reward": 0,
+            "kill_rewards": 0,
+            "repair_costs": 0,
+            "kill_details": [],
+            "repair_details": [],
+            "bonuses": 0,
+            "penalties": 0,
+            "booster_multiplier": 1.0,
+            "substitute_cut": 0,
+            "substitute_earnings": 0,
+            "judge_reward": 0,
+            "bounty_reward": 0,
+            "soft_cap_multiplier": 1.0,
+            "final_reward": 0
+        } for team_id in participating_teams}
 
         teams_on_side = {
             'team_1': list(TeamMatch.objects.filter(match=self.match, side='team_1').values_list('team_id', flat=True)),
@@ -1382,6 +1462,8 @@ class MatchResult(models.Model):
                     )
                     participating_teams.remove(team_id)
                     playing_teams.remove(team_id)
+                    if team_id in team_breakdowns:
+                        del team_breakdowns[team_id]
                 else:
                     initial_balance = team.balance
                     team.balance -= 20000
@@ -1423,8 +1505,6 @@ class MatchResult(models.Model):
                     self.save()
                     return
 
-
-
         if self.winning_side == 'team_1':
             winner_base_reward -= substitutes_rewards['team_1']
             loser_base_reward -= substitutes_rewards['team_2']
@@ -1442,64 +1522,160 @@ class MatchResult(models.Model):
         if self.match.mode == "traditional" or self.match.gamemode == "flag_tank":
             for team in winning_teams:
                 team_rewards[team] += winner_base_reward
+                team_breakdowns[team]["base_reward"] = int(winner_base_reward)
 
             for team in losing_teams:
                 team_rewards[team] += loser_base_reward
+                team_breakdowns[team]["base_reward"] = int(loser_base_reward)
         else:
-            total_loss_penalty_team_1 = 0
-            total_gain_reward_team_1 = 0
-            total_loss_penalty_team_2 = 0
-            total_gain_reward_team_2 = 0
+            # We track base, kills, and repairs independently to avoid math duplication
+            t1_kills_val = 0
+            t1_repairs_val = 0
+            t2_kills_val = 0
+            t2_repairs_val = 0
+
+            t1_kill_details = {}
+            t1_repair_details = {}
+            t2_kill_details = {}
+            t2_repair_details = {}
+
+            # Helper to consolidate multiples of the same tank
+            def add_to_dict(d, tank_name, qty, amount):
+                if tank_name not in d:
+                    d[tank_name] = {"qty": 0, "amount": 0.0}
+                d[tank_name]["qty"] += qty
+                d[tank_name]["amount"] += amount
+
+            mode = self.match.mode
 
             for tank_lost in self.tanks_lost.all():
                 team_id = tank_lost.team.id
                 tank_price = tank_lost.tank.price
+                advanced_value = tank_lost.tank.advanced_value
                 quantity = tank_lost.quantity
                 side = 'team_1' if team_id in teams_on_side['team_1'] else 'team_2'
-                other_side = 'team_2' if side == 'team_1' else 'team_1'
 
                 if self.match.money_rules == 'even_split':
-                    loss_penalty = tank_price * rates.even_split_repair_cost * quantity
-                    gain_reward = tank_price * rates.even_split_kill_reward * quantity
+                    if mode == 'evolved':
+                        repair_rate = rates.evolved_even_split_repair_cost
+                        kill_rate = rates.evolved_even_split_kill_reward
+                    elif mode == 'advanced':
+                        repair_rate = rates.advanced_even_split_repair_cost
+                        kill_rate = rates.advanced_even_split_kill_reward
+                    else:
+                        repair_rate = rates.even_split_repair_cost
+                        kill_rate = rates.even_split_kill_reward
+
                 elif self.match.money_rules == 'money_rule':
-                    loss_penalty = tank_price * rates.money_rule_repair_cost * quantity
-                    gain_reward = tank_price * rates.money_rule_kill_reward * quantity
-                else:
-                    loss_penalty = tank_price * rates.no_rule_repair_cost * quantity
-                    gain_reward = tank_price * rates.no_rule_kill_reward * quantity
+                    if mode == 'evolved':
+                        repair_rate = rates.evolved_money_rule_repair_cost
+                        kill_rate = rates.evolved_money_rule_kill_reward
+                    elif mode == 'advanced':
+                        repair_rate = rates.advanced_money_rule_repair_cost
+                        kill_rate = rates.advanced_money_rule_kill_reward
+                    else:
+                        repair_rate = rates.money_rule_repair_cost
+                        kill_rate = rates.money_rule_kill_reward
+
+                else:  # no_rule
+                    if mode == 'evolved':
+                        repair_rate = rates.evolved_no_rule_repair_cost
+                        kill_rate = rates.evolved_no_rule_kill_reward
+                    elif mode == 'advanced':
+                        repair_rate = rates.advanced_no_rule_repair_cost
+                        kill_rate = rates.advanced_no_rule_kill_reward
+                    else:
+                        repair_rate = rates.no_rule_repair_cost
+                        kill_rate = rates.no_rule_kill_reward
+
+                loss_penalty = (advanced_value if mode == 'advanced' and advanced_value != 0 else tank_price) * repair_rate * quantity
+                gain_reward = (advanced_value if mode == 'advanced' and advanced_value != 0 else tank_price)  * kill_rate * quantity
 
                 if side == 'team_1':
-                    total_loss_penalty_team_1 += loss_penalty
-                    total_gain_reward_team_2 += gain_reward
+                    t1_repairs_val += loss_penalty
+                    t2_kills_val += gain_reward
+                    add_to_dict(t1_repair_details, tank_lost.tank.name, quantity, loss_penalty)
+                    add_to_dict(t2_kill_details, tank_lost.tank.name, quantity, gain_reward)
                 else:
-                    total_gain_reward_team_1 += gain_reward
-                    total_loss_penalty_team_2 += loss_penalty
+                    t2_repairs_val += loss_penalty
+                    t1_kills_val += gain_reward
+                    add_to_dict(t2_repair_details, tank_lost.tank.name, quantity, loss_penalty)
+                    add_to_dict(t1_kill_details, tank_lost.tank.name, quantity, gain_reward)
 
                 if team_1_tanks == 1 and team_2_tanks == 1:
-                    total_gain_reward_team_2 = 0
-                    total_gain_reward_team_1 = 0
+                    t1_kills_val = 0
+                    t2_kills_val = 0
+                    t1_kill_details.clear()
+                    t2_kill_details.clear()
 
+            # Assign side variables to Winner/Loser
             if self.winning_side == 'team_1':
-                winner_base_reward += total_gain_reward_team_1 - total_loss_penalty_team_1
-                loser_base_reward += total_gain_reward_team_2 - total_loss_penalty_team_2
+                winner_kills_val, winner_repairs_val = t1_kills_val, t1_repairs_val
+                loser_kills_val, loser_repairs_val = t2_kills_val, t2_repairs_val
+
+                winner_kill_details = [{"tank": k, "qty": v["qty"], "reward": int(v["amount"])} for k, v in
+                                       t1_kill_details.items()]
+                winner_repair_details = [{"tank": k, "qty": v["qty"], "cost": int(v["amount"])} for k, v in
+                                         t1_repair_details.items()]
+                loser_kill_details = [{"tank": k, "qty": v["qty"], "reward": int(v["amount"])} for k, v in
+                                      t2_kill_details.items()]
+                loser_repair_details = [{"tank": k, "qty": v["qty"], "cost": int(v["amount"])} for k, v in
+                                        t2_repair_details.items()]
             else:
-                winner_base_reward += total_gain_reward_team_2 - total_loss_penalty_team_2
-                loser_base_reward += total_gain_reward_team_1 - total_loss_penalty_team_1
+                winner_kills_val, winner_repairs_val = t2_kills_val, t2_repairs_val
+                loser_kills_val, loser_repairs_val = t1_kills_val, t1_repairs_val
 
-            winner_total_reward = winner_base_reward
-            loser_total_reward = loser_base_reward
+                winner_kill_details = [{"tank": k, "qty": v["qty"], "reward": int(v["amount"])} for k, v in
+                                       t2_kill_details.items()]
+                winner_repair_details = [{"tank": k, "qty": v["qty"], "cost": int(v["amount"])} for k, v in
+                                         t2_repair_details.items()]
+                loser_kill_details = [{"tank": k, "qty": v["qty"], "reward": int(v["amount"])} for k, v in
+                                      t1_kill_details.items()]
+                loser_repair_details = [{"tank": k, "qty": v["qty"], "cost": int(v["amount"])} for k, v in
+                                        t1_repair_details.items()]
 
+            # Handle even split
             if self.match.money_rules == "even_split":
-                winner_total_reward = (winner_base_reward + loser_base_reward) / 2
-                loser_total_reward = (winner_base_reward + loser_base_reward) / 2
+                avg_base = (winner_base_reward + loser_base_reward) / 2
+                winner_base_reward = loser_base_reward = avg_base
 
+                avg_kills = (winner_kills_val + loser_kills_val) / 2
+                winner_kills_val = loser_kills_val = avg_kills
+
+                avg_repairs = (winner_repairs_val + loser_repairs_val) / 2
+                winner_repairs_val = loser_repairs_val = avg_repairs
+
+                # Combine details for both
+                combined_kills = winner_kill_details + loser_kill_details
+                combined_repairs = winner_repair_details + loser_repair_details
+
+                winner_kill_details = loser_kill_details = combined_kills
+                winner_repair_details = loser_repair_details = combined_repairs
+
+            # Distribute to teams
             for team in winning_teams:
-                team_rewards[team] += winner_total_reward / len(winning_teams)
+                base = winner_base_reward / len(winning_teams)
+                kills = winner_kills_val / len(winning_teams)
+                repairs = winner_repairs_val / len(winning_teams)
+
+                team_rewards[team] += (base + kills - repairs)
+                team_breakdowns[team]["base_reward"] = int(base)
+                team_breakdowns[team]["kill_rewards"] = int(kills)
+                team_breakdowns[team]["repair_costs"] = int(repairs)
+                team_breakdowns[team]["kill_details"] = winner_kill_details
+                team_breakdowns[team]["repair_details"] = winner_repair_details
 
             for team in losing_teams:
-                team_rewards[team] += loser_total_reward / len(losing_teams)
+                base = loser_base_reward / len(losing_teams)
+                kills = loser_kills_val / len(losing_teams)
+                repairs = loser_repairs_val / len(losing_teams)
 
-
+                team_rewards[team] += (base + kills - repairs)
+                team_breakdowns[team]["base_reward"] = int(base)
+                team_breakdowns[team]["kill_rewards"] = int(kills)
+                team_breakdowns[team]["repair_costs"] = int(repairs)
+                team_breakdowns[team]["kill_details"] = loser_kill_details
+                team_breakdowns[team]["repair_details"] = loser_repair_details
 
         used_boosters = {}
 
@@ -1516,6 +1692,7 @@ class MatchResult(models.Model):
                     booster.delete()
                 else:
                     team_rewards[team] *= booster.multiplier
+                    team_breakdowns[team]["booster_multiplier"] = booster.multiplier
                     if booster.match_limited and booster.matches_left is not None:
                         used_boosters[team] = {
                             "team_id": team,
@@ -1539,6 +1716,7 @@ class MatchResult(models.Model):
                     booster.delete()
                 else:
                     team_rewards[team] *= booster.multiplier
+                    team_breakdowns[team]["booster_multiplier"] = booster.multiplier
                     if booster.match_limited and booster.matches_left is not None:
                         used_boosters[team] = {
                             "team_id": team,
@@ -1552,7 +1730,9 @@ class MatchResult(models.Model):
         for team_result in self.team_results.all():
             team_id = team_result.team.id
             if team_result.bonuses:
-                team_rewards[team_id] += 10000 * team_result.bonuses
+                bonus_amount = 10000 * team_result.bonuses
+                team_rewards[team_id] += bonus_amount
+                team_breakdowns[team_id]["bonuses"] += int(bonus_amount)
 
         if self.match.money_rules == "money_rule":
             for team_id in playing_teams:
@@ -1582,7 +1762,12 @@ class MatchResult(models.Model):
         for team_result in self.team_results.all():
             team_id = team_result.team.id
             if team_result.penalties:
-                team_rewards[team_id] -= 10000 * average_rank * team_result.penalties
+                penalty_amount = 10000 * average_rank * team_result.penalties
+                team_rewards[team_id] -= penalty_amount
+                team_breakdowns[team_id]["penalties"] += int(penalty_amount)
+
+        bonuses = models.FloatField(default=0.0, blank=True, null=True)
+        penalties = models.FloatField(default=0.0, blank=True, null=True)
 
         for team_id in playing_teams:
             team_subs = [s for s in self.substitutes.all() if s.team_played_for.id == team_id]
@@ -1597,14 +1782,23 @@ class MatchResult(models.Model):
                         played_for_team.alliance.id == sub_team.alliance.id
                 )
 
-                if is_alliance_sub:
-                    pass
-                else:
+                if not is_alliance_sub:
                     reward_pool = team_rewards[team_id]
                     if reward_pool > 0:
                         cut_amount = reward_pool * (sub.activity * 0.05)
                         team_rewards[sub.team.id] += cut_amount
                         team_rewards[team_id] -= cut_amount
+                        team_breakdowns[sub.team.id]["substitute_earnings"] += int(cut_amount)
+                        team_breakdowns[team_id]["substitute_cut"] += int(cut_amount)
+
+                if sub.bonuses:
+                    bonus_amount = 10000 * sub.bonuses
+                    team_rewards[sub.team.id] += bonus_amount
+                    team_breakdowns[sub.team.id]["bonuses"] += int(bonus_amount)
+                if sub.penalties:
+                    penalty_amount = 10000 * average_rank * sub.penalties
+                    team_rewards[sub.team.id] -= penalty_amount
+                    team_breakdowns[sub.team.id]["penalties"] += int(penalty_amount)
 
         combined_rewards = winner_base_reward + loser_base_reward
         if self.tanks_lost.all().count() >= 12:
@@ -1619,35 +1813,38 @@ class MatchResult(models.Model):
         if self.judge:
             if self.judge_is_test:
                 team_rewards[self.judge.id] += judge_reward / 2
+                team_breakdowns[self.judge.id]["judge_reward"] += int(judge_reward / 2)
             else:
                 team_rewards[self.judge.id] += judge_reward
+                team_breakdowns[self.judge.id]["judge_reward"] += int(judge_reward)
 
+        # -- Completely isolate ROUND POINTS from MONEY REWARDS --
+        team_points_earned = {team_id: 0 for team_id in participating_teams}
 
-        winning_teams = teams_on_side[self.winning_side]
-        losing_teams = teams_on_side['team_1' if self.winning_side == 'team_2' else 'team_2']
+        points_w = ROUND_POINTS.get(self.round_score, 0)
+        num_rounds_w = sum(map(int, self.round_score.split(':'))) if self.round_score else 0
+        win_percentage_w = int(self.round_score.split(':')[0]) / num_rounds_w if num_rounds_w > 0 else 0
+        total_points_w = points_w * (1 + win_percentage_w)
 
         for team in winning_teams:
-            points = ROUND_POINTS.get(self.round_score, 0)
-            num_rounds = sum(map(int, self.round_score.split(':')))
-            win_percentage = int(self.round_score.split(':')[0]) / num_rounds if num_rounds > 0 else 0
-            total_points = points * (1 + win_percentage)
-            team_rewards[team] += total_points
+            team_points_earned[team] = int(total_points_w)
 
-        reversed_score = ":".join(self.round_score.split(':')[::-1])
+        reversed_score = ":".join(self.round_score.split(':')[::-1]) if self.round_score else "0:0"
+        points_l = ROUND_POINTS.get(reversed_score, 0)
+        num_rounds_l = sum(map(int, reversed_score.split(':'))) if reversed_score else 0
+        win_percentage_l = int(reversed_score.split(':')[0]) / num_rounds_l if num_rounds_l > 0 else 0
+        total_points_l = points_l * (1 + win_percentage_l)
+
         for team in losing_teams:
-            points = ROUND_POINTS.get(reversed_score, 0)
-            num_rounds = sum(map(int, reversed_score.split(':')))
-            win_percentage = int(reversed_score.split(':')[0]) / num_rounds if num_rounds > 0 else 0
-            total_points = points * (1 + win_percentage)
-            team_rewards[team] += total_points
+            team_points_earned[team] = int(total_points_l)
+        # -------------------------------------------------------
 
-        a = TeamLog.objects.filter(
+        TeamLog.objects.filter(
             Q(description__contains=f'Reverted rewards calculation for Match ID: {self.match.id}')
         ).delete()
 
         today = now().date()
         start_of_week = today - timedelta(days=today.weekday())
-        end_of_week = start_of_week + timedelta(days=6)
 
         if self.match.is_bounty:
             target_team = None
@@ -1666,47 +1863,48 @@ class MatchResult(models.Model):
                     if active_bounty:
                         bounty_amount = active_bounty.value
                         team_rewards[challenger_team.id] += bounty_amount
+                        team_breakdowns[challenger_team.id]["bounty_reward"] += int(bounty_amount)
 
         economy_settings = WeeklyEconomySettings.load()
         current_cap = economy_settings.current_cap
 
         for team_id, reward in team_rewards.items():
+            reward = int(reward)  # Ensure Integer Format Before Processing
+            team_breakdowns[team_id]['pre_cap_reward'] = reward
             team = Team.objects.get(id=team_id)
 
-            # Only scale positive rewards (do not scale down penalties)
+            soft_cap_log = ""
+
             if reward > 0:
                 weekly_earnings = team.get_weekly_match_earnings(self.match.datetime)
 
-                # Soft Cap Scaling Logic
                 if weekly_earnings > current_cap:
-                    # Calculate how far over the cap they are as a percentage
                     overage_amount = weekly_earnings - current_cap
                     overage_ratio = overage_amount / current_cap
-
-                    # E.g., 100k over a 500k cap = 0.2 (20%).
-                    # Apply admin scaling factor (default 1.0)
                     penalty_percentage = overage_ratio * economy_settings.over_cap_penalty_scaling
 
-                    # Ensure they don't get reduced to 0 or negative
                     reward_multiplier = max(1.0 - penalty_percentage, economy_settings.min_reward_floor)
+                    team_breakdowns[team_id]["soft_cap_multiplier"] = reward_multiplier
 
-                    # Apply the scale to this match's reward
-                    original_reward = reward
                     reward = int(reward * reward_multiplier)
                     team_rewards[team_id] = reward
 
-                    # You might want to append this to the description string for the TeamLog
                     soft_cap_log = f"\nSoft Cap Applied: Reached {weekly_earnings:,}/{current_cap:,}. Reward reduced to {reward_multiplier * 100:.1f}%."
                 else:
                     soft_cap_log = ""
+
+            team_breakdowns[team_id]["final_reward"] = reward
 
             team = Team.objects.get(id=team_id)
             initial_balance = team.balance
             initial_points = team.score
 
+            points_earned = team_points_earned.get(team_id, 0)
+
             team.balance += reward
-            team.score += total_points
+            team.score += points_earned
             team.total_money_earned += reward
+
             if team_id in playing_teams:
                 kits = copy.deepcopy(team.upgrade_kits)
                 if (
@@ -1720,7 +1918,8 @@ class MatchResult(models.Model):
 
             if team_id in playing_teams:
                 log_method = "calc_rewards"
-            elif self.judge and team_id == self.judge.id and any(sub.team.id == team_id for sub in self.substitutes.all()):
+            elif self.judge and team_id == self.judge.id and any(
+                    sub.team.id == team_id for sub in self.substitutes.all()):
                 log_method = "judge_and_sub_rewards"
             elif any(sub.team.id == team_id for sub in self.substitutes.all()):
                 log_method = "sub_rewards"
@@ -1766,7 +1965,9 @@ class MatchResult(models.Model):
                         'balance': team.balance,
                         'upgrade_kits': team.upgrade_kits,
                         'score': team.score,
-                        'booster': new_booster
+                        'booster': new_booster,
+                        'breakdown': team_breakdowns[team_id],
+                        'match_id': self.match_id,
                     },
                     description=f"Balance Changed by: {reward}\n"
                                 f"Kits changed by: {compare_upgrade_kits(kits, team.upgrade_kits)}\n"
@@ -1788,7 +1989,8 @@ class MatchResult(models.Model):
                     },
                     new_value={
                         'balance': team.balance,
-                        'booster': new_booster
+                        'booster': new_booster,
+                        'breakdown': team_breakdowns[team_id]
                     },
                     description=f"Balance Changed by: {reward}\n"
                                 f"{bounty_line}"
@@ -1939,6 +2141,8 @@ class Substitute(models.Model):
     activity = models.IntegerField(choices=[(1, 'Low'), (2, 'Medium'), (3, 'High')])
     side = models.CharField(max_length=10, choices=SIDE_CHOICES, default='team_1')
     team_played_for = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='assisted_by_substitutes', blank=True, null=True)
+    bonuses = models.FloatField(default=0.0, blank=True, null=True)
+    penalties = models.FloatField(default=0.0, blank=True, null=True)
 
     def __str__(self):
         return f"Sub: {self.team.name} playing for {self.team_played_for.name if self.team_played_for else self.side}"
@@ -2226,7 +2430,7 @@ class WeeklyEconomySettings(models.Model):
     )
     fallback_match_reward = models.IntegerField(
         default=100000,
-        help_text="Default reward per match if no past match data exists."
+        help_text="Default winning-team reward when no eligible Advanced/Evolved payouts exist in the last 7 days."
     )
     under_cap_payout_ratio = models.FloatField(
         default=0.5,
@@ -2244,6 +2448,31 @@ class WeeklyEconomySettings(models.Model):
         default=0.3,
         help_text="Weight of the new week's average (0.0 to 1.0). 0.3 means 30% new week, 70% old cap."
     )
+    reward_trim_fraction = models.FloatField(
+        default=0.1,
+        validators=[MinValueValidator(0), MaxValueValidator(0.45)],
+        help_text="Fraction removed from each end of winning payouts (0.1 = 10% lowest and 10% highest). Rounded down per tail."
+    )
+    active_team_window_days = models.PositiveIntegerField(
+        default=28,
+        validators=[MinValueValidator(1)],
+        help_text="A team is active if it played any match in this many days."
+    )
+    progression_reference_rank = models.FloatField(
+        default=1.0,
+        validators=[MinValueValidator(1)],
+        help_text="Average owned rank at which the progression multiplier is 1.0."
+    )
+    progression_per_rank = models.FloatField(
+        default=0.1,
+        validators=[MinValueValidator(0), MaxValueValidator(1)],
+        help_text="Extra cap multiplier per average rank above the reference (0.1 = +10% per rank). Set 0 to disable."
+    )
+    progression_max_multiplier = models.FloatField(
+        default=1.5,
+        validators=[MinValueValidator(1), MaxValueValidator(3)],
+        help_text="Upper bound on the season progression multiplier."
+    )
 
     class Meta:
         verbose_name = "Weekly Economy Setting"
@@ -2258,44 +2487,447 @@ class WeeklyEconomySettings(models.Model):
         obj, created = cls.objects.get_or_create(pk=1)
         return obj
 
-    def update_dynamic_cap(self):
-        """
-        Calculates the global average reward per team-match over the last 7 days,
-        then applies an Exponential Moving Average (EMA) to smoothly shift the cap.
-        """
-        window_start = now() - timedelta(days=7)
+    def calculate_dynamic_cap(self, current_time=None):
+        """Preview the cap and its inputs without changing balances or settings."""
+        from .services.weekly_economy import calculate_cap
+        return calculate_cap(self, current_time=current_time)
 
-        # 1. Sum all match rewards earned globally in the last 7 days
-        reward_logs = TeamLog.objects.filter(
-            timestamp__gte=window_start,
-            method_name__in=['calc_rewards']
-        )
-
-        total_payouts = sum(
-            max(0, log.new_value.get('balance', 0) - log.previous_value.get('balance', 0))
-            for log in reward_logs
-        )
-
-        # 2. Count total team participations (team-matches) played in that window
-        total_team_matches = TeamMatch.objects.filter(
-            match__was_played=True,
-            match__datetime__gte=window_start
-        ).count()
-
-        # 3. Compute global average per team per match (for the last 7 days)
-        if total_team_matches > 0:
-            current_week_avg_per_match = total_payouts / total_team_matches
-        else:
-            current_week_avg_per_match = self.fallback_match_reward
-
-        # 4. Calculate what the cap *would* be based purely on this 7-day window
-        current_week_target_cap = current_week_avg_per_match * self.target_matches_for_cap
-
-        # 5. Apply the EMA formula: (Weight * New Raw Cap) + ((1 - Weight) * Old Cap)
-        smoothed_cap = (self.ema_weight * current_week_target_cap) + ((1.0 - self.ema_weight) * self.current_cap)
-
-        # 6. Save the new smoothed cap
-        self.current_cap = int(smoothed_cap)
-        self.save()
-
+    def update_dynamic_cap(self, current_time=None):
+        self.current_cap = self.calculate_dynamic_cap(current_time)['new_cap']
+        self.save(update_fields=['current_cap'])
         return self.current_cap
+
+class AuctionCycle(models.Model):
+    class Status(models.TextChoices):
+        COLLECTING = 'collecting', 'Collecting'
+        VOTING = 'voting', 'Voting'
+        SCHEDULED = 'scheduled', 'Scheduled'
+        LIVE = 'live', 'Live'
+        FINISHED = 'finished', 'Finished'
+        CANCELLED = 'cancelled', 'Cancelled'
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.COLLECTING,
+        db_index=True,
+    )
+
+    # Number of import batches required before voting starts.
+    batch_target = models.PositiveIntegerField(default=8)
+
+    # Voting configuration.
+    max_votes_per_team = models.PositiveIntegerField(default=5)
+
+    # NULL means every tank receiving at least one vote goes to auction.
+    # Set this to e.g. 10 if only the top 10 voted tanks should qualify.
+    lot_count = models.PositiveIntegerField(
+        default=10,
+    )
+
+    # Auction bidding rules.
+    minimum_increment = models.PositiveIntegerField(default=2000)
+
+    voting_starts_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+    voting_ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
+    auction_starts_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+    auction_ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    voting_open_announced_at = models.DateTimeField(null=True, blank=True, editable=False)
+    voting_closed_announced_at = models.DateTimeField(null=True, blank=True, editable=False)
+    auction_reminder_announced_at = models.DateTimeField(null=True, blank=True, editable=False)
+    auction_result_announced_at = models.DateTimeField(null=True, blank=True, editable=False)
+    discord_retry_after = models.DateTimeField(null=True, blank=True, editable=False)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'auction_starts_at']),
+            models.Index(fields=['status', 'voting_ends_at']),
+        ]
+
+    def __str__(self):
+        return f"Auction Cycle #{self.pk} ({self.status})"
+
+
+class AuctionImportBatch(models.Model):
+    """
+    Records one import cycle that has expired and has been consumed
+    by the auctions system.
+
+    `available_from` is unique because the existing imports code already
+    treats matching available_from values as belonging to the same batch.
+    """
+
+    cycle = models.ForeignKey(
+        AuctionCycle,
+        related_name='import_batches',
+        on_delete=models.CASCADE,
+    )
+
+    available_from = models.DateTimeField(
+        unique=True,
+        db_index=True,
+    )
+    expired_at = models.DateTimeField()
+
+    total_imports = models.PositiveIntegerField(default=0)
+    leftover_imports = models.PositiveIntegerField(default=0)
+
+    processed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['available_from']
+
+    def __str__(self):
+        return (
+            f"Import batch {self.available_from} "
+            f"-> Auction Cycle #{self.cycle_id}"
+        )
+
+
+class AuctionCandidate(models.Model):
+    """
+    Represents one tank MODEL in the potential auction pool.
+
+    If this tank appeared unpurchased 3 times:
+        quantity == 3
+
+    Teams may allocate up to 3 votes to it.
+    """
+
+    cycle = models.ForeignKey(
+        AuctionCycle,
+        related_name='candidates',
+        on_delete=models.CASCADE,
+    )
+
+    tank = models.ForeignKey(
+        Tank,
+        related_name='auction_candidates',
+        on_delete=models.PROTECT,
+    )
+
+    # Number of copies which qualified after voting.
+    selected_quantity = models.PositiveIntegerField(
+        default=0
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+        ordering = ['tank__name']
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=['cycle', 'tank'],
+                name='unique_auction_candidate_tank_per_cycle',
+            ),
+        ]
+
+    @property
+    def quantity(self):
+        return self.sources.count()
+
+    @property
+    def selected(self):
+        return self.selected_quantity > 0
+
+    def __str__(self):
+        return (
+            f"{self.tank.name} "
+            f"x{self.quantity} "
+            f"(Auction Cycle #{self.cycle_id})"
+        )
+
+
+class AuctionCandidateSource(models.Model):
+    """
+    One actual leftover ImportTank instance.
+
+    One ImportTank can only ever be consumed by the auction system once.
+    """
+
+    candidate = models.ForeignKey(
+        AuctionCandidate,
+        related_name='sources',
+        on_delete=models.CASCADE,
+    )
+
+    source_import = models.OneToOneField(
+        ImportTank,
+        related_name='auction_source',
+        on_delete=models.PROTECT,
+    )
+
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['source_import__available_from', 'id']
+
+    def __str__(self):
+        return (
+            f"{self.source_import.tank.name} "
+            f"(Import #{self.source_import_id})"
+        )
+
+
+class AuctionVote(models.Model):
+    cycle = models.ForeignKey(
+        AuctionCycle,
+        related_name='votes',
+        on_delete=models.CASCADE,
+    )
+
+    candidate = models.ForeignKey(
+        AuctionCandidate,
+        related_name='votes',
+        on_delete=models.CASCADE,
+    )
+
+    team = models.ForeignKey(
+        Team,
+        related_name='auction_votes',
+        on_delete=models.CASCADE,
+    )
+
+    quantity = models.PositiveIntegerField(
+        default=1
+    )
+
+    user = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    'cycle',
+                    'team',
+                    'candidate',
+                ],
+                name='unique_auction_vote_allocation',
+            ),
+        ]
+
+        indexes = [
+            models.Index(
+                fields=['cycle', 'team']
+            ),
+            models.Index(
+                fields=['candidate']
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.team.name}: "
+            f"{self.quantity} vote(s) for "
+            f"{self.candidate.tank.name}"
+        )
+
+
+class AuctionLot(models.Model):
+    cycle = models.ForeignKey(
+        AuctionCycle,
+        related_name='lots',
+        on_delete=models.CASCADE,
+    )
+
+    candidate = models.ForeignKey(
+        AuctionCandidate,
+        related_name='lots',
+        on_delete=models.PROTECT,
+    )
+
+    source = models.OneToOneField(
+        AuctionCandidateSource,
+        related_name='lot',
+        on_delete=models.PROTECT,
+    )
+
+    position = models.PositiveIntegerField(
+        default=0
+    )
+
+    starting_bid = models.PositiveIntegerField()
+
+    minimum_increment = models.PositiveIntegerField(
+        default=2000
+    )
+
+    current_bid = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+
+    current_bidder = models.ForeignKey(
+        Team,
+        related_name='leading_auction_lots',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+
+    # Actual deadline for THIS specific lot.
+    #
+    # Initially equal to cycle.auction_ends_at.
+    # Can move later due to anti-sniping.
+    ends_at = models.DateTimeField(
+        db_index=True
+    )
+
+    last_bid_at = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+    winner = models.ForeignKey(
+        Team,
+        related_name='won_auction_lots',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+
+    winning_bid = models.PositiveIntegerField(
+        null=True,
+        blank=True
+    )
+
+    finalized_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
+    class Meta:
+        ordering = [
+            'position',
+            'id',
+        ]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=['cycle', 'position'],
+                name='unique_auction_lot_position',
+            ),
+        ]
+
+        indexes = [
+            models.Index(
+                fields=['cycle', 'position']
+            ),
+            models.Index(
+                fields=['ends_at', 'finalized_at']
+            ),
+        ]
+
+    @property
+    def was_extended(self):
+        if not self.cycle.auction_ends_at:
+            return False
+
+        return (
+            self.ends_at >
+            self.cycle.auction_ends_at
+        )
+
+    def __str__(self):
+        return (
+            f"Auction Lot #{self.pk}: "
+            f"{self.candidate.tank.name}"
+        )
+
+
+class AuctionBid(models.Model):
+    lot = models.ForeignKey(
+        AuctionLot,
+        related_name='bids',
+        on_delete=models.CASCADE,
+    )
+
+    team = models.ForeignKey(
+        Team,
+        related_name='auction_bids',
+        on_delete=models.CASCADE,
+    )
+
+    user = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+    )
+
+    amount = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['lot', '-created_at']),
+            models.Index(fields=['team', '-created_at']),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.team.name}: {self.amount} "
+            f"on Lot #{self.lot_id}"
+        )
+
+class AuctionIgnoredImportBatch(models.Model):
+    """
+    Import batches deliberately excluded from the auction system.
+
+    Primarily used when bootstrapping Auctions with an existing
+    historical imports backlog.
+    """
+
+    available_from = models.DateTimeField(
+        unique=True,
+        db_index=True,
+    )
+
+    reason = models.CharField(
+        max_length=255,
+        default='Ignored during auction bootstrap',
+    )
+
+    ignored_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    def __str__(self):
+        return f"Ignored import batch {self.available_from}"

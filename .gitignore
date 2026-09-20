@@ -12,3 +12,8 @@ backend/env/
 !.env.sample
 !.env.*.sample
 
+# Certificate private keys, ACME accounts, and runtime state
+certbot/
+nginx/certs/
+certs/
+

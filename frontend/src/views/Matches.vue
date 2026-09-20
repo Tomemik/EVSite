@@ -131,14 +131,13 @@ import {useSettingsStore, useUserStore} from "../config/store.ts";
 import {getAuthToken} from "../config/api/user.ts";
 import {tr} from "vuetify/locale";
 import TelemetryViewer from "../components/TelemetryViewer.vue";
-import MatchTelemetryDialog from "@/components/MatchTelemetryDialog.vue"; // Add this import
+import MatchTelemetryDialog from "@/components/MatchTelemetryDialog.vue";
 
 const $cookies = inject("$cookies");
 //@ts-ignore
 const csrfToken = $cookies.get('csrftoken');
 const userStore = useUserStore()
 const settingsStore = useSettingsStore()
-
 
 const showTelemetryDialog = ref(false);
 const today = ref<Date>(new Date().toISOString());
@@ -246,7 +245,7 @@ const fetchMatches = async () => {
       let title = `${Object.values(sides).map((teams) => teams.join(' + ')).join(' vs ')} | ${localTime} / ${utcTime}`;
 
       if (utcDate.getDate() !== localDate.getDate()) {
-        title += ' *';  // Add '*' if UTC and local dates differ
+        title += ' *';
       }
 
       const endDate = new Date(matchDate.getTime() + 60 * 60 * 1000);
@@ -345,8 +344,8 @@ const updateMatch = async (updatedMatch) => {
       end: new Date(new Date(data.datetime).getTime() + 60 * 60 * 1000)
     };
     showEditDialog.value = false;
-    isNewMatch.value = false; // Reset the flag
-    fetchMatches(); // Refresh match list after creation or update
+    isNewMatch.value = false;
+    fetchMatches();
   } catch (error) {
     alert(error)
     console.error('Error updating match:', error);
@@ -416,7 +415,6 @@ const fetchResults = async (resultData) => {
   }
 }
 
-
 const calcMatch = async (id) => {
   try {
     const response = await fetch('/api/league/matches/' + id + '/calc/', {
@@ -449,14 +447,12 @@ const handleRevertCalc = async (id) => {
 
       if (!response.ok) throw new Error('Failed to revert match calculation');
 
-      // Fix: Updated the message to reflect the revert action
       successMsg.value = 'Match calculation successfully reverted.';
       showSuccessDialog.value = true;
       calcOverride.value = true;
 
   } catch (error) {
     console.error('Error reverting calc:', error);
-    // Added the alert for error handling
     alert('Failed to revert calculation. Please check the console for details.');
   }
 }

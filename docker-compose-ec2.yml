@@ -35,9 +35,12 @@ services:
 
   certbot:
     image: certbot/certbot:latest
+    profiles: ["maintenance"]
     volumes:
-      - ./certbot/www/:/var/www/certbot/:rw
-      - ./certbot/conf/:/etc/letsencrypt/:rw
+      - ./certs/acme/:/var/www/certbot/:rw
+      - ./certbot/etc/:/etc/letsencrypt/:rw
+      - ./certbot/lib/:/var/lib/letsencrypt/:rw
+      - ./certbot/logs/:/var/log/letsencrypt/:rw
 
   nginx:
     image: nginx:1.27
@@ -51,10 +54,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx-ec2.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/maintenance_mode.json:/etc/nginx/maintenance_mode.json:ro
-      - ./certbot/conf/live/gupevolution.click/fullchain.pem:/usr/share/certs/fullchain.pem:ro
-      - ./certbot/conf/live/gupevolution.click/privkey.pem:/usr/share/certs/privkey.pem:ro
+      - ./certs/:/usr/share/certs:ro
       - frontend_dist:/usr/share/nginx/html
       - backend_staticfiles:/usr/share/nginx/static
       - nginx_logs:/var/log/nginx

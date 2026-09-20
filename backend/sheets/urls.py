@@ -1,7 +1,9 @@
 from django.urls import path
 
 from . import views
-from .views import MatchRoundListView, RoundTelemetryView, ParseTemporaryReplayView, ComprehensiveStatsView, MapDataView
+from .views import MatchRoundListView, RoundTelemetryView, ParseTemporaryReplayView, ComprehensiveStatsView, \
+    MapDataView, AuctionBidHistoryView, AuctionBidView, AuctionVoteView, AuctionCycleDetailView, AuctionHistoryView, \
+    AuctionOverviewView
 
 urlpatterns = [
     path("teams/", views.AllTeamsView.as_view(), name='teams'),
@@ -49,4 +51,39 @@ urlpatterns = [
     path('replays/parse-temp/', ParseTemporaryReplayView.as_view()),
     path('stats/comprehensive/', ComprehensiveStatsView.as_view(), name='comprehensive-stats'),
     path('maps/data/', MapDataView.as_view(), name='map-data'),
+    path(
+        'auctions/',
+        AuctionOverviewView.as_view(),
+        name='auction-overview',
+    ),
+
+    path(
+        'auctions/history/',
+        AuctionHistoryView.as_view(),
+        name='auction-history',
+    ),
+
+    path(
+        'auctions/<int:pk>/',
+        AuctionCycleDetailView.as_view(),
+        name='auction-cycle-detail',
+    ),
+
+    path(
+        'auctions/<int:cycle_id>/candidates/<int:candidate_id>/vote/',
+        AuctionVoteView.as_view(),
+        name='auction-vote',
+    ),
+
+    path(
+        'auctions/lots/<int:lot_id>/bid/',
+        AuctionBidView.as_view(),
+        name='auction-bid',
+    ),
+
+    path(
+        'auctions/lots/<int:lot_id>/bids/',
+        AuctionBidHistoryView.as_view(),
+        name='auction-bid-history',
+    ),
 ]

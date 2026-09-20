@@ -1,21 +1,31 @@
-from django.db.models import Avg, Q, Max
+from django.db.models import Avg, Q, Max, Sum
 from django.utils import timezone
 from rest_framework import serializers
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, Substitute, MatchResult, \
     TankLost, TeamResult, TankBox, TeamBox, TeamLog, ImportTank, ImportCriteria, UpgradeTree, InterchangeGroup, \
-    Interchange, Alliance, MatchKill, MatchRound, MatchCrit
+    Interchange, Alliance, MatchKill, MatchRound, MatchCrit, AuctionCycle, AuctionImportBatch, \
+    AuctionCandidate, AuctionCandidateSource, AuctionVote, AuctionLot, AuctionBid
 
 
 class TankSerializerSlim(serializers.ModelSerializer):
     class Meta:
         model = Tank
-        fields = ['id', 'name', 'battle_rating']
+        fields = [
+            'id', 'name', 'battle_rating',
+            'advanced_battle_rating', 'is_allowed_in_advanced',
+            'evolved_battle_rating', 'is_allowed_in_evolved'
+        ]
 
 
 class TankSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tank
-        fields = ['id', 'name', 'battle_rating', 'price', 'rank', 'type']
+        fields = [
+            'id', 'name', 'battle_rating',
+            'advanced_battle_rating', 'is_allowed_in_advanced', 'advanced_value',
+            'evolved_battle_rating', 'is_allowed_in_evolved',
+            'price', 'rank', 'type'
+        ]
 
 
 class TankBoxSerializer(serializers.ModelSerializer):
@@ -100,7 +110,8 @@ class UpgradePathSerializer(serializers.ModelSerializer):
 
 
 class TeamTankSerializer(serializers.ModelSerializer):
-    tank = TankSerializer()
+    id = serializers.IntegerField(required=False)
+    tank = TankSerializer(read_only=True)
     available = serializers.SerializerMethodField()
 
     class Meta:
@@ -116,6 +127,15 @@ class TeamTankSerializer(serializers.ModelSerializer):
             return True
         return False
 
+    def to_internal_value(self, data):
+        # Bypasses DRF stripping nested read-only payload objects so we can use them in create/update
+        ret = super().to_internal_value(data)
+        if 'tank' in data:
+            ret['tank'] = data['tank']
+        if 'id' in data:
+            ret['id'] = data['id']
+        return ret
+
 
 class TeamSerializer(serializers.ModelSerializer):
     manufacturers = ManufacturerSerializer(many=True, read_only=True)
@@ -128,19 +148,25 @@ class TeamSerializer(serializers.ModelSerializer):
     alliance_name = serializers.CharField(source='alliance.name', read_only=True)
     alliance_color = serializers.CharField(source='alliance.color', read_only=True)
     has_bounty = serializers.BooleanField(source='has_active_bounty', read_only=True)
+    manufacturer_plus_roster = serializers.SerializerMethodField()
 
     class Meta:
         model = Team
         fields = [
             'id', 'name', 'color', 'balance', 'manufacturers', 'tanks',
             'upgrade_kits', 'tank_boxes', 'alliance_id', 'alliance_name', 'alliance_color',
-            'has_bounty', 'total_money_earned', 'score', 'weekly_sells_left'
+            'has_bounty', 'total_money_earned', 'score', 'weekly_sells_left',
+            'manufacturer_plus_roster'
         ]
         depth = 1
 
     def get_tanks(self, obj):
         team_tanks = obj.teamtank_set.filter()
         return TeamTankSerializer(team_tanks, many=True).data
+
+    def get_manufacturer_plus_roster(self, obj):
+        roster = obj.get_manufacturer_plus_roster()
+        return TankSerializer(roster, many=True).data
 
 
 class TeamMatchSerializer(serializers.ModelSerializer):
@@ -158,12 +184,13 @@ class TeamMatchSerializer(serializers.ModelSerializer):
             tank_data = team_tank_data.get('tank')
             if tank_data:
                 tank_name = tank_data.get('name')
-                try:
-                    tank = Tank.objects.get(name=tank_name)
+                # Safer lookup to prevent MultipleObjectsReturned crashes
+                tank = Tank.objects.filter(name=tank_name).first()
+                if tank:
                     if not TeamTank.objects.filter(tank=tank, team=team).exists():
                         raise serializers.ValidationError(
                             f"Tank '{tank_name}' is not associated with team '{team.name}'.")
-                except Tank.DoesNotExist:
+                else:
                     raise serializers.ValidationError(f"Tank '{tank_name}' does not exist.")
 
         return data
@@ -176,9 +203,14 @@ class TeamMatchSerializer(serializers.ModelSerializer):
         for team_tank_data in tanks_data:
             tank_data = team_tank_data.pop('tank')
             tank_name = tank_data.get('name')
-            tank = Tank.objects.get(name=tank_name)
+
+            tank = Tank.objects.filter(name=tank_name).first()
+            if not tank:
+                tank = Tank.objects.create(name=tank_name)
+
             team_tank, created = TeamTank.objects.get_or_create(tank=tank, team=team, **team_tank_data)
             team_match.tanks.add(team_tank)
+
         return team_match
 
 
@@ -248,6 +280,52 @@ class MatchSerializer(serializers.ModelSerializer):
                     f"Invalid Challenge: {challenger_team.name} cannot challenge {target_team.name} because they are in the same alliance ({target_team.alliance.name})."
                 )
 
+        mode = data.get('mode', self.instance.mode if self.instance else None)
+
+        if mode in ['advanced', 'evolved']:
+            for team_match_data in team_matches_data:
+                team_instance = team_match_data.get('team')
+
+                # Manufacturer+ is an Advanced-only restriction.
+                allowed_tanks = set()
+                if mode == 'advanced' and team_instance:
+                    allowed_tanks = set(
+                        team_instance
+                        .get_manufacturer_plus_roster()
+                        .values_list('name', flat=True)
+                    )
+
+                tanks_data = team_match_data.get('tanks', [])
+
+                for team_tank_data in tanks_data:
+                    tank_data = team_tank_data.get('tank')
+                    if not tank_data:
+                        continue
+
+                    tank_name = tank_data.get('name')
+                    tank = Tank.objects.filter(name=tank_name).first()
+
+                    if not tank:
+                        continue
+
+                    if mode == 'advanced':
+                        if not tank.is_allowed_in_advanced:
+                            raise serializers.ValidationError(
+                                f"Tank '{tank_name}' is disallowed in Advanced mode."
+                            )
+
+                        if tank_name not in allowed_tanks:
+                            raise serializers.ValidationError(
+                                f"Tank '{tank_name}' is not in "
+                                f"{team_instance.name}'s Manufacturer+ Roster."
+                            )
+
+                    elif mode == 'evolved':
+                        if not tank.is_allowed_in_evolved:
+                            raise serializers.ValidationError(
+                                f"Tank '{tank_name}' is disallowed in Evolved mode."
+                            )
+
         return data
 
     def create(self, validated_data):
@@ -259,20 +337,27 @@ class MatchSerializer(serializers.ModelSerializer):
             team_match = TeamMatch.objects.create(match=match, **team_match_data)
 
             for team_tank_data in tanks_data:
-                tank_data = team_tank_data.pop('tank')
-                tank, created = Tank.objects.get_or_create(**tank_data)
+                tank_data = team_tank_data.pop('tank', {})
+                tank_name = tank_data.get('name')
+
+                tank = Tank.objects.filter(name=tank_name).first()
+                if not tank:
+                    tank = Tank.objects.create(name=tank_name)
 
                 team = team_match_data['team']
-                if match.mode == 'traditional':
-                    team_tank = TeamTank.objects.filter(tank=tank, is_trad=True, team__name=team,
-                                                        **team_tank_data).exclude(
-                        id__in=team_match.tanks.values_list('id', flat=True)).first()
-                else:
-                    team_tank = TeamTank.objects.filter(tank=tank, is_trad=False, team__name=team,
-                                                        **team_tank_data).exclude(
-                        id__in=team_match.tanks.values_list('id', flat=True)).first()
 
-                if not team_match.tanks.filter(id=team_tank.id).exists():
+                team_tank_id = team_tank_data.get('id')
+                if team_tank_id:
+                    team_tank = TeamTank.objects.filter(id=team_tank_id, team=team).first()
+                else:
+                    if match.mode == 'traditional':
+                        team_tank = TeamTank.objects.filter(tank=tank, is_trad=True, team=team).exclude(
+                            id__in=team_match.tanks.values_list('id', flat=True)).first()
+                    else:
+                        team_tank = TeamTank.objects.filter(tank=tank, is_trad=False, team=team).exclude(
+                            id__in=team_match.tanks.values_list('id', flat=True)).first()
+
+                if team_tank and not team_match.tanks.filter(id=team_tank.id).exists():
                     team_match.tanks.add(team_tank)
 
         return match
@@ -280,7 +365,6 @@ class MatchSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         team_matches_data = validated_data.pop('teammatch_set', [])
 
-        # Update the match fields
         instance.datetime = validated_data.get('datetime', instance.datetime)
         instance.mode = validated_data.get('mode', instance.mode)
         instance.gamemode = validated_data.get('gamemode', instance.gamemode)
@@ -291,7 +375,6 @@ class MatchSerializer(serializers.ModelSerializer):
         instance.is_bounty = validated_data.get('is_bounty', instance.is_bounty)
         instance.save()
 
-        # Clear existing team matches
         instance.teammatch_set.all().delete()
 
         for team_match_data in team_matches_data:
@@ -299,17 +382,27 @@ class MatchSerializer(serializers.ModelSerializer):
             team_match = TeamMatch.objects.create(match=instance, **team_match_data)
 
             for team_tank_data in tanks_data:
-                tank_data = team_tank_data.pop('tank')
-                tank, created = Tank.objects.get_or_create(**tank_data)
+                tank_data = team_tank_data.pop('tank', {})
+                tank_name = tank_data.get('name')
+
+                tank = Tank.objects.filter(name=tank_name).first()
+                if not tank:
+                    tank = Tank.objects.create(name=tank_name)
 
                 team = team_match_data['team']
-                if instance.mode == 'traditional':
-                    team_tank = TeamTank.objects.filter(tank=tank, is_trad=True, team__name=team, **team_tank_data).exclude(id__in=team_match.tanks.values_list('id', flat=True)).first()
+
+                team_tank_id = team_tank_data.get('id')
+                if team_tank_id:
+                    team_tank = TeamTank.objects.filter(id=team_tank_id, team=team).first()
                 else:
-                    team_tank = TeamTank.objects.filter(tank=tank, is_trad=False, team__name=team, **team_tank_data).exclude(id__in=team_match.tanks.values_list('id', flat=True)).first()
+                    if instance.mode == 'traditional':
+                        team_tank = TeamTank.objects.filter(tank=tank, is_trad=True, team=team).exclude(
+                            id__in=team_match.tanks.values_list('id', flat=True)).first()
+                    else:
+                        team_tank = TeamTank.objects.filter(tank=tank, is_trad=False, team=team).exclude(
+                            id__in=team_match.tanks.values_list('id', flat=True)).first()
 
-
-                if not team_match.tanks.filter(id=team_tank.id).exists():
+                if team_tank and not team_match.tanks.filter(id=team_tank.id).exists():
                     team_match.tanks.add(team_tank)
 
         return instance
@@ -327,14 +420,15 @@ class SlimTeamSerializer(serializers.ModelSerializer):
         active_bounty = obj.bounties.filter(is_active=True).first()
         return active_bounty.value if active_bounty else None
 
+
 class SlimTeamSerializerWithTanks(serializers.ModelSerializer):
     tanks = serializers.SerializerMethodField()
     bounty_value = serializers.SerializerMethodField()
-
+    manufacturer_plus_roster = serializers.SerializerMethodField()
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'color', 'balance', 'tanks', 'bounty_value']
+        fields = ['id', 'name', 'color', 'balance', 'tanks', 'bounty_value', 'manufacturer_plus_roster']
 
     def get_tanks(self, obj):
         team_tanks = obj.teamtank_set.filter()
@@ -343,6 +437,11 @@ class SlimTeamSerializerWithTanks(serializers.ModelSerializer):
     def get_bounty_value(self, obj):
         active_bounty = obj.bounties.filter(is_active=True).first()
         return active_bounty.value if active_bounty else None
+
+    def get_manufacturer_plus_roster(self, obj):
+        roster = obj.get_manufacturer_plus_roster()
+        return TankSerializerSlim(roster, many=True).data
+
 
 class AllianceSerializer(serializers.ModelSerializer):
     teams = SlimTeamSerializer(many=True, read_only=True)
@@ -396,7 +495,8 @@ class SubstituteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Substitute
-        fields = ['team', 'team_name', 'activity', 'side', 'team_played_for', 'team_played_for_name']
+        fields = ['team', 'team_name', 'activity', 'side', 'team_played_for', 'team_played_for_name', 'bonuses',
+                  'penalties']
 
 
 class MatchResultSerializer(serializers.ModelSerializer):
@@ -418,9 +518,10 @@ class MatchResultSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         match_data = validated_data.pop('match')
         match = Match.objects.get(id=match_data.id)
+
         judge_data = validated_data.pop('judge')
-        if judge_data['name']:
-            judge = Team.objects.get(name=judge_data['name'])
+        if judge_data.get('name'):
+            judge = Team.objects.filter(name=judge_data['name']).first()
         else:
             judge = None
 
@@ -432,31 +533,41 @@ class MatchResultSerializer(serializers.ModelSerializer):
 
         for team_result_data in team_results_data:
             team_name = team_result_data.pop('team')['name']
-            team = Team.objects.get(name=team_name)
-            TeamResult.objects.create(match_result=match_result, team=team, **team_result_data)
+            team = Team.objects.filter(name=team_name).first()
+
+            if team:
+                TeamResult.objects.create(match_result=match_result, team=team, **team_result_data)
 
         for tank_lost_data in tanks_lost_data:
             team_name = tank_lost_data.pop('team')['name']
             tank_name = tank_lost_data.pop('tank')['name']
-            team = Team.objects.get(name=team_name)
-            tank = Tank.objects.get(name=tank_name)
-            TankLost.objects.create(match_result=match_result, team=team, tank=tank, **tank_lost_data)
+
+            team = Team.objects.filter(name=team_name).first()
+            tank = Tank.objects.filter(name=tank_name).first()
+
+            if team and tank:
+                TankLost.objects.create(match_result=match_result, team=team, tank=tank, **tank_lost_data)
 
         for substitute_data in substitutes_data:
             team_name = substitute_data.pop('team')['name']
             team_played_for_name = substitute_data.pop('team_played_for')['name']
-            team = Team.objects.get(name=team_name)
-            team_played_for = Team.objects.get(name=team_played_for_name)
+
+            team = Team.objects.filter(name=team_name).first()
+            team_played_for = Team.objects.filter(name=team_played_for_name).first()
+
             side = substitute_data.pop('side')
             activity = substitute_data.pop('activity')
-            Substitute.objects.create(
-                match_result=match_result,
-                team=team,
-                team_played_for=team_played_for,
-                side=side,
-                activity=activity,
-                **substitute_data
-            )
+
+            if team and team_played_for:
+                Substitute.objects.create(
+                    match_result=match_result,
+                    team=team,
+                    team_played_for=team_played_for,
+                    side=side,
+                    activity=activity,
+                    **substitute_data
+                )
+
         return match_result
 
 
@@ -465,7 +576,8 @@ class TeamLogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TeamLog
-        fields = ['id', 'team', 'user', 'team_name', 'method_name', 'description', 'timestamp']
+        fields = ['id', 'team', 'user', 'team_name', 'method_name', 'description', 'timestamp', 'previous_value',
+                  'new_value']
         depth = 0
 
 
@@ -478,7 +590,8 @@ class ImportTankSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ImportTank
-        fields = ['id', 'tank_name', 'battle_rating', 'discount', 'available_from', 'available_until', 'is_purchased', 'purchased_by', 'base_discounted_price', 'criteria_id']
+        fields = ['id', 'tank_name', 'battle_rating', 'discount', 'available_from', 'available_until', 'is_purchased',
+                  'purchased_by', 'base_discounted_price', 'criteria_id']
 
     def get_base_discounted_price(self, obj):
         if not obj.tank or obj.tank.price is None:
@@ -488,6 +601,7 @@ class ImportTankSerializer(serializers.ModelSerializer):
 
 class ImportCriteriaSerializer(serializers.ModelSerializer):
     required_tanks = TankSerializerSlim(many=True, read_only=True)
+
     class Meta:
         model = ImportCriteria
         fields = [
@@ -495,7 +609,6 @@ class ImportCriteriaSerializer(serializers.ModelSerializer):
             'required_tanks', 'required_tank_count', 'discount', 'required_tank_discount',
         ]
         depth = 1
-
 
 
 class UpgradePathSerializer(serializers.ModelSerializer):
@@ -516,12 +629,14 @@ class UpgradeTreeSerializer(serializers.ModelSerializer):
         model = UpgradeTree
         fields = ['label', 'value']
 
+
 class InterchangeGroupSerializer(serializers.ModelSerializer):
     value = serializers.CharField(source='root_tank.name')
 
     class Meta:
         model = InterchangeGroup
         fields = ['label', 'value']
+
 
 class InterchangeSerializer(serializers.ModelSerializer):
     from_tank = serializers.CharField(source="from_tank.name")
@@ -530,6 +645,7 @@ class InterchangeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Interchange
         fields = ['from_tank', 'to_tank', 'is_bidirectional']
+
 
 class MatchKillSerializer(serializers.ModelSerializer):
     class Meta:
@@ -547,7 +663,6 @@ class MatchRoundSerializer(serializers.ModelSerializer):
     kills = MatchKillSerializer(many=True, read_only=True)
     crits = MatchCritSerializer(many=True, read_only=True)
     replay_files = serializers.SerializerMethodField()
-
 
     class Meta:
         model = MatchRound
@@ -571,3 +686,354 @@ class VerifyRoundPayloadSerializer(serializers.Serializer):
     spawns = serializers.DictField(required=False)
     winning_team = serializers.CharField(max_length=10, required=False, allow_null=True, allow_blank=True)
     win_reason = serializers.CharField(max_length=100, required=False, allow_null=True, allow_blank=True)
+
+class AuctionImportBatchSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AuctionImportBatch
+        fields = [
+            'id',
+            'available_from',
+            'expired_at',
+            'total_imports',
+            'leftover_imports',
+            'processed_at',
+        ]
+
+
+class AuctionCandidateSourceSerializer(serializers.ModelSerializer):
+    source_import_id = serializers.IntegerField(
+        source='source_import.id',
+        read_only=True,
+    )
+
+    import_available_from = serializers.DateTimeField(
+        source='source_import.available_from',
+        read_only=True,
+    )
+
+    import_available_until = serializers.DateTimeField(
+        source='source_import.available_until',
+        read_only=True,
+    )
+
+    import_discount = serializers.IntegerField(
+        source='source_import.discount',
+        read_only=True,
+    )
+
+    class Meta:
+        model = AuctionCandidateSource
+        fields = [
+            'id',
+            'source_import_id',
+            'import_available_from',
+            'import_available_until',
+            'import_discount',
+            'added_at',
+        ]
+
+
+class AuctionCandidateSerializer(
+    serializers.ModelSerializer
+):
+    tank = TankSerializer(
+        read_only=True
+    )
+
+    quantity = serializers.SerializerMethodField()
+
+    vote_count = serializers.SerializerMethodField()
+
+    my_team_votes = serializers.SerializerMethodField()
+
+    max_team_votes_here = (
+        serializers.SerializerMethodField()
+    )
+
+    sources = AuctionCandidateSourceSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = AuctionCandidate
+
+        fields = [
+            'id',
+            'tank',
+
+            'quantity',
+
+            'vote_count',
+
+            'my_team_votes',
+            'max_team_votes_here',
+
+            'selected_quantity',
+
+            'sources',
+
+            'created_at',
+        ]
+
+    def get_quantity(self, obj):
+        return obj.sources.count()
+
+    def get_vote_count(self, obj):
+        return (
+            obj.votes.aggregate(
+                total=Sum('quantity')
+            )['total']
+            or 0
+        )
+
+    def get_my_team_votes(self, obj):
+        request = self.context.get(
+            'request'
+        )
+
+        if not request:
+            return 0
+
+        team = getattr(
+            request.user,
+            'team',
+            None,
+        )
+
+        if not team:
+            return 0
+
+        allocation = (
+            obj.votes
+            .filter(team=team)
+            .first()
+        )
+
+        return (
+            allocation.quantity
+            if allocation
+            else 0
+        )
+
+    def get_max_team_votes_here(self, obj):
+        return obj.sources.count()
+
+
+class AuctionLotSerializer(
+    serializers.ModelSerializer
+):
+    tank = TankSerializer(
+        source='candidate.tank',
+        read_only=True,
+    )
+
+    candidate_id = serializers.IntegerField(
+        source='candidate.id',
+        read_only=True,
+    )
+
+    source_import_id = serializers.IntegerField(
+        source='source.source_import.id',
+        read_only=True,
+    )
+
+    current_bidder = serializers.CharField(
+        source='current_bidder.name',
+        read_only=True,
+        allow_null=True,
+    )
+
+    winner = serializers.CharField(
+        source='winner.name',
+        read_only=True,
+        allow_null=True,
+    )
+
+    bid_count = serializers.SerializerMethodField()
+
+    minimum_next_bid = (
+        serializers.SerializerMethodField()
+    )
+
+    was_extended = serializers.BooleanField(
+        read_only=True
+    )
+
+    class Meta:
+        model = AuctionLot
+
+        fields = [
+            'id',
+            'position',
+
+            'candidate_id',
+            'source_import_id',
+
+            'tank',
+
+            'starting_bid',
+            'minimum_increment',
+
+            'current_bid',
+            'current_bidder',
+
+            'bid_count',
+            'minimum_next_bid',
+
+            # Important for frontend countdown.
+            'ends_at',
+            'last_bid_at',
+            'was_extended',
+
+            'winner',
+            'winning_bid',
+            'finalized_at',
+        ]
+
+    def get_bid_count(self, obj):
+        annotated_count = getattr(
+            obj,
+            'bid_total',
+            None,
+        )
+
+        if annotated_count is not None:
+            return annotated_count
+
+        return obj.bids.count()
+
+    def get_minimum_next_bid(self, obj):
+        if obj.finalized_at is not None:
+            return None
+
+        if obj.current_bid is None:
+            return obj.starting_bid
+
+        return (
+            obj.current_bid
+            + obj.minimum_increment
+        )
+
+
+class AuctionBidSerializer(serializers.ModelSerializer):
+    team = serializers.CharField(
+        source='team.name',
+        read_only=True,
+    )
+
+    class Meta:
+        model = AuctionBid
+        fields = [
+            'id',
+            'team',
+            'amount',
+            'created_at',
+        ]
+
+
+class AuctionPlaceBidSerializer(serializers.Serializer):
+    amount = serializers.IntegerField(
+        min_value=1
+    )
+
+
+class AuctionCycleSerializer(serializers.ModelSerializer):
+    import_batches = AuctionImportBatchSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    candidates = AuctionCandidateSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    lots = AuctionLotSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    batches_collected = serializers.SerializerMethodField()
+    batch_progress = serializers.SerializerMethodField()
+
+    my_votes_used = serializers.SerializerMethodField()
+    my_votes_remaining = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AuctionCycle
+        fields = [
+            'id',
+            'status',
+
+            'batch_target',
+            'batches_collected',
+            'batch_progress',
+
+            'max_votes_per_team',
+            'my_votes_used',
+            'my_votes_remaining',
+
+            'lot_count',
+            'minimum_increment',
+
+            'voting_starts_at',
+            'voting_ends_at',
+
+            'auction_starts_at',
+            'auction_ends_at',
+
+            'import_batches',
+            'candidates',
+            'lots',
+
+            'created_at',
+            'finished_at',
+        ]
+
+    def get_batches_collected(self, obj):
+        return obj.import_batches.count()
+
+    def get_batch_progress(self, obj):
+        collected = obj.import_batches.count()
+
+        return {
+            'current': collected,
+            'target': obj.batch_target,
+        }
+
+    def _get_team(self):
+        request = self.context.get('request')
+
+        if not request:
+            return None
+
+        user = getattr(request, 'user', None)
+
+        if not user:
+            return None
+
+        return getattr(user, 'team', None)
+
+    def get_my_votes_used(self, obj):
+        team = self._get_team()
+
+        if not team:
+            return 0
+
+        return (
+                obj.votes
+                .filter(team=team)
+                .aggregate(
+                    total=Sum('quantity')
+                )['total']
+                or 0
+        )
+
+    def get_my_votes_remaining(self, obj):
+        used = self.get_my_votes_used(obj)
+
+        return max(
+            obj.max_votes_per_team - used,
+            0,
+        )

@@ -18,6 +18,7 @@ import Alliances from "@/views/Alliances.vue";
 import Telemetry from "@/views/Telemetry.vue";
 import Stats from "@/views/Stats.vue";
 import MapRolls from "@/views/MapRolls.vue";
+import Auctions from "../views/Auctions.vue";
 
 const routes = [
     { path: '/home', name: 'Home', component: Home },
@@ -39,6 +40,7 @@ const routes = [
     { path: '/telemetry', name: 'TelemetryAnalyzer', component: Telemetry },
     { path: '/stats', name: 'Stats', component: Stats },
     { path: '/maps', name: 'Maps', component: MapRolls },
+    { path: '/auctions', name: 'auctions', component: Auctions },
 
 ];
 

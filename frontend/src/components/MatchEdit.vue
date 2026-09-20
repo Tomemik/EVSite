@@ -362,7 +362,6 @@ const moneyRulesOptions = [
 
 const teamHasBounty = (teamName) => {
   const t = props.allTeamDetails?.find(x => x.name === teamName);
-  // Assuming the API returns `bounty_value` > 0 if they have a bounty
   return t && t.bounty_value && t.bounty_value > 0;
 };
 
@@ -497,7 +496,6 @@ const removeTank = (side, teamIndex, tankIndex) => {
 
 const addTeam = (side) => {
   editForm.value.teammatch_set[side].push({ team: '', tanks: [{ id: null }] });
-  // Adding a team likely invalidates bounty match (makes it 2v1 or 2v2)
   if (editForm.value.is_bounty) editForm.value.is_bounty = false;
 };
 
@@ -527,20 +525,38 @@ const getTeamTanks = (side, teamIndex, currentTankRowIndex) => {
       })
       .filter(id => id !== null);
 
+    // Get the allowed manufacturer+ names to enforce the roster restriction
+    const manuPlusNames = team.manufacturer_plus_roster ? team.manufacturer_plus_roster.map(t => t.name) : [];
+
     return team.tanks
       .filter(tank => {
-        const isModeValid = (mode === 'traditional')
-          ? (tank.is_trad && tank.available)
-          : (!tank.is_trad);
+        let isModeValid = false;
+
+        if (mode === 'traditional') {
+          isModeValid = tank.is_trad && tank.available;
+        } else if (mode === 'advanced') {
+          isModeValid = !tank.is_trad &&
+            tank.tank.is_allowed_in_advanced !== false &&
+            manuPlusNames.includes(tank.tank.name);
+        } else if (mode === 'evolved') {
+          isModeValid = !tank.is_trad &&
+            tank.tank.is_allowed_in_evolved !== false;
+        }
 
         const isNotUsed = !usedIds.includes(tank.id);
 
         return isModeValid && isNotUsed;
       })
-      .map(tank => ({
-        id: tank.id,
-        title: tank.tank.name,
-      }));
+      .map(tank => {
+        let br = tank.tank.battle_rating;
+        if (mode === 'advanced' && tank.tank.advanced_battle_rating > 0) br = tank.tank.advanced_battle_rating;
+        if (mode === 'evolved' && tank.tank.evolved_battle_rating > 0) br = tank.tank.evolved_battle_rating;
+
+        return {
+          id: tank.id,
+          title: `${tank.tank.name} (BR: ${br.toFixed(1)})`,
+        };
+      });
   }
   return [];
 };
@@ -551,7 +567,9 @@ const getTeamTanksByName = (name) => {
     return team.tanks.map(tank => ({
       id: tank.id,
       name: tank.tank.name,
-      battle_rating: tank.tank.battle_rating
+      battle_rating: tank.tank.battle_rating,
+      advanced_battle_rating: tank.tank.advanced_battle_rating,
+      evolved_battle_rating: tank.tank.evolved_battle_rating
     }));
   }
   return [];
@@ -562,15 +580,23 @@ const getTeamId = (teamName) => {
   return t ? t.id : null;
 }
 
+const getEffectiveBR = (tankData, mode) => {
+    if (mode === 'evolved' && tankData.evolved_battle_rating > 0) return tankData.evolved_battle_rating;
+    if (mode === 'advanced' && tankData.advanced_battle_rating > 0) return tankData.advanced_battle_rating;
+    return tankData.battle_rating;
+};
+
 // --- Save ---
 
 const saveChanges = () => {
+  const mode = editForm.value.mode;
+
   const updatedMatch = {
     id: props.detailedMatch.id,
     datetime: editForm.value.datetime,
     gamemode: editForm.value.gamemode,
     map_selection: editForm.value.map_selection,
-    mode: editForm.value.mode,
+    mode: mode,
     best_of_number: editForm.value.best_of_number,
     money_rules: editForm.value.money_rules,
     special_rules: editForm.value.special_rules,
@@ -593,7 +619,7 @@ const saveChanges = () => {
               tank: {
                 name: tankData.name,
                 id: tankId,
-                battle_rating: tankData.battle_rating
+                battle_rating: getEffectiveBR(tankData, mode)
               },
               team: getTeamId(team.team)
             };
@@ -609,8 +635,6 @@ const saveChanges = () => {
       });
     }).flat()
   };
-
-  console.log("Updated Match:", updatedMatch);
 
   console.log("Saving Updated Match:", updatedMatch);
   emit('updateMatch', updatedMatch);

@@ -13,28 +13,32 @@ from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
 from django.shortcuts import render, get_object_or_404
+from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView
 from django.contrib.auth.mixins import PermissionRequiredMixin
 import requests
-from django.db.models import F, Window
+from django.db.models import F, Window, Count, Prefetch
 from django.db.models.functions import RowNumber
 
 from .discord import format_match_message, format_match_result_message, format_match_calc_message, send_transaction_log
 from .filters import TeamLogFilter, MatchFilter
 from .models import Team, Manufacturer, Tank, Match, MatchResult, TankBox, TeamMatch, TeamLog, ImportTank, \
     ImportCriteria, TeamBox, TeamTank, UpgradePath, get_upgrade_tree, UpgradeTree, InterchangeGroup, \
-    get_interchange_graph, Interchange, Alliance, MatchKill, MatchRound, ReplayFile, MatchCrit
+    get_interchange_graph, Interchange, Alliance, MatchKill, MatchRound, ReplayFile, MatchCrit, AuctionLot, AuctionBid, \
+    AuctionCycle, AuctionCandidate
 from .serializers import TeamSerializer, ManufacturerSerializer, TankSerializer, MatchSerializer, SlimMatchSerializer, \
     MatchResultSerializer, TankBoxSerializer, TankBoxCreateSerializer, SlimTeamSerializer, TeamMatchSerializer, \
     TeamLogSerializer, SlimTeamSerializerWithTanks, ImportTankSerializer, ImportCriteriaSerializer, \
     UpgradePathSerializer, UpgradeTreeSerializer, InterchangeGroupSerializer, InterchangeSerializer, AllianceSerializer, \
-    MatchRoundSerializer, VerifyRoundPayloadSerializer, MatchKillSerializer
+    MatchRoundSerializer, VerifyRoundPayloadSerializer, MatchKillSerializer, AuctionBidSerializer, \
+    AuctionCycleSerializer, AuctionLotSerializer, AuctionPlaceBidSerializer, AuctionCandidateSerializer
+from .services.auctions import place_bid, remove_vote, place_vote
 from .services.replay_parser import execute_safe_worker
 from .services.stats import StatsService
 
@@ -965,20 +969,70 @@ class CalcRevertView(APIView):
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
 class TeamLogFilteredView(ListAPIView):
-    queryset = TeamLog.objects.all()
+    """
+    Public money/economy log.
+
+    Auction bid escrow bookkeeping is intentionally excluded here.
+
+    Those TeamLog rows can remain in the database for debugging/audit,
+    while the user-facing Money Log only shows the meaningful completed
+    auction purchase (`auction_win`).
+    """
+
     serializer_class = TeamLogSerializer
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [
+        DjangoFilterBackend
+    ]
     filterset_class = TeamLogFilter
 
     def get_queryset(self):
-        return TeamLog.objects.annotate(
-            row_number=Window(
-                expression=RowNumber(),
-                partition_by=[F('team')],
-                order_by=F('timestamp').desc()
-            )
-        ).filter(row_number__lte=100)
+        return (
+            TeamLog.objects
 
+            # -----------------------------------------------------
+            # Auction bidding can generate many internal balance
+            # movements:
+            #
+            # - reserving a bid
+            # - increasing your own bid
+            # - refunding a team after it is outbid
+            #
+            # Those are implementation details, not useful entries
+            # for the public Money Log.
+            # -----------------------------------------------------
+            .exclude(
+                method_name__in=[
+                    'auction_bid_hold',
+                    'auction_outbid_refund',
+                ]
+            )
+
+            # -----------------------------------------------------
+            # Keep at most the newest 100 VISIBLE entries per team.
+            #
+            # It is important that the auction exclusions happen
+            # BEFORE RowNumber(), otherwise 100 bid/refund messages
+            # could push useful transactions out of the result.
+            # -----------------------------------------------------
+            .annotate(
+                row_number=Window(
+                    expression=RowNumber(),
+
+                    partition_by=[
+                        F('team')
+                    ],
+
+                    order_by=(
+                        F('timestamp')
+                        .desc()
+                    ),
+                )
+            )
+
+            .filter(
+                row_number__lte=100
+            )
+        )
 
 class ActiveImportCriteriaView(APIView):
     def get(self, request, *args, **kwargs):
@@ -1865,7 +1919,7 @@ class ComprehensiveStatsView(APIView):
         # 2. Intercept 'general' tab early
         if tab == 'general':
             general_params = f"general_{team}_{start_date_str}_{end_date_str}"
-            general_cache_key = f"stats_v4_gen_{hashlib.md5(general_params.encode()).hexdigest()}"
+            general_cache_key = f"stats_v5_gen_{hashlib.md5(general_params.encode()).hexdigest()}"
 
             general_data = cache.get(general_cache_key)
             if not general_data:
@@ -1980,3 +2034,330 @@ class MapDataView(APIView):
         # Sort alphabetically by map name for the frontend
         map_data_list.sort(key=lambda x: x.get('map_name', ''))
         return Response(map_data_list)
+
+
+def get_auction_team_for_user(user):
+    """
+    Only commanders/admins belonging to a Team may vote or bid.
+
+    We intentionally derive Team from request.user rather than accepting
+    a team name from the frontend.
+    """
+
+    if not (
+        user.has_perm('user.admin_permissions')
+        or user.has_perm('user.commander_permissions')
+    ):
+        raise PermissionDenied(
+            "Only commanders may perform auction actions."
+        )
+
+    team = getattr(user, 'team', None)
+
+    if not team:
+        raise ValidationError(
+            "Your user account is not assigned to a team."
+        )
+
+    return team
+
+
+def get_auction_cycle_queryset():
+    candidate_queryset = (
+        AuctionCandidate.objects
+        .select_related('tank')
+        .prefetch_related(
+            'sources__source_import',
+            'votes',
+        )
+    )
+
+    lot_queryset = (
+        AuctionLot.objects
+        .select_related(
+            'candidate__tank',
+            'source__source_import',
+            'current_bidder',
+            'winner',
+        )
+        .annotate(
+            bid_total=Count('bids')
+        )
+        .order_by(
+            'position',
+            'id',
+        )
+    )
+
+    return (
+        AuctionCycle.objects
+        .prefetch_related(
+            'import_batches',
+            'votes',
+            Prefetch(
+                'candidates',
+                queryset=candidate_queryset,
+            ),
+            Prefetch(
+                'lots',
+                queryset=lot_queryset,
+            ),
+        )
+    )
+
+
+class AuctionOverviewView(APIView):
+    """
+    Main Auctions page endpoint.
+
+    Returns BOTH:
+      active_cycle:
+        current voting/scheduled/live auction
+
+      collecting_cycle:
+        dynamically growing list for the NEXT auction
+
+    That means import #9 can start appearing even while imports #1-8 are
+    in voting or being auctioned.
+    """
+
+    def get(self, request):
+        queryset = get_auction_cycle_queryset()
+
+        active_cycle = (
+            queryset
+            .filter(
+                status__in=[
+                    AuctionCycle.Status.VOTING,
+                    AuctionCycle.Status.SCHEDULED,
+                    AuctionCycle.Status.LIVE,
+                ]
+            )
+            .order_by('-created_at')
+            .first()
+        )
+
+        collecting_cycle = (
+            queryset
+            .filter(
+                status=AuctionCycle.Status.COLLECTING
+            )
+            .order_by('-created_at')
+            .first()
+        )
+
+        return Response(
+            {
+                'server_time': timezone.now(),
+
+                'active_cycle': (
+                    AuctionCycleSerializer(
+                        active_cycle,
+                        context={'request': request},
+                    ).data
+                    if active_cycle
+                    else None
+                ),
+
+                'collecting_cycle': (
+                    AuctionCycleSerializer(
+                        collecting_cycle,
+                        context={'request': request},
+                    ).data
+                    if collecting_cycle
+                    else None
+                ),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AuctionCycleDetailView(APIView):
+    def get(self, request, pk):
+        cycle = get_object_or_404(
+            get_auction_cycle_queryset(),
+            pk=pk,
+        )
+
+        serializer = AuctionCycleSerializer(
+            cycle,
+            context={'request': request},
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class AuctionVoteView(APIView):
+    """
+    POST   -> add vote
+    DELETE -> remove vote
+
+    Example:
+        POST /api/auctions/3/candidates/12/vote/
+    """
+
+    def post(
+        self,
+        request,
+        cycle_id,
+        candidate_id,
+    ):
+        team = get_auction_team_for_user(
+            request.user
+        )
+
+        candidate = place_vote(
+            cycle_id=cycle_id,
+            candidate_id=candidate_id,
+            team=team,
+            user=request.user,
+        )
+
+        candidate = (
+            AuctionCandidate.objects
+            .select_related('tank')
+            .prefetch_related(
+                'sources__source_import',
+                'votes',
+            )
+            .get(pk=candidate.pk)
+        )
+
+        serializer = AuctionCandidateSerializer(
+            candidate,
+            context={'request': request},
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    def delete(
+        self,
+        request,
+        cycle_id,
+        candidate_id,
+    ):
+        team = get_auction_team_for_user(
+            request.user
+        )
+
+        remove_vote(
+            cycle_id=cycle_id,
+            candidate_id=candidate_id,
+            team=team,
+        )
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+
+class AuctionBidView(APIView):
+    """
+    POST /api/auctions/lots/123/bid/
+
+    {
+        "amount": 150000
+    }
+    """
+
+    def post(self, request, lot_id):
+        team = get_auction_team_for_user(
+            request.user
+        )
+
+        request_serializer = AuctionPlaceBidSerializer(
+            data=request.data
+        )
+        request_serializer.is_valid(
+            raise_exception=True
+        )
+
+        lot = place_bid(
+            lot_id=lot_id,
+            team=team,
+            user=request.user,
+            amount=request_serializer.validated_data[
+                'amount'
+            ],
+        )
+
+        lot = (
+            AuctionLot.objects
+            .select_related(
+                'candidate__tank',
+                'source__source_import',
+                'current_bidder',
+                'winner',
+            )
+            .annotate(
+                bid_total=Count('bids')
+            )
+            .get(pk=lot.pk)
+        )
+
+        serializer = AuctionLotSerializer(
+            lot,
+            context={'request': request},
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class AuctionBidHistoryView(APIView):
+    """
+    Optional endpoint for a bid-history drawer/modal.
+    """
+
+    def get(self, request, lot_id):
+        lot = get_object_or_404(
+            AuctionLot,
+            pk=lot_id,
+        )
+
+        bids = (
+            AuctionBid.objects
+            .filter(lot=lot)
+            .select_related('team')
+            .order_by('-created_at')[:100]
+        )
+
+        serializer = AuctionBidSerializer(
+            bids,
+            many=True,
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class AuctionHistoryView(APIView):
+    def get(self, request):
+        cycles = (
+            get_auction_cycle_queryset()
+            .filter(
+                status=AuctionCycle.Status.FINISHED
+            )
+            .order_by('-finished_at')[:20]
+        )
+
+        serializer = AuctionCycleSerializer(
+            cycles,
+            many=True,
+            context={'request': request},
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )

@@ -40,12 +40,16 @@ ALLOWED_HOSTS = env.list(
     "DJANGO_ALLOWED_HOSTS", default=["localhost", "0.0.0.0", "127.0.0.1", "backend"]
 )
 
+_discord_roles = os.environ.get('DISCORD_AUCTION_ROLE_IDS', '')
+
 DISCORD_WEBHOOK_URL_SCHEDULE = env.str("DISCORD_WEBHOOK_URL_SCHEDULE", default="")
 DISCORD_WEBHOOK_URL_RESULT = env.str("DISCORD_WEBHOOK_URL_RESULT", default="")
 DISCORD_WEBHOOK_URL_CALC = env.str("DISCORD_WEBHOOK_URL_CALC", default="")
 DISCORD_WEBHOOK_URL_TRANSACTIONS = env.str("DISCORD_WEBHOOK_URL_TRANSACTIONS", default="")
+DISCORD_WEBHOOK_URL_AUCTIONS = env.str("DISCORD_WEBHOOK_URL_AUCTIONS", default="")
+AUCTIONS_PUBLIC_URL = env.str("AUCTIONS_PUBLIC_URL", default="https://gupevolution.click/auctions")
 DISCORD_GUILD_ID = env.str("DISCORD_GUILD_ID", default="1180534237011648612")
-
+DISCORD_AUCTION_ROLE_IDS = [r.strip() for r in _discord_roles.split(',')] if _discord_roles else []
 
 CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS", default=["http://localhost:5173",]

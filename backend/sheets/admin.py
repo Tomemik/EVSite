@@ -2,11 +2,13 @@ from django.contrib import admin
 from django.db.models import Count, Q, F, ExpressionWrapper, When, Case, Value, FloatField
 from django.db.models.functions import Coalesce
 from django.utils.html import format_html
+from types import MethodType
 
 from .models import Manufacturer, Team, Tank, UpgradePath, TeamTank, Match, TeamMatch, default_upgrade_kits, \
     MatchResult, Substitute, TankLost, TeamResult, TeamLog, TankBox, TeamBox, ImportTank, ImportCriteria, Booster, \
     UpgradeTree, Interchange, InterchangeGroup, Alliance, Bounty, BountyTier, MatchRewardRates, \
-    MatchRound, MatchKill, ReplayFile, MatchCrit, WeeklyEconomySettings
+    MatchRound, MatchKill, ReplayFile, MatchCrit, WeeklyEconomySettings, AuctionBid, AuctionLot, AuctionVote, \
+    AuctionCandidateSource, AuctionCandidate, AuctionImportBatch, AuctionCycle
 
 
 class ManufacturerAdmin(admin.ModelAdmin):
@@ -76,7 +78,7 @@ class TeamBoxAdmin(admin.ModelAdmin):
 
 
 class TankAdmin(admin.ModelAdmin):
-    list_display = ('name', 'battle_rating', 'price', 'rank', 'type', 'internal_ids')
+    list_display = ('name', 'battle_rating', 'price', 'rank', 'type', 'advanced_battle_rating', 'is_allowed_in_advanced', 'internal_ids')
     search_fields = ('name', 'type')
     list_filter = ('type', 'rank')
     autocomplete_fields = ('manufacturers',)
@@ -263,12 +265,123 @@ class MatchKillAdmin(admin.ModelAdmin):
 
 
 class WeeklyEconomySettingsAdmin(admin.ModelAdmin):
-    list_display = ('current_cap', 'target_matches_for_cap', 'ema_weight', 'under_cap_payout_ratio')
+    list_display = ('current_cap', 'target_matches_for_cap', 'reward_trim_fraction',
+                    'active_team_window_days', 'progression_per_rank', 'ema_weight', 'under_cap_payout_ratio')
 
     def has_add_permission(self, request):
         if self.model.objects.exists():
             return False
         return super().has_add_permission(request)
+
+@admin.register(AuctionCycle)
+class AuctionCycleAdmin(admin.ModelAdmin):
+    readonly_fields = ('voting_open_announced_at', 'voting_closed_announced_at',
+                       'auction_reminder_announced_at', 'discord_retry_after')
+    list_display = [
+        'id',
+        'status',
+        'created_at',
+        'voting_starts_at',
+        'voting_ends_at',
+        'auction_starts_at',
+        'auction_ends_at',
+    ]
+
+    list_filter = [
+        'status',
+    ]
+
+
+@admin.register(AuctionImportBatch)
+class AuctionImportBatchAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'cycle',
+        'available_from',
+        'expired_at',
+        'total_imports',
+        'leftover_imports',
+    ]
+
+
+@admin.register(AuctionCandidate)
+class AuctionCandidateAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'cycle',
+        'tank',
+        'selected_quantity',
+        'is_selected',
+    ]
+
+    list_filter = [
+        'cycle',
+    ]
+
+    @admin.display(boolean=True, description='Selected')
+    def is_selected(self, obj):
+        return obj.selected_quantity > 0
+
+
+@admin.register(AuctionCandidateSource)
+class AuctionCandidateSourceAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'candidate',
+        'source_import',
+        'added_at',
+    ]
+
+
+@admin.register(AuctionVote)
+class AuctionVoteAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'cycle',
+        'candidate',
+        'team',
+        'user',
+        'created_at',
+    ]
+
+    list_filter = [
+        'cycle',
+        'team',
+    ]
+
+
+@admin.register(AuctionLot)
+class AuctionLotAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'cycle',
+        'position',
+        'candidate',
+        'starting_bid',
+        'current_bid',
+        'current_bidder',
+        'winner',
+        'finalized_at',
+    ]
+
+    list_filter = [
+        'cycle',
+    ]
+
+
+@admin.register(AuctionBid)
+class AuctionBidAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'lot',
+        'team',
+        'amount',
+        'created_at',
+    ]
+
+    list_filter = [
+        'team',
+    ]
 
 admin.site.register(Booster, BoosterAdmin)
 admin.site.register(MatchResult, MatchResultAdmin)
@@ -294,3 +407,234 @@ admin.site.register(MatchRewardRates, MatchRewardRateAdmin)
 admin.site.register(WeeklyEconomySettings, WeeklyEconomySettingsAdmin)
 admin.site.register(MatchRound, MatchRoundAdmin)
 admin.site.register(MatchKill, MatchKillAdmin)
+
+# ---------------------------------------------------------------------
+# CUSTOM ADMIN INDEX GROUPING
+# ---------------------------------------------------------------------
+
+ADMIN_MODEL_GROUPS = [
+    (
+        'Auctions',
+        [
+            'AuctionCycle',
+            'AuctionCandidate',
+            'AuctionCandidateSource',
+            'AuctionImportBatch',
+            'AuctionLot',
+            'AuctionBid',
+            'AuctionVote',
+        ],
+    ),
+
+    (
+        'Teams & Inventory',
+        [
+            'Team',
+            'Alliance',
+            'Tank',
+            'TeamTank',
+            'TankBox',
+            'TeamBox',
+            'Manufacturer',
+            'TeamLog',
+        ],
+    ),
+
+    (
+        'Economy & Imports',
+        [
+            'ImportTank',
+            'ImportCriteria',
+            'Booster',
+            'Bounty',
+            'BountyTier',
+            'MatchRewardRates',
+            'WeeklyEconomySettings',
+        ],
+    ),
+
+    (
+        'Vehicle Configuration',
+        [
+            'UpgradePath',
+            'UpgradeTree',
+            'Interchange',
+            'InterchangeGroup',
+        ],
+    ),
+
+    (
+        'Matches & Replays',
+        [
+            'Match',
+            'TeamMatch',
+            'MatchResult',
+            'MatchRound',
+            'MatchKill',
+            'ReplayFile',
+        ],
+    ),
+]
+
+
+def grouped_admin_get_app_list(
+    self,
+    request,
+    app_label=None,
+):
+    """
+    Split the 'sheets' application into visual categories on the
+    main Django admin page.
+
+    This DOES NOT change:
+        - model app_label
+        - database tables
+        - migrations
+        - admin URLs
+        - permissions
+
+    It only changes how models are displayed on /admin/.
+    """
+
+    app_dict = self._build_app_dict(
+        request,
+        app_label,
+    )
+
+    # -------------------------------------------------------------
+    # If Django explicitly requests an individual application's
+    # page, keep normal Django behaviour.
+    #
+    # e.g. /admin/sheets/
+    # -------------------------------------------------------------
+    if app_label is not None:
+        app_list = sorted(
+            app_dict.values(),
+            key=lambda app: app['name'].lower(),
+        )
+
+        for app in app_list:
+            app['models'].sort(
+                key=lambda model: model['name'].lower()
+            )
+
+        return app_list
+
+    result = []
+
+    # -------------------------------------------------------------
+    # Remove the original giant SHEETS block.
+    # -------------------------------------------------------------
+    sheets_app = app_dict.pop(
+        'sheets',
+        None,
+    )
+
+    if sheets_app:
+        models_by_object_name = {
+            model['object_name']: model
+            for model in sheets_app['models']
+        }
+
+        used_models = set()
+
+        # ---------------------------------------------------------
+        # Create our virtual groups.
+        # ---------------------------------------------------------
+        for group_index, (
+            group_name,
+            object_names,
+        ) in enumerate(ADMIN_MODEL_GROUPS):
+
+            group_models = []
+
+            for object_name in object_names:
+                model = models_by_object_name.get(
+                    object_name
+                )
+
+                if model is not None:
+                    group_models.append(model)
+                    used_models.add(object_name)
+
+            if not group_models:
+                continue
+
+            result.append(
+                {
+                    'name': group_name,
+
+                    # Synthetic label used only by the template.
+                    'app_label': (
+                        f'sheets_group_{group_index}'
+                    ),
+
+                    # Clicking the heading can still go to the
+                    # normal Sheets application page.
+                    'app_url': sheets_app.get(
+                        'app_url'
+                    ),
+
+                    'has_module_perms': True,
+
+                    'models': group_models,
+                }
+            )
+
+        # ---------------------------------------------------------
+        # Safety net:
+        # any future Sheets models that we forget to assign above
+        # will still appear instead of disappearing from admin.
+        # ---------------------------------------------------------
+        ungrouped_models = [
+            model
+            for object_name, model
+            in models_by_object_name.items()
+            if object_name not in used_models
+        ]
+
+        if ungrouped_models:
+            ungrouped_models.sort(
+                key=lambda model: model['name'].lower()
+            )
+
+            result.append(
+                {
+                    'name': 'Other Sheets',
+                    'app_label': 'sheets_group_other',
+                    'app_url': sheets_app.get(
+                        'app_url'
+                    ),
+                    'has_module_perms': True,
+                    'models': ungrouped_models,
+                }
+            )
+
+    # -------------------------------------------------------------
+    # Add Django's other actual applications normally:
+    #
+    # Authentication and Authorization
+    # Knox
+    # User
+    # etc.
+    # -------------------------------------------------------------
+    other_apps = sorted(
+        app_dict.values(),
+        key=lambda app: app['name'].lower(),
+    )
+
+    for app in other_apps:
+        app['models'].sort(
+            key=lambda model: model['name'].lower()
+        )
+
+        result.append(app)
+
+    return result
+
+
+# Replace only the presentation logic of the existing admin site.
+admin.site.get_app_list = MethodType(
+    grouped_admin_get_app_list,
+    admin.site,
+)

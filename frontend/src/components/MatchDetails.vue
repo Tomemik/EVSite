@@ -101,7 +101,10 @@
                     <template v-slot:prepend>
                       <v-icon icon="mdi-tank" size="small" color="grey"></v-icon>
                     </template>
-                    <v-list-item-title>{{ tank.tank.name }}</v-list-item-title>
+                    <v-list-item-title>
+                      {{ tank.tank.name }}
+                      <span class="text-caption text-grey ml-1">(BR: {{ getEffectiveBR(tank.tank, detailedMatch.mode).toFixed(1) }})</span>
+                    </v-list-item-title>
                   </v-list-item>
                 </v-list>
               </v-card>
@@ -134,7 +137,10 @@
                     <template v-slot:prepend>
                       <v-icon icon="mdi-tank" size="small" color="grey"></v-icon>
                     </template>
-                    <v-list-item-title class="text-right">{{ tank.tank.name }}</v-list-item-title>
+                    <v-list-item-title class="text-right">
+                      <span class="text-caption text-grey mr-1">(BR: {{ getEffectiveBR(tank.tank, detailedMatch.mode).toFixed(1) }})</span>
+                      {{ tank.tank.name }}
+                    </v-list-item-title>
                   </v-list-item>
                 </v-list>
               </v-card>
@@ -176,7 +182,7 @@
     </v-card>
   </v-dialog>
 
-  </template>
+</template>
 
 <script setup>
 import {ref, watch} from 'vue';
@@ -190,8 +196,6 @@ const emit = defineEmits(['update:showDetailsDialog', 'deleteMatch', 'editMode',
 
 const localShowDetailsDialog = ref(props.showDetailsDialog);
 const showDeleteConfirmation = ref(false);
-
-// ... [Existing Watchers and Update Methods] ...
 
 watch(() => props.showDetailsDialog, (newValue) => {
   localShowDetailsDialog.value = newValue;
@@ -250,11 +254,14 @@ const getTitleByValue = (options, value) => {
 const hasBounty = (teamName) => {
   if (!props.allTeamDetails) return false;
   const team = props.allTeamDetails.find(t => t.name === teamName);
-  // Check if team exists and has bounty > 0
   return team && team.bounty_value && team.bounty_value > 0;
 }
 
-// ... [Existing Action Methods] ...
+const getEffectiveBR = (tankData, mode) => {
+    if (mode === 'evolved' && tankData.evolved_battle_rating > 0) return tankData.evolved_battle_rating;
+    if (mode === 'advanced' && tankData.advanced_battle_rating > 0) return tankData.advanced_battle_rating;
+    return tankData.battle_rating || 0;
+};
 
 const openResultView = () => {
   emit('resultView');
@@ -268,7 +275,6 @@ const close = () => {
   updateShowDetailsDialog(false);
 }
 
-// ... [Copy Logic - Unchanged] ...
 const formatDateTimeForCopy = (datetime) => {
   const date = new Date(datetime);
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

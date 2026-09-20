@@ -34,12 +34,17 @@ class TeamLogFilter(filters.FilterSet):
             ('revert_rewards', 'Match Reverted'),
             ('purchase_tank', 'Tank Bought'),
             ('sell_tank', 'Tank Sold'),
+            ('sell_teamtank', 'Tank Sold'),
             ('upgrade_or_downgrade_tank', 'Tank Upgraded'),
+            ('do_direct_upgrade', 'Tank Upgraded'),
             ('money_transfer_in', 'Money Transfers In'),
             ('money_transfer_out', 'Money Transfers Out'),
             ('import_purchase', 'Imports Purchase'),
+            ('imports_purchase', 'Imports Purchase'),
+            ('auction_win', 'Auction Won'),
             ('open_tank_box', 'Box Opened'),
             ('purchase_box', 'Box Purchased'),
+            ('weekly_under_cap_bonus', 'Weekly Payout'),
         ],
     )
     from_date = filters.DateTimeFilter(field_name="timestamp", lookup_expr="gte")

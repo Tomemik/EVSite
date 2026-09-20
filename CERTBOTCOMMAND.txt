@@ -1,11 +1,9 @@
-sudo docker run --rm \
-  --entrypoint /bin/sh \
-  -v "$(pwd)/certbot/etc:/etc/letsencrypt" \
-  -v "$(pwd)/certbot/lib:/var/lib/letsencrypt" \
-  -v "$(pwd)/certbot/logs:/var/log/letsencrypt" \
-  -v "$(pwd)/certs:/output_certs" \
-  -p 80:80 \
-  certbot/certbot -c "\
-    certbot certonly --standalone -d gupevolution.click --non-interactive --agree-tos -m tomemik111@gmail.com && \
-    mkdir -p /output_certs/gupevolution.click && \
-    cp -L /etc/letsencrypt/live/gupevolution.click*/*.pem /output_certs/"
+Automatic SSL renewal setup: docs/ssl-renewal.md
+
+After the one-time setup, a systemd timer checks renewal twice daily, publishes
+the certificate into ./certs, and gracefully reloads the running Nginx container.
+
+Manual verification from /home/ec2-user on EC2:
+  sudo env EVSITE_COMPOSE_FILE=docker-compose.yml EVSITE_CERT_NAME=gupevolution.click-0004 bash scripts/renew-certificates.sh --dry-run
+
+Use the actual production Compose filename if different.

@@ -1,7 +1,8 @@
 from collections import defaultdict, Counter
 from django.db.models import Q
 from django.core.exceptions import ObjectDoesNotExist
-from ..models import MatchRound, MatchKill, Tank, Match, TeamLog
+from ..models import MatchRound, MatchKill, Tank, Match, TeamLog, TeamMatch
+from .reward_logs import get_log_match_id
 
 
 class StatsService:
@@ -336,12 +337,36 @@ class StatsService:
 
         total_economy_payout = 0
         valid_payout_logs = 0
+        positive_payouts = []
 
         for log in economy_qs:
             diff = log.new_value.get('balance', 0) - log.previous_value.get('balance', 0)
             if diff > 0:
                 total_economy_payout += diff
                 valid_payout_logs += 1
+                positive_payouts.append((get_log_match_id(log), log.team_id, diff))
+
+        # Batch-match each paid team to its side; this also handles matches with
+        # several teams on a side. Economy dates remain payout dates, matching
+        # the existing overall average even when a match was paid later.
+        match_ids = {match_id for match_id, _, _ in positive_payouts if match_id is not None}
+        outcomes = {
+            (match_id, team_id): side == winning_side
+            for match_id, team_id, side, winning_side in TeamMatch.objects.filter(
+                match_id__in=match_ids,
+                match__match_result__winning_side__in=['team_1', 'team_2'],
+            ).values_list('match_id', 'team_id', 'side', 'match__match_result__winning_side')
+        }
+        winner_total = loser_total = 0
+        winner_count = loser_count = 0
+        for match_id, team_id, amount in positive_payouts:
+            won = outcomes.get((match_id, team_id))
+            if won is True:
+                winner_total += amount
+                winner_count += 1
+            elif won is False:
+                loser_total += amount
+                loser_count += 1
 
         avg_reward_per_team = (total_economy_payout / valid_payout_logs) if valid_payout_logs > 0 else 0
 
@@ -352,6 +377,11 @@ class StatsService:
                 'avg_round_length_s': avg_round_length,
                 'total_payout': total_economy_payout,
                 'avg_reward_per_team': avg_reward_per_team,
+                'avg_winner_reward': winner_total / winner_count if winner_count else 0,
+                'avg_loser_reward': loser_total / loser_count if loser_count else 0,
+                'winner_reward_count': winner_count,
+                'loser_reward_count': loser_count,
+                'unclassified_reward_count': valid_payout_logs - winner_count - loser_count,
             },
             'gamemodes': dict(sorted(gamemode_counts.items(), key=lambda x: x[1], reverse=True)),
             'modes': dict(sorted(mode_counts.items(), key=lambda x: x[1], reverse=True)),

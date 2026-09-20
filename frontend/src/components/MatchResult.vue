@@ -451,7 +451,7 @@
                         <v-row dense class="mb-2">
                           <v-col cols="6">
                             <v-text-field
-                              v-model="teamResults['team_1'][teamIndex].bonuses"
+                              v-model.number="teamResults['team_1'][teamIndex].bonuses"
                               label="Bonuses"
                               type="number"
                               min="0"
@@ -463,7 +463,7 @@
                           </v-col>
                           <v-col cols="6">
                             <v-text-field
-                              v-model="teamResults['team_1'][teamIndex].penalties"
+                              v-model.number="teamResults['team_1'][teamIndex].penalties"
                               label="Penalties"
                               type="number"
                               min="0"
@@ -494,7 +494,7 @@
                           </div>
 
                           <v-text-field
-                            v-model="tanksLost['team_1'][teamIndex][tankIndex].quantity"
+                            v-model.number="tanksLost['team_1'][teamIndex][tankIndex].quantity"
                             type="number"
                             min="0"
                             variant="outlined"
@@ -518,7 +518,8 @@
                           >Add</v-btn>
                         </div>
 
-                        <div v-for="(substitute, subIndex) in substitutes['team_1'][teamIndex]" :key="subIndex" class="pa-2 rounded mb-2 border">
+                        <!-- TEAM 1 SUBSTITUTES UI -->
+                        <div v-for="(substitute, subIndex) in substitutes['team_1'][teamIndex]" :key="subIndex" class="pa-3 rounded mb-3 border">
                           <v-select
                             v-model="substitute.team"
                             :items="allTeamNames"
@@ -528,7 +529,7 @@
                             hide-details
                             class="mb-2"
                           ></v-select>
-                          <div class="d-flex align-center">
+                          <div class="d-flex align-center mb-2">
                             <v-select
                               v-model="substitute.activity"
                               label="Activity"
@@ -548,6 +549,32 @@
                               @click="removeSubstitute('team_1', teamIndex, subIndex)"
                             ></v-btn>
                           </div>
+                          <v-row dense>
+                            <v-col cols="6">
+                              <v-text-field
+                                v-model.number="substitute.bonuses"
+                                label="Bonuses"
+                                type="number"
+                                min="0"
+                                density="compact"
+                                variant="outlined"
+                                hide-details
+                                prepend-inner-icon="mdi-star"
+                              ></v-text-field>
+                            </v-col>
+                            <v-col cols="6">
+                              <v-text-field
+                                v-model.number="substitute.penalties"
+                                label="Penalties"
+                                type="number"
+                                min="0"
+                                density="compact"
+                                variant="outlined"
+                                hide-details
+                                prepend-inner-icon="mdi-alert-circle"
+                              ></v-text-field>
+                            </v-col>
+                          </v-row>
                         </div>
 
                       </v-card-text>
@@ -582,7 +609,7 @@
                         <v-row dense class="mb-2">
                           <v-col cols="6">
                             <v-text-field
-                              v-model="teamResults['team_2'][teamIndex].bonuses"
+                              v-model.number="teamResults['team_2'][teamIndex].bonuses"
                               label="Bonuses"
                               type="number"
                               min="0"
@@ -594,7 +621,7 @@
                           </v-col>
                           <v-col cols="6">
                             <v-text-field
-                              v-model="teamResults['team_2'][teamIndex].penalties"
+                              v-model.number="teamResults['team_2'][teamIndex].penalties"
                               label="Penalties"
                               type="number"
                               min="0"
@@ -625,7 +652,7 @@
                           </div>
 
                           <v-text-field
-                            v-model="tanksLost['team_2'][teamIndex][tankIndex].quantity"
+                            v-model.number="tanksLost['team_2'][teamIndex][tankIndex].quantity"
                             type="number"
                             min="0"
                             variant="outlined"
@@ -649,7 +676,8 @@
                           >Add</v-btn>
                         </div>
 
-                        <div v-for="(substitute, subIndex) in substitutes['team_2'][teamIndex]" :key="subIndex" class="pa-2 rounded mb-2 border">
+                        <!-- TEAM 2 SUBSTITUTES UI -->
+                        <div v-for="(substitute, subIndex) in substitutes['team_2'][teamIndex]" :key="subIndex" class="pa-3 rounded mb-3 border">
                           <v-select
                             v-model="substitute.team"
                             :items="allTeamNames"
@@ -659,11 +687,10 @@
                             hide-details
                             class="mb-2"
                           ></v-select>
-                          <div class="d-flex align-center">
+                          <div class="d-flex align-center mb-2">
                             <v-select
                               v-model="substitute.activity"
                               label="Activity"
-                              type="number"
                               :items="activityOptions"
                               item-title="title"
                               item-value="value"
@@ -680,6 +707,32 @@
                               @click="removeSubstitute('team_2', teamIndex, subIndex)"
                             ></v-btn>
                           </div>
+                          <v-row dense>
+                            <v-col cols="6">
+                              <v-text-field
+                                v-model.number="substitute.bonuses"
+                                label="Bonuses"
+                                type="number"
+                                min="0"
+                                density="compact"
+                                variant="outlined"
+                                hide-details
+                                prepend-inner-icon="mdi-star"
+                              ></v-text-field>
+                            </v-col>
+                            <v-col cols="6">
+                              <v-text-field
+                                v-model.number="substitute.penalties"
+                                label="Penalties"
+                                type="number"
+                                min="0"
+                                density="compact"
+                                variant="outlined"
+                                hide-details
+                                prepend-inner-icon="mdi-alert-circle"
+                              ></v-text-field>
+                            </v-col>
+                          </v-row>
                         </div>
 
                       </v-card-text>
@@ -893,7 +946,6 @@ watch(() => props.showResultsDialog, async (newValue) => {
   if (newValue) {
     currentPhase.value = 'SETUP';
 
-    // FIX: Default to the match's defined Bo3 or Bo5 format
     totalRounds.value = props.detailedMatch?.best_of_number || 3;
 
     replayFiles.value = [];
@@ -1302,7 +1354,11 @@ watch(() => props.results, (newResults) => {
         return (
           newResults?.substitutes?.filter(
             (sub) => sub.team_played_for === team.team
-          ) || []
+          ).map(sub => ({
+             ...sub,
+             bonuses: sub.bonuses || 0,
+             penalties: sub.penalties || 0
+          })) || []
         );
       });
     });
@@ -1320,6 +1376,8 @@ const addSubstitute = (side, teamIndex) => {
     team_played_for: { name: props.detailedMatch.sides[side][teamIndex].team },
     activity: null,
     side: side,
+    bonuses: 0,
+    penalties: 0,
   });
 };
 
@@ -1363,6 +1421,8 @@ const submitResults = () => {
           team_played_for: { name: substitute.team_played_for.name || substitute.team_played_for },
           side: substitute.side,
           activity: substitute.activity,
+          bonuses: substitute.bonuses || 0,
+          penalties: substitute.penalties || 0,
         }))
       )
     ),
@@ -1406,6 +1466,8 @@ const prepResults = () => {
           team_played_for: { name: substitute.team_played_for.name || substitute.team_played_for },
           side: substitute.side,
           activity: substitute.activity,
+          bonuses: substitute.bonuses || 0,
+          penalties: substitute.penalties || 0,
         }))
       )
     ),
@@ -1457,7 +1519,12 @@ const copyResults = () => {
 
         const teamSubstitutes = substitutes
           .filter(sub => sub.team_played_for.name === team.team_name)
-          .map(sub => `- ${sub.team.name} (${getTitleByValue(activityOptions, String(sub.activity))})`)
+          .map(sub => {
+             let text = `- ${sub.team.name} (${getTitleByValue(activityOptions, String(sub.activity))})`;
+             if (sub.bonuses > 0) text += ` [+${sub.bonuses} Bonus]`;
+             if (sub.penalties > 0) text += ` [-${sub.penalties} Penalty]`;
+             return text;
+          })
           .join('\n');
 
         const attendanceNote = team.was_present ? '' : '**(No Show)**';

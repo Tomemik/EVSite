@@ -94,12 +94,15 @@ const barItemsLoggedIn = ref([
 const drawerItems = ref([
   { title: 'Home', path: '/home' },
   { title: 'Teams', path: '/teams' },
-  { title: 'Team Tanks', path: '/teamtanks'},
+  { title: 'Team Tanks', path: '/teamtanks' },
   { title: 'Alliances', path: '/alliances' },
   { title: 'Matches', path: '/matches' },
-  { title: 'Imports', path: '/imports'},
+
+  { title: 'Imports', path: '/imports' },
+  { title: 'Auctions', path: '/auctions' },
+
   { title: 'Boxes', path: '/boxes' },
-  { title: 'Money Log', path: '/log'},
+  { title: 'Money Log', path: '/log' },
   { title: 'Maps', path: '/maps' },
   { title: 'Tanks', path: '/tanks' },
   { title: 'Manufacturers', path: '/manufacturers' },

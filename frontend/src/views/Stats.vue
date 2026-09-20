@@ -151,31 +151,53 @@
           <div v-else-if="generalStats">
             <!-- KPIs -->
             <v-row class="mb-6">
-              <v-col cols="12" md="3">
-                <v-card color="indigo-darken-4" theme="dark" class="pa-4 elevation-3">
+              <v-col cols="12" sm="6" lg="4">
+                <v-card color="indigo-darken-4" theme="dark" class="pa-4 elevation-3 h-100">
                   <div class="text-caption text-uppercase text-medium-emphasis font-weight-bold">Total Matches Played</div>
                   <div class="text-h4 mt-1 font-weight-bold">{{ generalStats.overview.total_matches }}</div>
                 </v-card>
               </v-col>
-              <v-col cols="12" md="3">
-                <v-card color="teal-darken-4" theme="dark" class="pa-4 elevation-3">
+              <v-col cols="12" sm="6" lg="4">
+                <v-card color="teal-darken-4" theme="dark" class="pa-4 elevation-3 h-100">
                   <div class="text-caption text-uppercase text-medium-emphasis font-weight-bold">Rounds Played (uploaded)</div>
                   <div class="text-h4 mt-1 font-weight-bold">{{ generalStats.overview.total_rounds }}</div>
                 </v-card>
               </v-col>
-              <v-col cols="12" md="3">
-                <v-card color="blue-grey-darken-4" theme="dark" class="pa-4 elevation-3">
+              <v-col cols="12" sm="6" lg="4">
+                <v-card color="blue-grey-darken-4" theme="dark" class="pa-4 elevation-3 h-100">
                   <div class="text-caption text-uppercase text-medium-emphasis font-weight-bold">Avg Round Length</div>
                   <div class="text-h4 mt-1 font-weight-bold">{{ formatTime(generalStats.overview.avg_round_length_s) }}</div>
                 </v-card>
               </v-col>
-              <v-col cols="12" md="3">
-                <v-card color="green-darken-4" theme="dark" class="pa-4 elevation-3">
+              <v-col cols="12" sm="6" lg="4">
+                <v-card color="green-darken-4" theme="dark" class="pa-4 elevation-3 h-100">
                   <div class="text-caption text-uppercase text-medium-emphasis font-weight-bold">Avg Reward / Match</div>
                   <div class="text-h4 mt-1 font-weight-bold text-success">${{ formatNumber(generalStats.overview.avg_reward_per_team) }}</div>
+                  <div class="text-caption text-medium-emphasis mt-2">Per team · positive payouts</div>
+                </v-card>
+              </v-col>
+              <v-col cols="12" sm="6" lg="4">
+                <v-card color="teal-darken-4" theme="dark" class="pa-4 elevation-3 h-100">
+                  <div class="text-caption text-uppercase text-medium-emphasis font-weight-bold">Avg Winner Reward / Match</div>
+                  <div class="text-h4 mt-1 font-weight-bold text-success">
+                    {{ generalStats.overview.winner_reward_count ? '$' + formatNumber(generalStats.overview.avg_winner_reward) : '—' }}
+                  </div>
+                  <div class="text-caption text-medium-emphasis mt-2">Per team · {{ generalStats.overview.winner_reward_count ?? 0 }} positive payouts</div>
+                </v-card>
+              </v-col>
+              <v-col cols="12" sm="6" lg="4">
+                <v-card color="blue-grey-darken-4" theme="dark" class="pa-4 elevation-3 h-100">
+                  <div class="text-caption text-uppercase text-medium-emphasis font-weight-bold">Avg Loser Reward / Match</div>
+                  <div class="text-h4 mt-1 font-weight-bold">
+                    {{ generalStats.overview.loser_reward_count ? '$' + formatNumber(generalStats.overview.avg_loser_reward) : '—' }}
+                  </div>
+                  <div class="text-caption text-medium-emphasis mt-2">Per team · {{ generalStats.overview.loser_reward_count ?? 0 }} positive payouts</div>
                 </v-card>
               </v-col>
             </v-row>
+            <div v-if="generalStats.overview.unclassified_reward_count" class="text-caption text-medium-emphasis mb-6">
+              {{ generalStats.overview.unclassified_reward_count }} positive payouts have no linked winner/loser result and appear only in the overall average.
+            </div>
 
             <v-row>
               <!-- Map Popularity -->

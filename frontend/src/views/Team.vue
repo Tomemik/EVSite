@@ -48,33 +48,73 @@
     </v-row>
 
     <v-card class="mb-6 elevation-2">
-      <v-card-title class="grey lighten-4 py-2">
-        <v-icon left color="primary">mdi-tank</v-icon> Current Tanks
-      </v-card-title>
-      <v-data-table
-        :headers="regularHeaders"
-        :items="regularTanks"
-        item-key="name"
-        dense
-        class="team-table elevation-0"
-        @click:row="handleRowClick"
-      >
-        <template v-slot:[`item.tier`]="{ item }">
-          <v-chip x-small color="blue-grey lighten-4" class="font-weight-bold">
-            {{ item.tier || 'N/A' }}
-          </v-chip>
-        </template>
-        <template v-slot:[`item.display_name`]="{ item }">
-          <span class="font-weight-medium">{{ item.display_name }}</span>
-        </template>
-      </v-data-table>
+      <!-- Tabs for switching between Owned Tanks and Manufacturer+ Roster -->
+      <v-tabs v-model="mainTab" background-color="grey lighten-4" color="primary">
+        <v-tab>
+          <v-icon left>mdi-tank</v-icon> Owned Tanks
+        </v-tab>
+        <v-tab>
+          <v-icon left>mdi-format-list-bulleted-type</v-icon> Manufacturer+ Roster
+        </v-tab>
+      </v-tabs>
+
       <v-divider></v-divider>
-      <v-card-actions v-if="isCommander" class="pa-3">
-        <!-- ADDED: Limit checks and visual counter for bulk sell -->
-        <v-btn color="error" text small @click="openSellTankDialog" :disabled="(team.weekly_sells_left ?? 2) <= 0">
-          <v-icon left small>mdi-delete</v-icon> Bulk Sell ({{ team.weekly_sells_left ?? 2 }} left)
-        </v-btn>
-      </v-card-actions>
+
+      <!-- TAB 1: OWNED TANKS (Uses Standard BR) -->
+      <div v-show="mainTab === 0">
+        <v-data-table
+          :headers="regularHeaders"
+          :items="regularTanks"
+          item-key="name"
+          dense
+          class="team-table elevation-0"
+          @click:row="handleRowClick"
+        >
+          <template v-slot:[`item.tier`]="{ item }">
+            <v-chip x-small color="blue-grey lighten-4" class="font-weight-bold">
+              {{ item.tier || 'N/A' }}
+            </v-chip>
+          </template>
+          <template v-slot:[`item.display_name`]="{ item }">
+            <span class="font-weight-medium">{{ item.display_name }}</span>
+          </template>
+        </v-data-table>
+        <v-divider></v-divider>
+        <v-card-actions v-if="isCommander" class="pa-3">
+          <v-btn color="error" text small @click="openSellTankDialog" :disabled="(team.weekly_sells_left ?? 2) <= 0">
+            <v-icon left small>mdi-delete</v-icon> Bulk Sell ({{ team.weekly_sells_left ?? 2 }} left)
+          </v-btn>
+        </v-card-actions>
+      </div>
+
+      <!-- TAB 2: MANUFACTURER+ ROSTER (Uses Advanced BR & Filters Disallowed) -->
+      <div v-show="mainTab === 1">
+        <v-data-table
+          :headers="manuPlusHeaders"
+          :items="manuPlusRoster"
+          item-key="name"
+          dense
+          class="team-table elevation-0"
+        >
+          <template v-slot:[`item.tier`]="{ item }">
+            <v-chip x-small color="blue-grey lighten-4" class="font-weight-bold">
+              {{ item.tier || 'N/A' }}
+            </v-chip>
+          </template>
+          <template v-slot:[`item.owned_status`]="{ item }">
+            <v-chip
+              x-small
+              :color="item.owned ? 'success' : 'grey lighten-1'"
+              :text-color="item.owned ? 'white' : 'darken-2'"
+              class="font-weight-bold"
+            >
+              <v-icon left x-small v-if="item.owned">mdi-check-circle</v-icon>
+              <v-icon left x-small v-else>mdi-minus-circle-outline</v-icon>
+              {{ item.owned ? `Owned (${item.quantity})` : 'Not Owned' }}
+            </v-chip>
+          </template>
+        </v-data-table>
+      </div>
     </v-card>
 
     <v-row>
@@ -152,6 +192,7 @@
       </v-col>
     </v-row>
 
+    <!-- Dialogs -->
     <v-dialog v-model="showTransferDialog" max-width="500px">
       <v-card>
         <v-card-title class="primary white--text">
@@ -437,7 +478,6 @@
         <v-divider></v-divider>
 
         <v-card-actions class="pa-4">
-          <!-- ADDED: Limit checks and visual counter for single sell -->
           <v-btn v-if="isCommander" color="error" text @click="sellTank" :disabled="(team.weekly_sells_left ?? 2) <= 0">
             <v-icon left>mdi-cash-minus</v-icon> Sell ({{ team.weekly_sells_left ?? 2 }} left)
           </v-btn>
@@ -471,7 +511,6 @@
             class="elevation-0"
           >
             <template v-slot:[`item.quantityToSell`]="{ item }">
-              <!-- ADDED: Max validation dynamic input based on weekly_sells_left -->
               <v-text-field
                 v-model.number="sellQuantities[item.name]"
                 :max="Math.min(item.quantity, team.weekly_sells_left ?? 2)"
@@ -606,6 +645,7 @@ export default {
     const userStore = useUserStore();
     return {
       csrfToken,
+      mainTab: 0,
       team: {
         name: '',
         balance: 0,
@@ -613,7 +653,8 @@ export default {
         tank_boxes: [],
         upgrade_kits: {},
         alliance_name: null,
-        weekly_sells_left: 2, // Added to prevent undefined errors before fetch completes
+        weekly_sells_left: 2,
+        manufacturer_plus_roster: [],
       },
       soldTanks: '',
       newBalance: 0,
@@ -639,6 +680,11 @@ export default {
         { title: 'Name', value: 'display_name' , sortable: true},
         { title: 'Battle Rating', value: 'tier', sortable: true },
         { title: 'Quantity', value: 'quantity', sortable: true }
+      ],
+      manuPlusHeaders: [
+        { title: 'Name', value: 'name', sortable: true },
+        { title: 'Battle Rating', value: 'tier', sortable: true },
+        { title: 'Status', value: 'owned_status', sortable: true }
       ],
       tradHeaders: [
         { title: '', value: 'available', width: '50px', sortable: true },
@@ -681,6 +727,32 @@ export default {
     };
   },
   computed: {
+    // Manufacturer+ Roster: Uses Advanced BR and filters out disallowed tanks
+    manuPlusRoster() {
+      if (!this.team.manufacturer_plus_roster) return [];
+
+      const ownedCounts = this.team.tanks.reduce((acc, tank) => {
+        if (!tank.is_trad) {
+          const name = tank.tank.name;
+          acc[name] = (acc[name] || 0) + 1;
+        }
+        return acc;
+      }, {});
+
+      return this.team.manufacturer_plus_roster
+        .filter(tank => tank.is_allowed_in_advanced !== false)
+        .map(tank => {
+          const br = tank.advanced_battle_rating > 0 ? tank.advanced_battle_rating : tank.battle_rating;
+
+          return {
+            name: tank.name,
+            rank: tank.rank,
+            tier: br.toFixed(1),
+            owned: !!ownedCounts[tank.name],
+            quantity: ownedCounts[tank.name] || 0,
+          };
+        }).sort((a, b) => parseFloat(a.tier) - parseFloat(b.tier) || a.name.localeCompare(b.name));
+    },
     nextKitTier() {
       if (!this.selectedKit) return '';
       return this.selectedKit.tier === 'T1' ? 'T2' : this.selectedKit.tier === 'T2' ? 'T3' : '';
@@ -699,6 +771,7 @@ export default {
       const prevKit = this.combinedItems.find(item => item.tier === prevTier);
       return prevKit ? prevKit.quantity : 0;
     },
+    // Owned Tanks: Strictly uses default standard battle rating
     regularTanks() {
       const tankCounts = this.team.tanks.reduce((acc, tank) => {
         const displayName = tank.from_auctions ? `${tank.tank.name}*` : tank.tank.name;
@@ -718,20 +791,26 @@ export default {
 
         if (!uniqueTanks.has(displayName)) {
           uniqueTanks.add(displayName);
+
+          // Uses standard BR for the main table
+          const br = tank.tank.battle_rating;
+          // Uses advanced_value for price calculation if present
+          const basePrice = tank.tank.advanced_value > 0 ? tank.tank.advanced_value : tank.tank.price;
+
           acc.push({
             id: tank.id,
             display_name: displayName,
             name: actualName,
             rank: tank.tank.rank,
-            tier: tank.tank.battle_rating.toFixed(1),
+            tier: br.toFixed(1),
             quantity: tankCounts[displayName],
-            sellPrice: (tank.value !== 0 ? tank.value * 0.6 : tank.tank.price * 0.6).toFixed(1),
+            sellPrice: (tank.value !== 0 ? tank.value * 0.6 : basePrice * 0.6).toFixed(1),
           });
         }
         return acc;
       }, []);
 
-      return reg_tanks.sort((a, b) => a.tier - b.tier);
+      return reg_tanks.sort((a, b) => parseFloat(a.tier) - parseFloat(b.tier));
     },
     tradTanks() {
       const tankCounts = this.team.tanks.reduce((acc, tank) => {
@@ -758,7 +837,7 @@ export default {
         return acc;
       }, []);
 
-      return trad_tanks.sort((a, b) => a.tier - b.tier);
+      return trad_tanks.sort((a, b) => parseFloat(a.tier) - parseFloat(b.tier));
     },
     inventoryBoxes() {
       return this.team.tank_boxes.map(box => ({
@@ -880,7 +959,6 @@ export default {
     }
   },
   methods: {
-    // ADDED: Prevent users from typing a number higher than they are allowed to sell total
     validateSellQuantity(item) {
       let val = this.sellQuantities[item.name] || 0;
       if (val < 0) val = 0;
@@ -970,7 +1048,6 @@ export default {
       }
     },
     async fetchPossibleDirectUpgrades(tank) {
-      console.log(tank.id)
       try {
         const response = await fetch(`/api/league/transactions/view_upgrades/direct/`, {
           method: 'GET',
@@ -1003,7 +1080,6 @@ export default {
     async sellTank() {
       if (!this.selectedTank) return;
 
-      // ADDED: Prevent frontend selling if limit reached
       if ((this.team.weekly_sells_left ?? 2) <= 0) {
         alert("Weekly limit reached. You cannot sell more tanks this week.");
         return;
@@ -1118,7 +1194,6 @@ export default {
         }));
       if (tanksToSell.length === 0) return;
 
-      // ADDED: Extra frontend guard preventing selling over limit
       const totalToSell = tanksToSell.reduce((acc, curr) => acc + curr.quantity, 0);
       if (totalToSell > (this.team.weekly_sells_left ?? 2)) {
         alert(`You can only sell ${this.team.weekly_sells_left ?? 2} more tanks this week.`);
@@ -1143,7 +1218,7 @@ export default {
         this.soldTanks = responseData.sold_tanks;
         this.newBalance = responseData.new_balance;
         await this.fetchTeamDetails();
-        this.showSellTankDialog = false; // Fixed issue where the wrong dialog was being closed
+        this.showSellTankDialog = false;
         this.showSuccessDialog = true;
       } catch (error) {}
     },
@@ -1152,7 +1227,6 @@ export default {
       const kitNumber = tierKits.reduce((total, item) => total + item.quantity, 0)
       return;
     },
-    // ... [Inventory Logic] ...
     handleInventoryClick(event, row) {
       if (row.item.name === 'Upgrade Kit') {
         this.selectedKit = row.item;
@@ -1193,7 +1267,6 @@ export default {
         this.conversionOutput = 0;
       } catch (error) {}
     },
-    // ... [Transfer Money Logic] ...
     calculatePostTax() {
       if (this.preTaxAmount === 0) { this.postTaxAmount = 0; return; }
       const amount = this.preTaxAmount;
